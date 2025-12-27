@@ -7,7 +7,7 @@
 ## Installation
 1. Installer aufrufen: `install/`
 2. Im Installer folgende Daten eingeben:
-   - Install-Passwort (wird einmalig gespeichert)
+   - Install-Passwort (wird automatisch erzeugt und einmalig angezeigt)
    - Datenbank-Zugangsdaten
    - Admin-Benutzer + Passwort
 3. Nach erfolgreicher Installation:
