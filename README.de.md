@@ -5,7 +5,7 @@
 - Relationale SQL-Datenbank (z.B. SQLite, MariaDB, PostgreSQL)
 
 ## Installation
-1. Installer aufrufen: `install.php`
+1. Installer aufrufen: `install/`
 2. Im Installer folgende Daten eingeben:
    - Install-Passwort (wird einmalig gespeichert)
    - Datenbank-Zugangsdaten
