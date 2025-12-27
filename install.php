@@ -91,7 +91,7 @@ $errors = [];
 $messages = [];
 $installPasswordHash = read_install_password_hash();
 $installReady = $installPasswordHash !== null;
-$installerUnlocked = (bool) ($_SESSION['install_unlocked'] ?? false);
+$installerUnlocked = false;
 $action = (string) ($_POST['action'] ?? '');
 $generatedPassword = null;
 
@@ -150,13 +150,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$errors) {
-            $_SESSION['install_unlocked'] = true;
             $installerUnlocked = true;
             $messages[] = 'Installer unlocked.';
         }
     } elseif ($action === 'install') {
-        if (!$installerUnlocked) {
-            $errors[] = 'Installer is locked. Enter install password first.';
+        if (!$installReady) {
+            $errors[] = 'Install password not initialized. Reload the installer.';
+        } elseif ($installPwInput === '') {
+            $errors[] = 'Install password is required.';
+        } elseif (!verify_install_password($installPwInput, $installPasswordHash ?? '')) {
+            $errors[] = 'Invalid install password.';
+        } else {
+            $installerUnlocked = true;
         }
 
         $dbDsn = build_db_dsn($dbType, $dbHost, $dbName, $dbPort, $dbPath);
@@ -459,7 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="notice success">Generated install password: <code><?php echo h($generatedPassword); ?></code></div>
                     <div class="hint">Copy it now. It is shown only once.</div>
                 <?php elseif ($installReady): ?>
-                    <div class="hint">If you lost the password, delete install/install.pw to generate a new one.</div>
+                    <div class="hint">If you lost the password, delete <code>install/install.pw</code> to generate a new one.</div>
                 <?php endif; ?>
                 <form method="post">
                     <?php echo csrf_input(); ?>
@@ -484,6 +489,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="hidden" name="action" value="install">
                     <div class="section">
                     <div class="grid">
+                        <div>
+                            <label for="install_pw_confirm">Install password</label>
+                            <input id="install_pw_confirm" name="install_pw" type="password" value="<?php echo h($installPwInput); ?>" required>
+                            <div class="hint">Required to confirm installation.</div>
+                        </div>
                         <div>
                             <label for="db_type">Database type</label>
                             <select id="db_type" name="db_type" required>
