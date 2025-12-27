@@ -1,0 +1,4 @@
+/data/*.sqlite
+/config/database.php
+/config/install.pw
+/install.lock
