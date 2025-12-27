@@ -7,7 +7,16 @@ function app_config(): array
     static $config = null;
 
     if ($config === null) {
-        $config = require __DIR__ . '/../config/config.php';
+        $configPath = __DIR__ . '/../config/config.php';
+        $examplePath = __DIR__ . '/../config/config.example.php';
+
+        if (is_file($configPath)) {
+            $config = require $configPath;
+        } elseif (is_file($examplePath)) {
+            $config = require $examplePath;
+        } else {
+            throw new RuntimeException('Missing configuration files.');
+        }
     }
 
     return $config;

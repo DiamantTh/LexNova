@@ -6,22 +6,25 @@ require_once __DIR__ . '/config.php';
 
 function install_lock_path(): string
 {
-    return app_root() . '/install.lock';
+    $config = app_config();
+    return $config['install']['lock'] ?? (app_root() . '/install/install.lock');
 }
 
-function database_config_path(): string
+function config_file_path(): string
 {
-    return app_root() . '/config/database.php';
+    $config = app_config();
+    return $config['install']['config_file'] ?? (app_root() . '/config/config.php');
 }
 
 function install_password_path(): string
 {
-    return app_root() . '/config/install.pw';
+    $config = app_config();
+    return $config['install']['password_file'] ?? (app_root() . '/install/install.pw');
 }
 
 function is_installed(): bool
 {
-    return is_install_locked() && is_file(database_config_path());
+    return is_install_locked() && is_file(config_file_path());
 }
 
 function is_install_locked(): bool

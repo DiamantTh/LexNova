@@ -11,9 +11,13 @@
    - Datenbank-Zugangsdaten
    - Admin-Benutzer + Passwort
 3. Nach erfolgreicher Installation:
-   - `install.lock` wird erstellt
-   - `config/database.php` enthaelt die DB-Konfiguration
-   - `config/install.pw` kann entfernt werden
+   - `install/install.lock` wird erstellt
+   - `config/config.php` enthaelt die Konfiguration
+   - `install/install.pw` kann entfernt werden
+
+## Konfiguration
+- Vorlage: `config/config.example.php`
+- Installiert: `config/config.php` (wird vom Installer erstellt)
 
 ## Nutzung
 - Oeffentlicher Einstieg: `index.php?hash=...&mode=imprint|privacy`

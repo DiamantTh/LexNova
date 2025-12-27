@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$databaseFile = __DIR__ . '/database.php';
+$configFile = __DIR__ . '/config.php';
 
 $db = [
     'dsn' => null,
@@ -16,22 +16,15 @@ $db = [
     ],
 ];
 
-if (is_file($databaseFile)) {
-    $dbConfig = require $databaseFile;
-    if (is_array($dbConfig)) {
-        $db = array_merge($db, $dbConfig);
-    }
-}
-
 return [
     'app' => [
         'base_url' => '',
     ],
     'db' => $db,
     'install' => [
-        'lock' => $root . '/install.lock',
-        'database_file' => $databaseFile,
-        'password_file' => __DIR__ . '/install.pw',
+        'lock' => $root . '/install/install.lock',
+        'password_file' => $root . '/install/install.pw',
+        'config_file' => $configFile,
     ],
     'session' => [
         'name' => 'lexnova_session',

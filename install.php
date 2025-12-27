@@ -44,6 +44,49 @@ function build_db_dsn(string $type, string $host, string $name, string $port, st
     return '';
 }
 
+function build_config_file_contents(string $dbDsn, ?string $dbUser, ?string $dbPassword): string
+{
+    $dsnValue = var_export($dbDsn, true);
+    $userValue = $dbUser !== null && $dbUser !== '' ? var_export($dbUser, true) : 'null';
+    $passwordValue = $dbPassword !== null && $dbPassword !== '' ? var_export($dbPassword, true) : 'null';
+
+    return <<<PHP
+<?php
+
+declare(strict_types=1);
+
+\$root = dirname(__DIR__);
+
+return [
+    'app' => [
+        'base_url' => '',
+    ],
+    'db' => [
+        'dsn' => {$dsnValue},
+        'user' => {$userValue},
+        'password' => {$passwordValue},
+        'options' => [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ],
+    ],
+    'install' => [
+        'lock' => \$root . '/install/install.lock',
+        'password_file' => \$root . '/install/install.pw',
+        'config_file' => __DIR__ . '/config.php',
+    ],
+    'session' => [
+        'name' => 'lexnova_session',
+        'secure' => false,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ],
+    'security' => require __DIR__ . '/security.php',
+];
+PHP;
+}
+
 $errors = [];
 $messages = [];
 $installPasswordHash = read_install_password_hash();
@@ -70,20 +113,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$installReady) {
         if ($installPwInput === '') {
             $errors[] = 'Install password is required.';
-        } elseif (is_file(install_password_path())) {
-            $errors[] = 'Install password file exists but could not be read. Remove config/install.pw and retry.';
         } else {
-            $config = app_config();
-            $security = $config['security']['password'];
-
-            $hash = password_hash($installPwInput, $security['algo'], $security['options']);
-            if ($hash === false) {
-                $errors[] = 'Failed to hash install password.';
-            } elseif (file_put_contents(install_password_path(), $hash . "\n", LOCK_EX) === false) {
-                $errors[] = 'Failed to write install password file.';
+            $installDir = dirname(install_password_path());
+            if (!is_dir($installDir) && !mkdir($installDir, 0755, true) && !is_dir($installDir)) {
+                $errors[] = 'Failed to create install directory.';
+            } elseif (is_file(install_password_path())) {
+                $errors[] = 'Install password file exists but could not be read. Remove install/install.pw and retry.';
             } else {
-                $installPasswordHash = $hash;
-                $installReady = true;
+                $config = app_config();
+                $security = $config['security']['password'];
+
+                $hash = password_hash($installPwInput, $security['algo'], $security['options']);
+                if ($hash === false) {
+                    $errors[] = 'Failed to hash install password.';
+                } elseif (file_put_contents(install_password_path(), $hash . "\n", LOCK_EX) === false) {
+                    $errors[] = 'Failed to write install password file.';
+                } else {
+                    $installPasswordHash = $hash;
+                    $installReady = true;
+                }
             }
         }
     }
@@ -113,8 +161,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Admin passwords do not match.';
         }
 
-        if (is_file(database_config_path())) {
-            $errors[] = 'Database configuration already exists. Remove config/database.php to reinstall.';
+        if (is_file(config_file_path())) {
+            $errors[] = 'Configuration already exists. Remove config/config.php to reinstall.';
         }
 
         if (!$errors) {
@@ -159,21 +207,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':created_at' => date('Y-m-d H:i:s'),
                 ]);
 
-                $databaseConfig = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export([
-                    'dsn' => $dbDsn,
-                    'user' => $dbUser !== '' ? $dbUser : null,
-                    'password' => $dbPassword !== '' ? $dbPassword : null,
-                ], true) . ";\n";
+                $installDir = dirname(install_password_path());
+                if (!is_dir($installDir) && !mkdir($installDir, 0755, true) && !is_dir($installDir)) {
+                    throw new RuntimeException('Failed to create install directory.');
+                }
 
-                if (file_put_contents(database_config_path(), $databaseConfig, LOCK_EX) === false) {
-                    throw new RuntimeException('Failed to write database configuration.');
+                $configDir = dirname(config_file_path());
+                if (!is_dir($configDir) && !mkdir($configDir, 0755, true) && !is_dir($configDir)) {
+                    throw new RuntimeException('Failed to create config directory.');
+                }
+
+                $databaseConfig = build_config_file_contents(
+                    $dbDsn,
+                    $dbUser !== '' ? $dbUser : null,
+                    $dbPassword !== '' ? $dbPassword : null
+                );
+
+                if (file_put_contents(config_file_path(), $databaseConfig, LOCK_EX) === false) {
+                    throw new RuntimeException('Failed to write configuration file.');
                 }
 
                 if (file_put_contents(install_lock_path(), 'installed ' . date('c') . "\n", LOCK_EX) === false) {
                     throw new RuntimeException('Failed to create install lock.');
                 }
 
-                $messages[] = 'Installation completed. Remove config/install.pw and proceed to admin.php.';
+                $messages[] = 'Installation completed. Remove install/install.pw and proceed to admin.php.';
             } catch (Throwable $e) {
                 $errors[] = 'Installation failed: ' . $e->getMessage();
             }
@@ -208,15 +266,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--text);
         }
         .wrap {
-            max-width: 1000px;
+            max-width: 960px;
             margin: 0 auto;
-            padding: 40px 20px 90px;
+            padding: 28px 16px 60px;
         }
         .hero {
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            margin-bottom: 24px;
+            gap: 6px;
+            margin-bottom: 16px;
         }
         .badge {
             display: inline-flex;
@@ -229,39 +287,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .layout {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
+            grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+            gap: 16px;
             align-items: start;
         }
         .card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 26px;
+            padding: 20px;
             box-shadow: var(--shadow);
         }
         h1 {
             margin: 0;
-            font-size: 32px;
+            font-size: 26px;
             letter-spacing: -0.02em;
         }
         h2 {
             margin: 0 0 12px;
-            font-size: 18px;
+            font-size: 16px;
         }
         label {
             display: block;
             font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             color: var(--text);
         }
         input,
         select {
             width: 100%;
-            padding: 12px 14px;
-            border-radius: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
             border: 1px solid var(--border);
-            font-size: 14px;
+            font-size: 13px;
             background: #fbfcff;
             color: var(--text);
         }
@@ -273,10 +331,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
+            gap: 12px;
         }
         .actions {
-            margin-top: 16px;
+            margin-top: 12px;
             display: flex;
             gap: 12px;
         }
@@ -284,8 +342,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: var(--accent);
             color: var(--accent-ink);
             border: none;
-            border-radius: 12px;
-            padding: 12px 18px;
+            border-radius: 10px;
+            padding: 10px 16px;
             cursor: pointer;
             font-weight: 600;
             letter-spacing: 0.01em;
@@ -295,9 +353,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: var(--text);
         }
         .notice {
-            padding: 10px 14px;
-            border-radius: 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
             margin-bottom: 12px;
+            font-size: 13px;
         }
         .notice.error {
             background: #fff1f0;
@@ -310,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #bfe8c9;
         }
         .hint {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--muted);
             margin-top: 6px;
         }
@@ -327,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .section {
             display: grid;
-            gap: 16px;
+            gap: 12px;
         }
         .full {
             grid-column: 1 / -1;
@@ -335,14 +394,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .divider {
             height: 1px;
             background: var(--border);
-            margin: 8px 0 0;
+            margin: 4px 0 0;
+        }
+        .field-group {
+            display: grid;
+            gap: 12px;
         }
         @media (max-width: 720px) {
-            h1 {
-                font-size: 26px;
-            }
             .wrap {
-                padding: 28px 16px 60px;
+                padding: 20px 14px 48px;
+            }
+            .layout {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -352,7 +415,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="hero">
         <span class="badge">LexNova Setup</span>
         <h1>Install LexNova</h1>
-        <div class="pill">Complete this once to unlock the admin panel.</div>
+        <div class="pill">One-time setup</div>
     </div>
 
     <div class="layout">
@@ -388,27 +451,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option value="pgsql" <?php echo $dbType === 'pgsql' ? 'selected' : ''; ?>>PostgreSQL</option>
                         </select>
                     </div>
-                    <div>
+                    <div class="server-only">
                         <label for="db_host">Database host</label>
                         <input id="db_host" name="db_host" value="<?php echo h($dbHost); ?>" placeholder="localhost">
                     </div>
-                    <div>
+                    <div class="server-only">
                         <label for="db_port">Database port</label>
                         <input id="db_port" name="db_port" value="<?php echo h($dbPort); ?>" placeholder="Optional">
                     </div>
-                    <div>
+                    <div class="server-only">
                         <label for="db_name">Database name</label>
                         <input id="db_name" name="db_name" value="<?php echo h($dbName); ?>" placeholder="lexnova">
                     </div>
-                    <div>
+                    <div class="sqlite-only">
                         <label for="db_path">Database file (SQLite)</label>
                         <input id="db_path" name="db_path" value="<?php echo h($dbPath); ?>" placeholder="<?php echo h($defaultSqlitePath); ?>">
                     </div>
-                    <div>
+                    <div class="server-only">
                         <label for="db_user">Database user</label>
                         <input id="db_user" name="db_user" value="<?php echo h($dbUser); ?>">
                     </div>
-                    <div>
+                    <div class="server-only">
                         <label for="db_password">Database password</label>
                         <input id="db_password" name="db_password" type="password" value="<?php echo h($dbPassword); ?>">
                     </div>
@@ -436,5 +499,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
+<script>
+    (function () {
+        const dbType = document.getElementById('db_type');
+        if (!dbType) {
+            return;
+        }
+        const sqliteFields = document.querySelectorAll('.sqlite-only');
+        const serverFields = document.querySelectorAll('.server-only');
+
+        function toggleDbFields() {
+            const isSqlite = dbType.value === 'sqlite';
+            sqliteFields.forEach((field) => {
+                field.style.display = isSqlite ? '' : 'none';
+            });
+            serverFields.forEach((field) => {
+                field.style.display = isSqlite ? 'none' : '';
+            });
+        }
+
+        dbType.addEventListener('change', toggleDbFields);
+        toggleDbFields();
+    })();
+</script>
 </body>
 </html>
