@@ -91,6 +91,8 @@ $errors = [];
 $messages = [];
 $installPasswordHash = read_install_password_hash();
 $installReady = $installPasswordHash !== null;
+$installerUnlocked = (bool) ($_SESSION['install_unlocked'] ?? false);
+$action = (string) ($_POST['action'] ?? '');
 
 $defaultSqlitePath = app_root() . '/data/lexnova.sqlite';
 $dbType = (string) ($_POST['db_type'] ?? 'sqlite');
@@ -110,10 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid session token.';
     }
 
-    if (!$installReady) {
+    if ($action === 'unlock') {
         if ($installPwInput === '') {
             $errors[] = 'Install password is required.';
-        } else {
+        } elseif (!$installReady) {
             $installDir = dirname(install_password_path());
             if (!is_dir($installDir) && !mkdir($installDir, 0755, true) && !is_dir($installDir)) {
                 $errors[] = 'Failed to create install directory.';
@@ -134,11 +136,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-    }
 
-    if ($installReady) {
-        if (!verify_install_password($installPwInput, $installPasswordHash)) {
+        if ($installReady && !verify_install_password($installPwInput, $installPasswordHash ?? '')) {
             $errors[] = 'Invalid install password.';
+        }
+
+        if (!$errors) {
+            $_SESSION['install_unlocked'] = true;
+            $installerUnlocked = true;
+            $messages[] = 'Installer unlocked.';
+        }
+    } elseif ($action === 'install') {
+        if (!$installerUnlocked) {
+            $errors[] = 'Installer is locked. Enter install password first.';
         }
 
         $dbDsn = build_db_dsn($dbType, $dbHost, $dbName, $dbPort, $dbPath);
@@ -428,75 +438,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="notice success"><?php echo h($message); ?></div>
             <?php endforeach; ?>
             <?php if (!$errors && !$messages): ?>
-                <div class="hint">Fill in the fields to continue.</div>
+                <div class="hint">
+                    <?php echo $installerUnlocked ? 'Fill in the fields to continue.' : 'Enter the install password to unlock the installer.'; ?>
+                </div>
             <?php endif; ?>
         </div>
 
-        <div class="card">
-            <h2>Install Details</h2>
-            <form method="post">
-                <?php echo csrf_input(); ?>
-                <div class="section">
-                <div class="grid">
-                    <div>
-                        <label for="install_pw">Install password</label>
-                        <input id="install_pw" name="install_pw" type="password" required>
-                        <div class="hint">Created once on first install.</div>
+        <?php if (!$installerUnlocked): ?>
+            <div class="card">
+                <h2>Unlock Installer</h2>
+                <form method="post">
+                    <?php echo csrf_input(); ?>
+                    <input type="hidden" name="action" value="unlock">
+                    <div class="section">
+                        <div>
+                            <label for="install_pw">Install password</label>
+                            <input id="install_pw" name="install_pw" type="password" required>
+                            <div class="hint">Set once on first access.</div>
+                        </div>
+                        <div class="actions">
+                            <button type="submit">Unlock</button>
+                        </div>
                     </div>
-                    <div>
-                        <label for="db_type">Database type</label>
-                        <select id="db_type" name="db_type" required>
-                            <option value="sqlite" <?php echo $dbType === 'sqlite' ? 'selected' : ''; ?>>SQLite</option>
-                            <option value="mysql" <?php echo $dbType === 'mysql' ? 'selected' : ''; ?>>MySQL / MariaDB</option>
-                            <option value="pgsql" <?php echo $dbType === 'pgsql' ? 'selected' : ''; ?>>PostgreSQL</option>
-                        </select>
-                    </div>
-                    <div class="server-only">
-                        <label for="db_host">Database host</label>
-                        <input id="db_host" name="db_host" value="<?php echo h($dbHost); ?>" placeholder="localhost">
-                    </div>
-                    <div class="server-only">
-                        <label for="db_port">Database port</label>
-                        <input id="db_port" name="db_port" value="<?php echo h($dbPort); ?>" placeholder="Optional">
-                    </div>
-                    <div class="server-only">
-                        <label for="db_name">Database name</label>
-                        <input id="db_name" name="db_name" value="<?php echo h($dbName); ?>" placeholder="lexnova">
-                    </div>
-                    <div class="sqlite-only">
-                        <label for="db_path">Database file (SQLite)</label>
-                        <input id="db_path" name="db_path" value="<?php echo h($dbPath); ?>" placeholder="<?php echo h($defaultSqlitePath); ?>">
-                    </div>
-                    <div class="server-only">
-                        <label for="db_user">Database user</label>
-                        <input id="db_user" name="db_user" value="<?php echo h($dbUser); ?>">
-                    </div>
-                    <div class="server-only">
-                        <label for="db_password">Database password</label>
-                        <input id="db_password" name="db_password" type="password" value="<?php echo h($dbPassword); ?>">
-                    </div>
-                </div>
-                    <div class="divider"></div>
+                </form>
+            </div>
+        <?php else: ?>
+            <div class="card">
+                <h2>Install Details</h2>
+                <form method="post">
+                    <?php echo csrf_input(); ?>
+                    <input type="hidden" name="action" value="install">
+                    <div class="section">
                     <div class="grid">
                         <div>
-                            <label for="admin_username">Admin username</label>
-                            <input id="admin_username" name="admin_username" value="<?php echo h($adminUsername); ?>" required>
+                            <label for="db_type">Database type</label>
+                            <select id="db_type" name="db_type" required>
+                                <option value="sqlite" <?php echo $dbType === 'sqlite' ? 'selected' : ''; ?>>SQLite</option>
+                                <option value="mysql" <?php echo $dbType === 'mysql' ? 'selected' : ''; ?>>MySQL / MariaDB</option>
+                                <option value="pgsql" <?php echo $dbType === 'pgsql' ? 'selected' : ''; ?>>PostgreSQL</option>
+                            </select>
                         </div>
-                        <div>
-                            <label for="admin_password">Admin password</label>
-                            <input id="admin_password" name="admin_password" type="password" required>
+                        <div class="server-only">
+                            <label for="db_host">Database host</label>
+                            <input id="db_host" name="db_host" value="<?php echo h($dbHost); ?>" placeholder="localhost">
                         </div>
-                        <div>
-                            <label for="admin_password_confirm">Confirm password</label>
-                            <input id="admin_password_confirm" name="admin_password_confirm" type="password" required>
+                        <div class="server-only">
+                            <label for="db_port">Database port</label>
+                            <input id="db_port" name="db_port" value="<?php echo h($dbPort); ?>" placeholder="Optional">
+                        </div>
+                        <div class="server-only">
+                            <label for="db_name">Database name</label>
+                            <input id="db_name" name="db_name" value="<?php echo h($dbName); ?>" placeholder="lexnova">
+                        </div>
+                        <div class="sqlite-only">
+                            <label for="db_path">Database file (SQLite)</label>
+                            <input id="db_path" name="db_path" value="<?php echo h($dbPath); ?>" placeholder="<?php echo h($defaultSqlitePath); ?>">
+                        </div>
+                        <div class="server-only">
+                            <label for="db_user">Database user</label>
+                            <input id="db_user" name="db_user" value="<?php echo h($dbUser); ?>">
+                        </div>
+                        <div class="server-only">
+                            <label for="db_password">Database password</label>
+                            <input id="db_password" name="db_password" type="password" value="<?php echo h($dbPassword); ?>">
                         </div>
                     </div>
-                    <div class="actions">
-                        <button type="submit">Install LexNova</button>
+                        <div class="divider"></div>
+                        <div class="grid">
+                            <div>
+                                <label for="admin_username">Admin username</label>
+                                <input id="admin_username" name="admin_username" value="<?php echo h($adminUsername); ?>" required>
+                            </div>
+                            <div>
+                                <label for="admin_password">Admin password</label>
+                                <input id="admin_password" name="admin_password" type="password" required>
+                            </div>
+                            <div>
+                                <label for="admin_password_confirm">Confirm password</label>
+                                <input id="admin_password_confirm" name="admin_password_confirm" type="password" required>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button type="submit">Install LexNova</button>
+                        </div>
                     </div>
-                </div>
-            </form>
-        </div>
+                </form>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 <script>
