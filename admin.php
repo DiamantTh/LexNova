@@ -5,7 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/src/install.php';
 
 if (!is_installed()) {
-    header('Location: install.php');
+    header('Location: install/');
     exit;
 }
 
