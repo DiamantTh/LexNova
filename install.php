@@ -93,6 +93,34 @@ $installPasswordHash = read_install_password_hash();
 $installReady = $installPasswordHash !== null;
 $installerUnlocked = (bool) ($_SESSION['install_unlocked'] ?? false);
 $action = (string) ($_POST['action'] ?? '');
+$generatedPassword = null;
+
+if (!$installReady) {
+    $passwordPath = install_password_path();
+    if (is_file($passwordPath)) {
+        $errors[] = 'Install password file exists but could not be read. Remove install/install.pw and retry.';
+    } else {
+        $installDir = dirname($passwordPath);
+        if (!is_dir($installDir) && !mkdir($installDir, 0755, true) && !is_dir($installDir)) {
+            $errors[] = 'Failed to create install directory.';
+        } else {
+            $config = app_config();
+            $security = $config['security']['password'];
+            $generatedPassword = bin2hex(random_bytes(8));
+            $hash = password_hash($generatedPassword, $security['algo'], $security['options']);
+            if ($hash === false) {
+                $errors[] = 'Failed to hash install password.';
+                $generatedPassword = null;
+            } elseif (file_put_contents($passwordPath, $hash . "\n", LOCK_EX) === false) {
+                $errors[] = 'Failed to write install password file.';
+                $generatedPassword = null;
+            } else {
+                $installPasswordHash = $hash;
+                $installReady = true;
+            }
+        }
+    }
+}
 
 $defaultSqlitePath = app_root() . '/data/lexnova.sqlite';
 $dbType = (string) ($_POST['db_type'] ?? 'sqlite');
@@ -113,31 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'unlock') {
-        if ($installPwInput === '') {
+        if (!$installReady) {
+            $errors[] = 'Install password not initialized. Reload the installer.';
+        } elseif ($installPwInput === '') {
             $errors[] = 'Install password is required.';
-        } elseif (!$installReady) {
-            $installDir = dirname(install_password_path());
-            if (!is_dir($installDir) && !mkdir($installDir, 0755, true) && !is_dir($installDir)) {
-                $errors[] = 'Failed to create install directory.';
-            } elseif (is_file(install_password_path())) {
-                $errors[] = 'Install password file exists but could not be read. Remove install/install.pw and retry.';
-            } else {
-                $config = app_config();
-                $security = $config['security']['password'];
-
-                $hash = password_hash($installPwInput, $security['algo'], $security['options']);
-                if ($hash === false) {
-                    $errors[] = 'Failed to hash install password.';
-                } elseif (file_put_contents(install_password_path(), $hash . "\n", LOCK_EX) === false) {
-                    $errors[] = 'Failed to write install password file.';
-                } else {
-                    $installPasswordHash = $hash;
-                    $installReady = true;
-                }
-            }
-        }
-
-        if ($installReady && !verify_install_password($installPwInput, $installPasswordHash ?? '')) {
+        } elseif (!verify_install_password($installPwInput, $installPasswordHash ?? '')) {
             $errors[] = 'Invalid install password.';
         }
 
@@ -447,15 +455,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if (!$installerUnlocked): ?>
             <div class="card">
                 <h2>Unlock Installer</h2>
+                <?php if ($generatedPassword): ?>
+                    <div class="notice success">Generated install password: <code><?php echo h($generatedPassword); ?></code></div>
+                    <div class="hint">Copy it now. It is shown only once.</div>
+                <?php elseif ($installReady): ?>
+                    <div class="hint">If you lost the password, delete install/install.pw to generate a new one.</div>
+                <?php endif; ?>
                 <form method="post">
                     <?php echo csrf_input(); ?>
                     <input type="hidden" name="action" value="unlock">
                     <div class="section">
                         <div>
-                            <label for="install_pw">Install password</label>
-                            <input id="install_pw" name="install_pw" type="password" required>
-                            <div class="hint">Set once on first access.</div>
-                        </div>
+                        <label for="install_pw">Install password</label>
+                        <input id="install_pw" name="install_pw" type="password" required>
+                        <div class="hint">Enter the generated password.</div>
+                    </div>
                         <div class="actions">
                             <button type="submit">Unlock</button>
                         </div>
