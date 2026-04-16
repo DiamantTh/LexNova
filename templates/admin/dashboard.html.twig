@@ -223,64 +223,85 @@
 
     const ASCII_RE = /^[\x20-\x7E]+$/;
 
-    function generateRandom(n) {
-        const chars = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
-        const a = new Uint8Array(n * 2);
-        crypto.getRandomValues(a);
-        let s = '';
-        for (let i = 0; i < a.length && s.length < n; i++) {
-            if (a[i] < chars.length) s += chars[a[i]];
+    // ── EFF Large Wordlist (lazy-loaded on first passphrase request) ──────────
+    let effWords = null;
+
+    async function loadEffWordlist() {
+        if (effWords !== null) return effWords;
+        const r = await fetch('/assets/eff_wordlist.json');
+        effWords = await r.json();   // 7776 words
+        return effWords;
+    }
+
+    /** Diceware: pick wordCount words from the EFF Large Wordlist via CSPRNG. */
+    async function generatePassphrase(wordCount = 6) {
+        const words = await loadEffWordlist();
+        const buf   = new Uint32Array(wordCount);
+        crypto.getRandomValues(buf);
+        // Each word drawn from 7776 entries → ~12.9 bits/word
+        return Array.from(buf, v => words[v % words.length]).join('-');
+    }
+
+    /**
+     * Random password generator following the Dropbox/zxcvbn standard.
+     *
+     * pools: lower(26) + upper(26) + digits(10) + symbols(32) = 94 chars
+     * 20 chars → log2(94^20) ≈ 131 bits — always zxcvbn score 4.
+     *
+     * Algorithm mirrors the PHP RandomPasswordGenerator:
+     *  1. Guarantee ≥1 char from each required pool.
+     *  2. Fill the rest from the full charset.
+     *  3. Cryptographically secure Fisher-Yates shuffle.
+     */
+    function generateRandom(length = 20) {
+        const lower   = 'abcdefghijklmnopqrstuvwxyz';
+        const upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const digits  = '0123456789';
+        const symbols = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
+        const charset = lower + upper + digits + symbols;  // 94 chars
+
+        const required = [lower, upper, digits, symbols];
+
+        // Rejection-sampling helper: draw one unbiased index in [0, len)
+        function randomIndex(len) {
+            const max     = Math.floor(0x100000000 / len) * len;
+            const buf     = new Uint32Array(1);
+            let   val;
+            do { crypto.getRandomValues(buf); val = buf[0]; } while (val >= max);
+            return val % len;
         }
-        while (s.length < n) s += chars[Math.floor(Math.random() * chars.length)];
-        return s.slice(0, n);
+
+        const chars = [];
+
+        // One mandatory char per required pool
+        for (const pool of required) {
+            chars.push(pool[randomIndex(pool.length)]);
+        }
+
+        // Fill remaining positions from full charset
+        while (chars.length < length) {
+            chars.push(charset[randomIndex(charset.length)]);
+        }
+
+        // Fisher-Yates shuffle (CSPRNG)
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = randomIndex(i + 1);
+            [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+
+        return chars.join('');
     }
 
-    const WORDS = ["ability","absence","abstract","access","account","acid","action","active","actor","adapt",
-        "add","adult","advance","advice","affect","afford","afraid","after","again","age","agree","ahead",
-        "alarm","album","alert","alien","align","allow","alone","along","alter","amber","ample","anchor",
-        "angel","angle","angry","anime","ankle","annex","apart","apple","apply","arena","argue","arise",
-        "armor","array","arrow","asset","atlas","audio","audit","avoid","awake","badge","basic","batch",
-        "beach","begin","below","bench","bland","blank","blast","blend","block","bloom","blown","blunt",
-        "board","bonus","boost","bound","brain","brave","bravo","break","breed","brief","bring","broad",
-        "brook","brush","build","built","burst","cabin","cable","cache","candy","cargo","carry","carve",
-        "catch","cause","chain","chair","chalk","cheap","check","chess","chief","child","chill","china",
-        "chunk","civic","claim","clash","class","clean","clear","cliff","clock","clone","close","cloth",
-        "cloud","coach","coast","cobra","combo","comic","corgi","craft","crane","crash","crazy","crisp",
-        "cross","crowd","crown","crush","curve","cycle","daily","dance","delta","depth","digit","disco",
-        "diver","dodge","doing","donor","doubt","draft","drama","drank","drift","drive","drove","dunno",
-        "eager","early","earth","eight","elite","email","empty","ended","enjoy","enter","entry","epoch",
-        "equal","error","essay","event","evoke","exact","extra","fable","facet","faith","false","fancy",
-        "feast","fence","fetch","field","fifth","fifty","final","first","fixed","flame","flash","fleet",
-        "flesh","float","flood","floor","focus","force","forge","forum","found","frame","frank","fresh",
-        "front","frost","froze","fully","funky","funny","fuzzy","gamma","gauge","gecko","ghost","giant",
-        "given","glyph","grace","grade","grain","grasp","grave","great","green","greet","grief","grind",
-        "groan","group","grove","grown","guess","guild","guile","gusto","habit","happy","harsh","heart",
-        "heavy","hello","hence","hinge","hippo","holdr","honor","horse","hotel","house","human","hurry",
-        "ideal","image","imply","inbox","index","indie","infer","inner","input","intel","inter","intro",
-        "islet","ivory","jewel","joint","joker","joust","judge","juice","jumbo","karma","kazoo","keeps",
-        "knack","knock","known","label","lance","large","laser","later","launch","layer","lease","leave",
-        "legal","level","light","lingo","lithe","local","lodge","logic","loose","magic","major","maker",
-        "maple","match","maxim","maybe","media","merge","micro","model","monad","money","month","moral",
-        "motto","mount","mouse","movie","music","naive","nerve","never","newly","noble","noise","nonce",
-        "north","noted","novel","nurse","occur","ocean","offer","olive","onset","optic","orbit","order",
-        "other","outer","oxide","paint","panel","paper","party","pasta","pause","peach","pearl","penny",
-        "phase","phone","photo","piano","pilot","pixel","pizza","plane","plant","plaza","pluck","point",
-        "polar","polyp","power","press","price","pride","prime","prism","probe","prose","proxy","pulse"];
-
-    function generatePassphrase(n) {
-        const a = new Uint32Array(n);
-        crypto.getRandomValues(a);
-        return Array.from(a).map(v => WORDS[v % WORDS.length]).join('-');
-    }
+    // ── Password strength widget ─────────────────────────────────────────────
 
     function initPasswordField(input) {
         const wrap = document.createElement('div');
         input.parentNode.insertBefore(wrap, input);
         wrap.appendChild(input);
 
-        const bar   = document.createElement('div');
+        const bar  = document.createElement('div');
         bar.className = 'pw-strength-bar';
-        const fill  = document.createElement('div');
+        const fill = document.createElement('div');
         fill.className = 'pw-strength-fill';
         bar.appendChild(fill);
         wrap.appendChild(bar);
@@ -292,30 +313,58 @@
         const genRow = document.createElement('div');
         genRow.className = 'pw-gen-row';
 
-        const btnRnd  = document.createElement('button');
-        btnRnd.type   = 'button';
-        btnRnd.textContent = '⚡ Random password';
-        btnRnd.addEventListener('click', () => { input.value = generateRandom(20); input.dispatchEvent(new Event('input')); });
+        // Random button
+        const btnRnd = document.createElement('button');
+        btnRnd.type  = 'button';
+        btnRnd.textContent = '⚡ Random (131 bit)';
+        btnRnd.title = 'CSPRNG, 94 printable ASCII chars, 20 chars → ~131 bits';
+        btnRnd.addEventListener('click', () => {
+            input.value = generateRandom(20);
+            input.dispatchEvent(new Event('input'));
+        });
 
+        // Passphrase button
         const btnPass = document.createElement('button');
         btnPass.type  = 'button';
-        btnPass.textContent = '📖 Passphrase';
-        btnPass.addEventListener('click', () => { input.value = generatePassphrase(5); input.dispatchEvent(new Event('input')); });
+        btnPass.textContent = '📖 Diceware (78 bit)';
+        btnPass.title = 'EFF Large Wordlist, 6 words → ~77.5 bits';
+        btnPass.addEventListener('click', async () => {
+            btnPass.disabled = true;
+            try {
+                input.value = await generatePassphrase(6);
+                input.dispatchEvent(new Event('input'));
+            } finally {
+                btnPass.disabled = false;
+            }
+        });
 
         genRow.appendChild(btnRnd);
         genRow.appendChild(btnPass);
         wrap.appendChild(genRow);
 
+        // zxcvbn strength meter
         input.addEventListener('input', () => {
             const val = input.value;
-            if (!val) { fill.className = 'pw-strength-fill'; fill.style.cssText = ''; fb.textContent = ''; return; }
+            if (!val) {
+                fill.className = 'pw-strength-fill';
+                fill.style.cssText = '';
+                fb.textContent = '';
+                return;
+            }
 
-            if (!ASCII_RE.test(val)) { fill.className = 'pw-strength-fill pw-score-0'; fb.textContent = 'Password contains non-printable or non-ASCII characters.'; return; }
+            if (!ASCII_RE.test(val)) {
+                fill.className = 'pw-strength-fill pw-score-0';
+                fb.textContent = 'Password contains non-printable or non-ASCII characters.';
+                return;
+            }
 
             if (typeof zxcvbn !== 'undefined') {
                 const r = zxcvbn(val);
                 fill.className = 'pw-strength-fill pw-score-' + r.score;
-                fb.textContent = [r.feedback.warning, ...(r.feedback.suggestions || [])].filter(Boolean).join(' ') || ['Very weak','Weak','Fair','Good','Strong'][r.score];
+                fb.textContent = [
+                    r.feedback.warning,
+                    ...(r.feedback.suggestions ?? []),
+                ].filter(Boolean).join(' ') || ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][r.score];
             }
         });
     }
@@ -324,3 +373,4 @@
 })();
 </script>
 {% endblock %}
+
