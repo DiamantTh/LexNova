@@ -136,7 +136,10 @@ $builder->addDefinitions([
 
     // ── Twig extensions ──────────────────────────────────────────────────────
     EmailExtension::class => fn(ContainerInterface $c) =>
-        new EmailExtension($c->get(ClockInterface::class)),
+        new EmailExtension(
+            $c->get(ClockInterface::class),
+            (array) ($c->get('config')['security']['email_subject'] ?? []),
+        ),
 
     // ── Application services ────────────────────────────────────────────────
     PasswordService::class => fn(ContainerInterface $c) =>

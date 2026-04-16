@@ -20,13 +20,26 @@ use Twig\TwigFilter;
  *   {{ email | mailto(domain, raw=false) }}
  *       Gibt einen vollständigen <a href="mailto:…">…</a>-Link zurück.
  *       - Adresse im href UND im Label werden über obfuscate() kodiert.
- *       - Subject: "[domain]/YYYY-M-D/HH:MM TZ"  (analog zum WP-Snippet)
+ *       - Subject-Format ist über security.email_subject konfigurierbar.
  *       - domain: optional; wird aus dem Request-Host ermittelt wenn leer.
+ *
+ * Formate (security.email_subject.format):
+ *   domain_datetime_tz  →  [example.com]/2026-4-17/00:19 CEST   (Standard)
+ *   domain_date         →  [example.com] 2026-04-17
+ *   domain_only         →  [example.com]
+ *   custom              →  security.email_subject.custom_pattern als PHP-date()-Format
  */
 final class EmailExtension extends AbstractExtension
 {
+    /** @param array{format:string,date_format:string,strip_www:bool,custom_pattern:string} $subjectConfig */
     public function __construct(
         private readonly ClockInterface $clock,
+        private readonly array $subjectConfig = [
+            'format'         => 'domain_datetime_tz',
+            'date_format'    => 'Y-n-j/H:i',
+            'strip_www'      => true,
+            'custom_pattern' => '',
+        ],
     ) {}
 
     #[\Override]
@@ -76,23 +89,22 @@ final class EmailExtension extends AbstractExtension
 
     /**
      * Erzeugt <a href="mailto:ENCODED?subject=…">ENCODED</a>.
-     * Subject-Format: [domain]/YYYY-M-D/HH:MM TZ
+     * Das Subject-Format hängt von security.email_subject.format ab.
      */
     public function mailto(string $email, string $domain = '', bool $raw = false): string
     {
-        $now     = $this->clock->now();
-        $tz      = $now->getTimezone()->getName();
-        // Verwende kurze TZ-Abkürzung wenn möglich (z. B. "CEST"), sonst Offset
-        $abbr    = $now->format('T');
-        $ts      = $now->format('Y-n-j/H:i');
-
         if ($domain === '') {
             $domain = 'unknown';
         }
-        // www. entfernen wie im WP-Snippet
-        $domain = (string) preg_replace('/^www\./i', '', strtolower($domain));
 
-        $subject = "[{$domain}]/{$ts} {$abbr}";
+        $stripWww = (bool) ($this->subjectConfig['strip_www'] ?? true);
+        if ($stripWww) {
+            $domain = (string) preg_replace('/^www\./i', '', strtolower($domain));
+        } else {
+            $domain = strtolower($domain);
+        }
+
+        $subject = $this->buildSubject($domain);
 
         // href: mailto:raw-email?subject=encoded-subject
         $href = 'mailto:' . rawurlencode($email)
@@ -103,5 +115,27 @@ final class EmailExtension extends AbstractExtension
                               : $this->obfuscate($email);
 
         return '<a href="' . $encodedHref . '">' . $encodedLabel . '</a>';
+    }
+
+    /**
+     * Baut den mailto-Subject-String nach security.email_subject.format:
+     *   domain_datetime_tz  →  [example.com]/2026-4-17/00:19 CEST
+     *   domain_date         →  [example.com] 2026-04-17
+     *   domain_only         →  [example.com]
+     *   custom              →  custom_pattern als PHP-date()-Format
+     */
+    private function buildSubject(string $domain): string
+    {
+        $now    = $this->clock->now();
+        $format = (string) ($this->subjectConfig['format'] ?? 'domain_datetime_tz');
+
+        return match ($format) {
+            'domain_date'   => "[{$domain}] " . $now->format('Y-m-d'),
+            'domain_only'   => "[{$domain}]",
+            'custom'        => $now->format((string) ($this->subjectConfig['custom_pattern'] ?? 'Y-m-d')),
+            default         => "[{$domain}]/" . $now->format(
+                                    (string) ($this->subjectConfig['date_format'] ?? 'Y-n-j/H:i')
+                               ) . ' ' . $now->format('T'),
+        };
     }
 }
