@@ -175,6 +175,23 @@ $builder->addDefinitions([
             $c->get(ResponseFactoryInterface::class)
         ),
 
+    // ── Console commands ─────────────────────────────────────────────────────
+    \LexNova\Console\UserCreateCommand::class => fn(ContainerInterface $c) =>
+        new \LexNova\Console\UserCreateCommand(
+            $c->get(UserService::class),
+            $c->get(PasswordService::class),
+            $c->get(DicewareGenerator::class),
+            $c->get(RandomPasswordGenerator::class),
+        ),
+
+    \LexNova\Console\UserSetPasswordCommand::class => fn(ContainerInterface $c) =>
+        new \LexNova\Console\UserSetPasswordCommand(
+            $c->get(UserService::class),
+            $c->get(PasswordService::class),
+            $c->get(DicewareGenerator::class),
+            $c->get(RandomPasswordGenerator::class),
+        ),
+
 ]);
 
 return $builder->build();
