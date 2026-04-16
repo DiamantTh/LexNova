@@ -13,6 +13,7 @@ use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\InstallService;
 use LexNova\Service\Password\DicewareGenerator;
+use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Mezzio\Application;
@@ -132,6 +133,13 @@ $builder->addDefinitions([
         wordCount:    (int) ($c->get('config')['security']['generator']['diceware']['word_count'] ?? 6),
         separator:    (string) ($c->get('config')['security']['generator']['diceware']['separator'] ?? '-'),
         wordlistPath: $root . '/resources/eff_large_wordlist.php',
+    ),
+
+    RandomPasswordGenerator::class => fn(ContainerInterface $c) => new RandomPasswordGenerator(
+        length:          (int)  ($c->get('config')['security']['generator']['random']['length'] ?? 20),
+        requireUpper:    (bool) ($c->get('config')['security']['generator']['random']['require_upper'] ?? true),
+        requireDigits:   (bool) ($c->get('config')['security']['generator']['random']['require_digits'] ?? true),
+        requireSymbols:  (bool) ($c->get('config')['security']['generator']['random']['require_symbols'] ?? true),
     ),
 
     UserService::class => fn(ContainerInterface $c) =>

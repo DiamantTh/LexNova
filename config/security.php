@@ -37,5 +37,17 @@ return [
             'word_count' => 6,
             'separator'  => '-',
         ],
+        /*
+         * random.length          : password length (20 → ~131 bits with all pools)
+         * random.require_upper   : enforce at least one uppercase letter
+         * random.require_digits  : enforce at least one digit
+         * random.require_symbols : enforce at least one printable symbol
+         */
+        'random' => [
+            'length'          => 20,
+            'require_upper'   => true,
+            'require_digits'  => true,
+            'require_symbols' => true,
+        ],
     ],
 ];
