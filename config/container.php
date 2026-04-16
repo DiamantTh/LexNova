@@ -7,8 +7,11 @@ use Doctrine\DBAL\Connection;
 use Laminas\HttpHandlerRunner\RequestHandlerRunner;
 use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
+use LexNova\Clock\SystemClock;
 use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
+use LexNova\Twig\EmailExtension;
+use Psr\Clock\ClockInterface;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\InstallService;
@@ -59,6 +62,9 @@ $config['twig'] = [
     'auto_reload' => true,
     'timezone'    => 'UTC',
     'globals'     => [],
+    'extensions'  => [
+        EmailExtension::class,
+    ],
 ];
 
 $builder = new ContainerBuilder();
@@ -123,6 +129,14 @@ $builder->addDefinitions([
 
     LoggerInterface::class => fn(ContainerInterface $c) =>
         (new LoggerFactory())($c),
+
+    // ── Clock ────────────────────────────────────────────────────────────────
+    ClockInterface::class => fn() =>
+        new SystemClock(),
+
+    // ── Twig extensions ──────────────────────────────────────────────────────
+    EmailExtension::class => fn(ContainerInterface $c) =>
+        new EmailExtension($c->get(ClockInterface::class)),
 
     // ── Application services ────────────────────────────────────────────────
     PasswordService::class => fn(ContainerInterface $c) =>

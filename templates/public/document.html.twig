@@ -29,9 +29,9 @@
         {% else %}
             <div class="meta">Entity: {{ entity.name }} · <code>{{ entity.hash }}</code></div>
             <div class="section-title">Contact</div>
-            <div class="content">{{ entity.contact_data }}</div>
+            <div class="content">{{ entity.contact_data | obfuscate }}</div>
             <div class="section-title">Document</div>
-            <div class="content">{{ doc.content }}</div>
+            <div class="content">{{ doc.content | obfuscate }}</div>
             <div class="meta">Version {{ doc.version }} · Updated {{ doc.updated_at }}</div>
         {% endif %}
     </div>
