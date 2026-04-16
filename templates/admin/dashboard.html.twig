@@ -1,0 +1,326 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Admin · LexNova{% endblock %}
+
+{% block body %}
+<header>
+    <h1>LexNova Admin</h1>
+    <form method="post" action="/admin/logout">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <button type="submit" class="secondary">Logout</button>
+    </form>
+</header>
+
+{# ── Flash messages ────────────────────────────────────────────────────── #}
+{% for msg in errors %}
+<div class="notice error">{{ msg }}</div>
+{% endfor %}
+{% for msg in messages %}
+<div class="notice success">{{ msg }}</div>
+{% endfor %}
+
+{# ── Create user ────────────────────────────────────────────────────────── #}
+<div class="card">
+    <h2>Create User</h2>
+    <form method="post" action="/admin/users/create">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <div class="grid">
+            <div>
+                <label for="new_username">Username</label>
+                <input type="text" id="new_username" name="username" autocomplete="off" required>
+            </div>
+            <div>
+                <label for="new_role">Role</label>
+                <select id="new_role" name="role">
+                    <option value="admin">admin</option>
+                </select>
+            </div>
+            <div>
+                <label for="new_password">Password</label>
+                <input type="password" id="new_password" name="password" class="pw-field"
+                       minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
+                <p class="hint">Min {{ pw_min }} chars, max {{ pw_max }}, printable ASCII only.</p>
+            </div>
+            <div>
+                <label for="new_password_confirm">Confirm password</label>
+                <input type="password" id="new_password_confirm" name="password_confirm" class="pw-field"
+                       minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
+            </div>
+        </div>
+        <div class="actions">
+            <button type="submit">Create User</button>
+        </div>
+    </form>
+</div>
+
+{# ── Users table ────────────────────────────────────────────────────────── #}
+<div class="card">
+    <h2>Users</h2>
+    {% if users is empty %}
+        <p>No users yet.</p>
+    {% else %}
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username }}</td>
+            <td>
+                <form method="post" action="/admin/users/{{ user.id }}/update" style="display:inline;">
+                    <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                    <select name="role" style="width:auto;">
+                        <option value="admin"{{ user.role == 'admin' ? ' selected' : '' }}>admin</option>
+                    </select>
+                    <input type="password" name="new_password" class="pw-field" placeholder="New password (optional)"
+                           minlength="{{ pw_min }}" maxlength="{{ pw_max }}" autocomplete="new-password"
+                           style="width:200px;">
+                    <button type="submit" class="secondary" style="padding:6px 12px;font-size:13px;">Update</button>
+                </form>
+            </td>
+            <td>{{ user.created_at }}</td>
+            <td></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+{# ── Create entity ───────────────────────────────────────────────────────── #}
+<div class="card">
+    <h2>Create Legal Entity</h2>
+    <form method="post" action="/admin/entities/create">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <div class="grid">
+            <div>
+                <label for="entity_name">Name</label>
+                <input type="text" id="entity_name" name="name" required>
+            </div>
+            <div>
+                <label for="entity_contact">Contact Data</label>
+                <textarea id="entity_contact" name="contact_data" style="min-height:80px;" required></textarea>
+            </div>
+        </div>
+        <div class="actions">
+            <button type="submit">Create Entity</button>
+        </div>
+    </form>
+</div>
+
+{# ── Entities table ─────────────────────────────────────────────────────── #}
+<div class="card">
+    <h2>Legal Entities</h2>
+    {% if entities is empty %}
+        <p>No entities yet.</p>
+    {% else %}
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Hash</th><th>Name</th></tr>
+        </thead>
+        <tbody>
+        {% for entity in entities %}
+        <tr>
+            <td>{{ entity.id }}</td>
+            <td><code>{{ entity.hash }}</code></td>
+            <td>{{ entity.name }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+{# ── Create / Edit document ─────────────────────────────────────────────── #}
+<div class="card">
+    {% if editDoc %}
+        <h2>Edit Document #{{ editDoc.id }}</h2>
+        <form method="post" action="/admin/documents/{{ editDoc.id }}/edit">
+    {% else %}
+        <h2>Create Document</h2>
+        <form method="post" action="/admin/documents/create">
+    {% endif %}
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <div class="grid">
+            <div>
+                <label for="doc_entity">Entity</label>
+                <select id="doc_entity" name="entity_id" required>
+                    <option value="">— select —</option>
+                    {% for entity in entities %}
+                    <option value="{{ entity.id }}"
+                        {{ editDoc and editDoc.entity_id == entity.id ? 'selected' : '' }}>
+                        {{ entity.name }} ({{ entity.hash|slice(0,8) }}…)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="doc_type">Type</label>
+                <select id="doc_type" name="type" required>
+                    <option value="imprint" {{ editDoc and editDoc.type == 'imprint' ? 'selected' : '' }}>Imprint</option>
+                    <option value="privacy" {{ editDoc and editDoc.type == 'privacy' ? 'selected' : '' }}>Privacy Policy</option>
+                </select>
+            </div>
+            <div>
+                <label for="doc_lang">Language</label>
+                <input type="text" id="doc_lang" name="language" maxlength="10" placeholder="e.g. en, de"
+                    value="{{ editDoc ? editDoc.language : '' }}" required>
+            </div>
+            <div>
+                <label for="doc_version">Version</label>
+                <input type="text" id="doc_version" name="version" maxlength="50" placeholder="e.g. 2024-01-01"
+                    value="{{ editDoc ? editDoc.version : '' }}" required>
+            </div>
+        </div>
+        <div style="margin-top:14px;">
+            <label for="doc_content">Content</label>
+            <textarea id="doc_content" name="content" required>{{ editDoc ? editDoc.content : '' }}</textarea>
+        </div>
+        <div class="actions">
+            <button type="submit">{{ editDoc ? 'Update Document' : 'Create Document' }}</button>
+            {% if editDoc %}
+            <a href="/admin" style="align-self:center;font-size:14px;">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{# ── Documents table ────────────────────────────────────────────────────── #}
+<div class="card">
+    <h2>Documents</h2>
+    {% if documents is empty %}
+        <p>No documents yet.</p>
+    {% else %}
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Entity</th><th>Type</th><th>Lang</th><th>Version</th><th>Updated</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for doc in documents %}
+        <tr>
+            <td>{{ doc.id }}</td>
+            <td>{{ doc.entity_name }} <small>({{ doc.entity_hash|slice(0,8) }}…)</small></td>
+            <td>{{ doc.type }}</td>
+            <td>{{ doc.language }}</td>
+            <td>{{ doc.version }}</td>
+            <td>{{ doc.updated_at }}</td>
+            <td><a href="/admin?doc_id={{ doc.id }}">Edit</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/zxcvbn.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    const ASCII_RE = /^[\x20-\x7E]+$/;
+
+    function generateRandom(n) {
+        const chars = '!"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+        const a = new Uint8Array(n * 2);
+        crypto.getRandomValues(a);
+        let s = '';
+        for (let i = 0; i < a.length && s.length < n; i++) {
+            if (a[i] < chars.length) s += chars[a[i]];
+        }
+        while (s.length < n) s += chars[Math.floor(Math.random() * chars.length)];
+        return s.slice(0, n);
+    }
+
+    const WORDS = ["ability","absence","abstract","access","account","acid","action","active","actor","adapt",
+        "add","adult","advance","advice","affect","afford","afraid","after","again","age","agree","ahead",
+        "alarm","album","alert","alien","align","allow","alone","along","alter","amber","ample","anchor",
+        "angel","angle","angry","anime","ankle","annex","apart","apple","apply","arena","argue","arise",
+        "armor","array","arrow","asset","atlas","audio","audit","avoid","awake","badge","basic","batch",
+        "beach","begin","below","bench","bland","blank","blast","blend","block","bloom","blown","blunt",
+        "board","bonus","boost","bound","brain","brave","bravo","break","breed","brief","bring","broad",
+        "brook","brush","build","built","burst","cabin","cable","cache","candy","cargo","carry","carve",
+        "catch","cause","chain","chair","chalk","cheap","check","chess","chief","child","chill","china",
+        "chunk","civic","claim","clash","class","clean","clear","cliff","clock","clone","close","cloth",
+        "cloud","coach","coast","cobra","combo","comic","corgi","craft","crane","crash","crazy","crisp",
+        "cross","crowd","crown","crush","curve","cycle","daily","dance","delta","depth","digit","disco",
+        "diver","dodge","doing","donor","doubt","draft","drama","drank","drift","drive","drove","dunno",
+        "eager","early","earth","eight","elite","email","empty","ended","enjoy","enter","entry","epoch",
+        "equal","error","essay","event","evoke","exact","extra","fable","facet","faith","false","fancy",
+        "feast","fence","fetch","field","fifth","fifty","final","first","fixed","flame","flash","fleet",
+        "flesh","float","flood","floor","focus","force","forge","forum","found","frame","frank","fresh",
+        "front","frost","froze","fully","funky","funny","fuzzy","gamma","gauge","gecko","ghost","giant",
+        "given","glyph","grace","grade","grain","grasp","grave","great","green","greet","grief","grind",
+        "groan","group","grove","grown","guess","guild","guile","gusto","habit","happy","harsh","heart",
+        "heavy","hello","hence","hinge","hippo","holdr","honor","horse","hotel","house","human","hurry",
+        "ideal","image","imply","inbox","index","indie","infer","inner","input","intel","inter","intro",
+        "islet","ivory","jewel","joint","joker","joust","judge","juice","jumbo","karma","kazoo","keeps",
+        "knack","knock","known","label","lance","large","laser","later","launch","layer","lease","leave",
+        "legal","level","light","lingo","lithe","local","lodge","logic","loose","magic","major","maker",
+        "maple","match","maxim","maybe","media","merge","micro","model","monad","money","month","moral",
+        "motto","mount","mouse","movie","music","naive","nerve","never","newly","noble","noise","nonce",
+        "north","noted","novel","nurse","occur","ocean","offer","olive","onset","optic","orbit","order",
+        "other","outer","oxide","paint","panel","paper","party","pasta","pause","peach","pearl","penny",
+        "phase","phone","photo","piano","pilot","pixel","pizza","plane","plant","plaza","pluck","point",
+        "polar","polyp","power","press","price","pride","prime","prism","probe","prose","proxy","pulse"];
+
+    function generatePassphrase(n) {
+        const a = new Uint32Array(n);
+        crypto.getRandomValues(a);
+        return Array.from(a).map(v => WORDS[v % WORDS.length]).join('-');
+    }
+
+    function initPasswordField(input) {
+        const wrap = document.createElement('div');
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+
+        const bar   = document.createElement('div');
+        bar.className = 'pw-strength-bar';
+        const fill  = document.createElement('div');
+        fill.className = 'pw-strength-fill';
+        bar.appendChild(fill);
+        wrap.appendChild(bar);
+
+        const fb = document.createElement('div');
+        fb.className = 'pw-feedback';
+        wrap.appendChild(fb);
+
+        const genRow = document.createElement('div');
+        genRow.className = 'pw-gen-row';
+
+        const btnRnd  = document.createElement('button');
+        btnRnd.type   = 'button';
+        btnRnd.textContent = '⚡ Random password';
+        btnRnd.addEventListener('click', () => { input.value = generateRandom(20); input.dispatchEvent(new Event('input')); });
+
+        const btnPass = document.createElement('button');
+        btnPass.type  = 'button';
+        btnPass.textContent = '📖 Passphrase';
+        btnPass.addEventListener('click', () => { input.value = generatePassphrase(5); input.dispatchEvent(new Event('input')); });
+
+        genRow.appendChild(btnRnd);
+        genRow.appendChild(btnPass);
+        wrap.appendChild(genRow);
+
+        input.addEventListener('input', () => {
+            const val = input.value;
+            if (!val) { fill.className = 'pw-strength-fill'; fill.style.cssText = ''; fb.textContent = ''; return; }
+
+            if (!ASCII_RE.test(val)) { fill.className = 'pw-strength-fill pw-score-0'; fb.textContent = 'Password contains non-printable or non-ASCII characters.'; return; }
+
+            if (typeof zxcvbn !== 'undefined') {
+                const r = zxcvbn(val);
+                fill.className = 'pw-strength-fill pw-score-' + r.score;
+                fb.textContent = [r.feedback.warning, ...(r.feedback.suggestions || [])].filter(Boolean).join(' ') || ['Very weak','Weak','Fair','Good','Strong'][r.score];
+            }
+        });
+    }
+
+    document.querySelectorAll('input.pw-field').forEach(initPasswordField);
+})();
+</script>
+{% endblock %}

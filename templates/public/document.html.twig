@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if error %}Error{% elseif type == 'privacy' %}Privacy Policy{% else %}Imprint{% endif %} · LexNova</title>
+    <style>
+        :root { color-scheme: light; }
+        body { font-family: "Georgia","Times New Roman",serif; margin: 0; background: #f4f1ea; color: #1f1f1f; }
+        .wrap { max-width: 900px; margin: 0 auto; padding: 48px 20px 80px; }
+        header { margin-bottom: 32px; }
+        h1 { font-size: 32px; margin: 0 0 8px; }
+        .meta { font-size: 14px; color: #4a4a4a; }
+        .card { background: #fff; padding: 28px; border: 1px solid #e0d7c9; border-radius: 12px; box-shadow: 0 12px 30px rgba(39,34,28,.06); }
+        .section-title { font-size: 18px; text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 12px; color: #5c4a34; }
+        .content { line-height: 1.6; white-space: pre-wrap; }
+        .error { background: #fff4f2; border: 1px solid #f3b7a8; color: #7b1c0e; padding: 16px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <div class="meta">LexNova Legal Documents</div>
+        <h1>{% if type == 'privacy' %}Privacy Policy{% else %}Imprint{% endif %}</h1>
+    </header>
+    <div class="card">
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% else %}
+            <div class="meta">Entity: {{ entity.name }} · <code>{{ entity.hash }}</code></div>
+            <div class="section-title">Contact</div>
+            <div class="content">{{ entity.contact_data }}</div>
+            <div class="section-title">Document</div>
+            <div class="content">{{ doc.content }}</div>
+            <div class="meta">Version {{ doc.version }} · Updated {{ doc.updated_at }}</div>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>

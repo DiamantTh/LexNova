@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}LexNova{% endblock %}</title>
+    <style>
+        :root { color-scheme: light; }
+        body {
+            font-family: "Trebuchet MS", "Verdana", sans-serif;
+            margin: 0;
+            background: #f6f4ef;
+            color: #1b1b1b;
+        }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        h1 { margin: 0; font-size: 28px; }
+        h2 { font-size: 20px; margin: 0 0 16px; }
+        .card {
+            background: #ffffff;
+            border: 1px solid #d9d2c7;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 24px rgba(31,26,20,.05);
+            margin-bottom: 24px;
+        }
+        label { display: block; font-weight: 600; margin-bottom: 6px; }
+        input, select, textarea {
+            width: 100%; padding: 10px; border-radius: 8px;
+            border: 1px solid #c8c0b3; font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea { min-height: 140px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+        .actions { margin-top: 16px; display: flex; gap: 12px; }
+        button {
+            background: #2f3a2f; color: #fff; border: none;
+            border-radius: 8px; padding: 10px 18px; cursor: pointer; font-size: 14px;
+        }
+        button.secondary { background: #6a5b4a; }
+        button:hover { opacity: .88; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e1dacd; }
+        .notice { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; }
+        .notice.error   { background: #ffe9e6; color: #8a1f0e; border: 1px solid #f0b1a5; }
+        .notice.success { background: #eef7ec; color: #285c2e; border: 1px solid #b7dfb6; }
+        .hint { font-size: 12px; color: #6a5b4a; margin: 6px 0 0; }
+        .pw-strength-bar { height: 5px; border-radius: 3px; background: #e0d8ce; margin: 7px 0 2px; }
+        .pw-strength-fill { height: 100%; border-radius: 3px; width: 0; transition: width .3s, background .3s; }
+        .pw-score-0 { width: 10%;  background: #c0392b; }
+        .pw-score-1 { width: 30%;  background: #e67e22; }
+        .pw-score-2 { width: 55%;  background: #d4ac0d; }
+        .pw-score-3 { width: 80%;  background: #7db96c; }
+        .pw-score-4 { width: 100%; background: #27ae60; }
+        .pw-feedback { font-size: 12px; color: #5a4535; min-height: 17px; margin: 2px 0 4px; }
+        .pw-gen-row { display: flex; gap: 8px; margin-top: 6px; }
+        .pw-gen-row button { font-size: 12px; padding: 5px 11px; background: #3a527a; }
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body>
+<div class="wrap">
+    {% block body %}{% endblock %}
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

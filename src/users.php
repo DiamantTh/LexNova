@@ -20,6 +20,39 @@ function get_user_by_id(int $id): ?array
     return $user ?: null;
 }
 
+/**
+ * Validates a plain-text password against the configured password policy.
+ * Returns an error message string on violation, or null when the password is valid.
+ */
+function validate_password(string $password): ?string
+{
+    $config = app_config();
+    $policy = $config['security']['password_policy'];
+
+    $min = max(8, (int) ($policy['min_length'] ?? 16));
+    $max = min(256, max($min, (int) ($policy['max_length'] ?? 256)));
+    $asciiOnly = (bool) ($policy['ascii_only'] ?? true);
+
+    $len = strlen($password);
+
+    if ($len < $min) {
+        return "Password must be at least {$min} characters long.";
+    }
+
+    if ($len > $max) {
+        return "Password must not exceed {$max} characters.";
+    }
+
+    if ($asciiOnly && !preg_match('/^[\x20-\x7E]+$/', $password)) {
+        return 'Password may only contain standard printable ASCII characters '
+             . '(letters, digits and keyboard symbols like !, @, #, $, …). '
+             . 'Accented, non-Latin or special Unicode characters are not allowed '
+             . 'to prevent keyboard-layout lockouts.';
+    }
+
+    return null;
+}
+
 function create_user(string $username, string $password, string $role = 'admin'): int
 {
     $config = app_config();

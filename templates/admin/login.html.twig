@@ -1,0 +1,31 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Login · LexNova{% endblock %}
+
+{% block body %}
+<header>
+    <h1>LexNova</h1>
+</header>
+
+{% for msg in errors %}
+<div class="notice error">{{ msg }}</div>
+{% endfor %}
+
+<div class="card" style="max-width:420px;margin:0 auto;">
+    <h2>Admin Login</h2>
+    <form method="post" action="/admin/login">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <div style="margin-bottom:14px;">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <div class="actions">
+            <button type="submit">Sign in</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

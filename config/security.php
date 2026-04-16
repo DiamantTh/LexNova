@@ -11,4 +11,18 @@ return [
             'threads' => 2,
         ],
     ],
+
+    /*
+     * Login password policy (applied to all user accounts).
+     *
+     * min_length : minimum accepted length (8–256, default 16)
+     * max_length : maximum accepted length (default 256)
+     * ascii_only : restrict to printable ASCII 0x20–0x7E to prevent
+     *              keyboard/OS-layout lockouts (Golem-scenario)
+     */
+    'password_policy' => [
+        'min_length' => 16,
+        'max_length' => 256,
+        'ascii_only' => true,
+    ],
 ];

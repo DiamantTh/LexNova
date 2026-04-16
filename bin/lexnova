@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+
+if (!is_file($root . '/vendor/autoload.php')) {
+    fwrite(STDERR, "Run 'composer install' first.\n");
+    exit(1);
+}
+
+require $root . '/vendor/autoload.php';
+
+date_default_timezone_set('UTC');
+
+use LexNova\Console\UserCreateCommand;
+use LexNova\Console\UserListCommand;
+use LexNova\Console\UserSetPasswordCommand;
+use Symfony\Component\Console\Application;
+
+$container = require $root . '/config/container.php';
+
+$application = new Application('LexNova', '1.0.0');
+$application->add($container->get(UserCreateCommand::class));
+$application->add($container->get(UserListCommand::class));
+$application->add($container->get(UserSetPasswordCommand::class));
+$application->run();

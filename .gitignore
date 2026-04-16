@@ -3,3 +3,5 @@
 /install/install.pw
 /install/install.lock
 .vscode/
+/vendor/
+/composer.lock

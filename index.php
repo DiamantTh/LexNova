@@ -2,7 +2,18 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/src/bootstrap.php';
+require __DIR__ . '/vendor/autoload.php';
+
+$container = require __DIR__ . '/config/container.php';
+
+/** @var \Mezzio\Application $app */
+$app     = $container->get(\Mezzio\Application::class);
+$factory = $container->get(\Mezzio\MiddlewareFactory::class);
+
+(require __DIR__ . '/config/pipeline.php')($app, $factory, $container);
+(require __DIR__ . '/config/routes.php')($app);
+
+$app->run();
 
 if (!is_installed()) {
     http_response_code(503);

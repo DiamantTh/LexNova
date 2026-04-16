@@ -32,5 +32,9 @@ return [
         'httponly' => true,
         'samesite' => 'Lax',
     ],
+    'log' => [
+        'path'  => $root . '/data/lexnova.log',
+        'level' => 'info',
+    ],
     'security' => require __DIR__ . '/security.php',
 ];
