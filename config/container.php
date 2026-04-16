@@ -12,6 +12,7 @@ use LexNova\Middleware\InstalledCheckMiddleware;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\InstallService;
+use LexNova\Service\Password\DicewareGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Mezzio\Application;
@@ -125,6 +126,13 @@ $builder->addDefinitions([
     // ── Application services ────────────────────────────────────────────────
     PasswordService::class => fn(ContainerInterface $c) =>
         new PasswordService($c->get('config')),
+
+    // ── Password generators ─────────────────────────────────────────────────
+    DicewareGenerator::class => fn(ContainerInterface $c) => new DicewareGenerator(
+        wordCount:    (int) ($c->get('config')['security']['generator']['diceware']['word_count'] ?? 6),
+        separator:    (string) ($c->get('config')['security']['generator']['diceware']['separator'] ?? '-'),
+        wordlistPath: $root . '/resources/eff_large_wordlist.php',
+    ),
 
     UserService::class => fn(ContainerInterface $c) =>
         new UserService($c->get(Connection::class), $c->get(PasswordService::class)),

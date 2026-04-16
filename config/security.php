@@ -25,4 +25,17 @@ return [
         'max_length' => 256,
         'ascii_only' => true,
     ],
+
+    /*
+     * Password generator settings.
+     *
+     * diceware.word_count : number of words (6 ≈ 77.5 bits, 7 ≈ 90.4 bits)
+     * diceware.separator  : word separator character(s)
+     */
+    'generator' => [
+        'diceware' => [
+            'word_count' => 6,
+            'separator'  => '-',
+        ],
+    ],
 ];
