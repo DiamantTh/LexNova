@@ -53,7 +53,7 @@ return static function (Application $app): void {
     );
 
     // ── Public document display ──────────────────────────────────────────────
-    $app->get('/{hash:[0-9a-f]{32}}/{type:imprint|privacy}[/{lang:[a-z]{2,5}}]',
+    $app->get('/{hash:[0-9a-f]{32}}/{type:imprint|privacy}[/{lang:[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*}]',
         DocumentHandler::class,
         'document.view'
     );

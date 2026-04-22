@@ -7,6 +7,7 @@ namespace LexNova\Handler\Admin;
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
+use Locale;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
@@ -49,8 +50,8 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
             $errors[] = 'Type must be "imprint" or "privacy".';
         }
 
-        if ($language === '') {
-            $errors[] = 'Language is required.';
+        if ($language === '' || !$this->isValidBcp47($language)) {
+            $errors[] = 'Language must be a valid BCP 47 tag (e.g. de, en-US, fr-CH).';
         }
 
         if ($content === '') {
@@ -69,5 +70,16 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
         }
 
         return new RedirectResponse('/admin');
+    }
+
+    private function isValidBcp47(string $tag): bool
+    {
+        if (!preg_match('/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/', $tag)) {
+            return false;
+        }
+
+        $parsed = Locale::parseLocale($tag);
+
+        return isset($parsed['language']);
     }
 }

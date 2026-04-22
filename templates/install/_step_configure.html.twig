@@ -1,0 +1,103 @@
+<div class="card" style="max-width:640px;margin:0 auto;">
+    <form method="post" action="/install">
+        <input type="hidden" name="action" value="install">
+
+        {# ── Install-Passwort (muss bei jedem Absenden mitgesendet werden) ── #}
+        <h2>Install-Passwort</h2>
+        <div style="margin-bottom:16px;">
+            <label for="install_pw">Passwort</label>
+            <input type="password" id="install_pw" name="install_pw" required autocomplete="off">
+        </div>
+
+        <hr class="section-sep">
+        <h2>Datenbank</h2>
+        <div class="grid" style="margin-bottom:14px;">
+            <div>
+                <label for="db_type">Typ</label>
+                <select id="db_type" name="db_type">
+                    <option value="sqlite"{{ formData.dbType == 'sqlite' ? ' selected' : '' }}>SQLite</option>
+                    <option value="mysql"{{ formData.dbType == 'mysql' ? ' selected' : '' }}>MySQL/MariaDB</option>
+                    <option value="pgsql"{{ formData.dbType == 'pgsql' ? ' selected' : '' }}>PostgreSQL</option>
+                </select>
+            </div>
+            <div id="sqlite-fields">
+                <label for="db_path">SQLite-Dateipfad</label>
+                <input type="text" id="db_path" name="db_path" value="{{ formData.dbPath ?? '' }}" placeholder="/absoluter/pfad/zur/db.sqlite">
+            </div>
+            <div id="server-fields" style="display:none;">
+                <label for="db_host">Host</label>
+                <input type="text" id="db_host" name="db_host" value="{{ formData.dbHost ?? 'localhost' }}">
+            </div>
+            <div id="server-name" style="display:none;">
+                <label for="db_name">Datenbankname</label>
+                <input type="text" id="db_name" name="db_name" value="{{ formData.dbName ?? '' }}">
+            </div>
+            <div id="server-port" style="display:none;">
+                <label for="db_port">Port (optional)</label>
+                <input type="text" id="db_port" name="db_port" value="{{ formData.dbPort ?? '' }}">
+            </div>
+            <div id="server-user" style="display:none;">
+                <label for="db_user">Benutzername</label>
+                <input type="text" id="db_user" name="db_user" value="{{ formData.dbUser ?? '' }}" autocomplete="off">
+            </div>
+            <div id="server-pass" style="display:none;">
+                <label for="db_password">Passwort</label>
+                <input type="password" id="db_password" name="db_password" autocomplete="new-password">
+            </div>
+        </div>
+
+        <hr class="section-sep">
+        <h2>Admin-Konto</h2>
+        <div class="grid" style="margin-bottom:14px;">
+            <div>
+                <label for="admin_username">Benutzername</label>
+                <input type="text" id="admin_username" name="admin_username" value="{{ formData.adminUsername ?? '' }}" required autocomplete="off">
+            </div>
+            <div>
+                <label for="admin_password">Passwort</label>
+                <input type="password" id="admin_password" name="admin_password" required autocomplete="new-password">
+            </div>
+            <div>
+                <label for="admin_password_confirm">Passwort bestätigen</label>
+                <input type="password" id="admin_password_confirm" name="admin_password_confirm" required autocomplete="new-password">
+            </div>
+        </div>
+
+        <hr class="section-sep">
+        <h2>Anwendung</h2>
+        <div class="grid" style="margin-bottom:14px;">
+            <div>
+                <label for="app_locale">
+                    Standard-Sprache
+                    <small>(BCP 47, z.&nbsp;B. <code>de</code>, <code>en-US</code>, <code>fr-CH</code>)</small>
+                </label>
+                <input type="text" id="app_locale" name="app_locale"
+                       value="{{ formData.appLocale ?? 'de' }}"
+                       required placeholder="de"
+                       pattern="[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*"
+                       title="BCP 47 Sprachtag, z. B. de, en-US, zh-Hant">
+            </div>
+        </div>
+
+        <div class="actions">
+            <button type="submit">Installieren</button>
+        </div>
+    </form>
+
+    <script>
+    (function(){
+        const sel = document.getElementById('db_type');
+        if (!sel) return;
+
+        function toggle() {
+            const isSqlite = sel.value === 'sqlite';
+            document.getElementById('sqlite-fields').style.display = isSqlite ? '' : 'none';
+            ['server-fields','server-name','server-port','server-user','server-pass']
+                .forEach(id => { document.getElementById(id).style.display = isSqlite ? 'none' : ''; });
+        }
+
+        sel.addEventListener('change', toggle);
+        toggle();
+    })();
+    </script>
+</div>

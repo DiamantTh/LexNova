@@ -1,0 +1,16 @@
+<div class="card" style="max-width:640px;margin:0 auto;">
+    <h2>Setup</h2>
+    {% if not installReady %}
+        <p>Install-Passwort wird initialisiert — bitte Seite neu laden.</p>
+    {% else %}
+    <form method="post" action="/install">
+        <div style="margin-bottom:16px;">
+            <label for="install_pw">Install-Passwort</label>
+            <input type="password" id="install_pw" name="install_pw" required autocomplete="off">
+        </div>
+        <div class="actions">
+            <button type="submit" name="action" value="unlock">Installer entsperren</button>
+        </div>
+    </form>
+    {% endif %}
+</div>

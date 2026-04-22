@@ -12,10 +12,6 @@
     <h1>LexNova Installer</h1>
 </header>
 
-{% if locked %}
-    <div class="notice success">Installation is complete. This page is now disabled.</div>
-{% else %}
-
 {% for msg in errors %}
 <div class="notice error">{{ msg }}</div>
 {% endfor %}
@@ -25,109 +21,18 @@
 
 {% if generatedPassword %}
 <div class="notice success">
-    <strong>Install password (shown once):</strong><br>
+    <strong>Install-Passwort (einmalig angezeigt):</strong><br>
     <span class="mono">{{ generatedPassword }}</span><br>
-    <small>Store this securely. It will not be displayed again.</small>
+    <small>Sicher aufbewahren. Es wird nicht erneut angezeigt.</small>
 </div>
 {% endif %}
 
-<div class="card" style="max-width:640px;margin:0 auto;">
-    <h2>Setup</h2>
-
-    {% if not installReady %}
-        <p>Initializing install password — please reload the page.</p>
-    {% else %}
-
-    <form method="post" action="/install">
-        {# ── Install password (always required) ────────────────────────── #}
-        <div style="margin-bottom:16px;">
-            <label for="install_pw">Install Password</label>
-            <input type="password" id="install_pw" name="install_pw" required autocomplete="off">
-        </div>
-
-        {% if installerUnlocked %}
-        <hr class="section-sep">
-        <h2>Database</h2>
-        <div class="grid" style="margin-bottom:14px;">
-            <div>
-                <label for="db_type">Type</label>
-                <select id="db_type" name="db_type">
-                    <option value="sqlite"{{ formData.dbType == 'sqlite' ? ' selected' : '' }}>SQLite</option>
-                    <option value="mysql"{{ formData.dbType == 'mysql' ? ' selected' : '' }}>MySQL/MariaDB</option>
-                    <option value="pgsql"{{ formData.dbType == 'pgsql' ? ' selected' : '' }}>PostgreSQL</option>
-                </select>
-            </div>
-            <div id="sqlite-fields">
-                <label for="db_path">SQLite file path</label>
-                <input type="text" id="db_path" name="db_path" value="{{ formData.dbPath ?? '' }}" placeholder="/absolute/path/to/db.sqlite">
-            </div>
-            <div id="server-fields" style="display:none;">
-                <label for="db_host">Host</label>
-                <input type="text" id="db_host" name="db_host" value="{{ formData.dbHost ?? 'localhost' }}">
-            </div>
-            <div id="server-name" style="display:none;">
-                <label for="db_name">Database name</label>
-                <input type="text" id="db_name" name="db_name" value="{{ formData.dbName ?? '' }}">
-            </div>
-            <div id="server-port" style="display:none;">
-                <label for="db_port">Port (optional)</label>
-                <input type="text" id="db_port" name="db_port" value="{{ formData.dbPort ?? '' }}">
-            </div>
-            <div id="server-user" style="display:none;">
-                <label for="db_user">Username</label>
-                <input type="text" id="db_user" name="db_user" value="{{ formData.dbUser ?? '' }}" autocomplete="off">
-            </div>
-            <div id="server-pass" style="display:none;">
-                <label for="db_password">Password</label>
-                <input type="password" id="db_password" name="db_password" autocomplete="new-password">
-            </div>
-        </div>
-
-        <hr class="section-sep">
-        <h2>Admin Account</h2>
-        <div class="grid" style="margin-bottom:14px;">
-            <div>
-                <label for="admin_username">Username</label>
-                <input type="text" id="admin_username" name="admin_username" value="{{ formData.adminUsername ?? '' }}" required autocomplete="off">
-            </div>
-            <div>
-                <label for="admin_password">Password</label>
-                <input type="password" id="admin_password" name="admin_password" required autocomplete="new-password">
-            </div>
-            <div>
-                <label for="admin_password_confirm">Confirm password</label>
-                <input type="password" id="admin_password_confirm" name="admin_password_confirm" required autocomplete="new-password">
-            </div>
-        </div>
-
-        <div class="actions">
-            <button type="submit" name="action" value="install">Install</button>
-        </div>
-        {% else %}
-        <div class="actions">
-            <button type="submit" name="action" value="unlock">Unlock Installer</button>
-        </div>
-        {% endif %}
-    </form>
-    {% endif %}
-</div>
-
-<script>
-(function(){
-    const sel = document.getElementById('db_type');
-    if (!sel) return;
-
-    function toggle() {
-        const isSqlite = sel.value === 'sqlite';
-        document.getElementById('sqlite-fields').style.display = isSqlite ? '' : 'none';
-        ['server-fields','server-name','server-port','server-user','server-pass']
-            .forEach(id => { document.getElementById(id).style.display = isSqlite ? 'none' : ''; });
-    }
-
-    sel.addEventListener('change', toggle);
-    toggle();
-})();
-</script>
-
+{% if step == 'done' %}
+    {% include 'install/_step_done.html.twig' %}
+{% elseif step == 'configure' %}
+    {% include 'install/_step_configure.html.twig' %}
+{% else %}
+    {% include 'install/_step_unlock.html.twig' %}
 {% endif %}
 {% endblock %}
+
