@@ -1,0 +1,27 @@
+[app]
+base_url = ""
+locale   = "de"
+
+[db]
+# Supported drivers: sqlite, mysql, pgsql
+# SQLite  : dsn = "sqlite:/absolute/path/to/lexnova.sqlite"
+# MySQL   : dsn = "mysql:host=localhost;dbname=lexnova;charset=utf8mb4"
+# PostgreSQL: dsn = "pgsql:host=localhost;dbname=lexnova"
+dsn      = "sqlite:/path/to/lexnova/data/lexnova.sqlite"
+user     = ""
+password = ""
+
+[install]
+lock          = "/path/to/lexnova/install/install.lock"
+password_file = "/path/to/lexnova/install/install.pw"
+config_file   = "/path/to/lexnova/config/config.toml"
+
+[session]
+name     = "lexnova_session"
+secure   = false
+httponly = true
+samesite = "Lax"
+
+[log]
+path  = "/path/to/lexnova/data/lexnova.log"
+level = "info"

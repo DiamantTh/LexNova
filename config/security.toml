@@ -1,0 +1,45 @@
+# ── Password hashing ──────────────────────────────────────────────────────────
+[password]
+algo = "argon2id"
+
+[password.options]
+memory_cost = 131072
+time_cost   = 4
+threads     = 2
+
+# ── Login password policy ─────────────────────────────────────────────────────
+# min_length : minimum accepted length (8–256)
+# max_length : maximum accepted length
+# ascii_only : restrict to printable ASCII 0x20–0x7E (prevents keyboard lockouts)
+[password_policy]
+min_length = 16
+max_length = 256
+ascii_only = true
+
+# ── E-Mail-Subject-Format im mailto-Filter ────────────────────────────────────
+# format         : "domain_datetime_tz" | "domain_date" | "domain_only" | "custom"
+# date_format    : PHP date() format for the timestamp part
+# strip_www      : remove www. prefix from domain
+# custom_pattern : used directly as PHP date() format when format = "custom"
+[email_subject]
+format         = "domain_datetime_tz"
+date_format    = "Y-n-j/H:i"
+strip_www      = true
+custom_pattern = ""
+
+# ── Password generators ───────────────────────────────────────────────────────
+# diceware.word_count : number of words (6 ≈ 77.5 bits, 7 ≈ 90.4 bits)
+# diceware.separator  : word separator character(s)
+[generator.diceware]
+word_count = 6
+separator  = "-"
+
+# random.length          : password length (20 → ~131 bits with all pools)
+# random.require_upper   : enforce at least one uppercase letter
+# random.require_digits  : enforce at least one digit
+# random.require_symbols : enforce at least one printable symbol
+[generator.random]
+length          = 20
+require_upper   = true
+require_digits  = true
+require_symbols = true

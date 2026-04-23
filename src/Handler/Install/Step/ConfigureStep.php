@@ -203,50 +203,31 @@ final class ConfigureStep
         string  $appLocale,
         string  $root,
     ): string {
-        $dsnExported    = var_export($dsn, true);
-        $userExported   = var_export($user, true);
-        $passExported   = var_export($password, true);
-        $localeExported = var_export($appLocale, true);
-
-        return <<<PHP
-<?php
-
-declare(strict_types=1);
-
-\$root = dirname(__DIR__);
-
-return [
-    'app' => [
-        'base_url' => '',
-        'locale'   => {$localeExported},
-    ],
-    'db' => [
-        'dsn'      => {$dsnExported},
-        'user'     => {$userExported},
-        'password' => {$passExported},
-        'options'  => [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-        ],
-    ],
-    'install' => [
-        'lock'          => \$root . '/install/install.lock',
-        'password_file' => \$root . '/install/install.pw',
-        'config_file'   => __DIR__ . '/config.php',
-    ],
-    'log' => [
-        'path'  => \$root . '/data/lexnova.log',
-        'level' => 'warning',
-    ],
-    'session' => [
-        'name'     => 'lexnova_session',
-        'secure'   => false,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ],
-    'security' => require __DIR__ . '/security.php',
-];
-PHP;
+        return toml_encode([
+            'app' => [
+                'base_url' => '',
+                'locale'   => $appLocale,
+            ],
+            'db' => [
+                'dsn'      => $dsn,
+                'user'     => $user ?? '',
+                'password' => $password ?? '',
+            ],
+            'install' => [
+                'lock'          => $root . '/install/install.lock',
+                'password_file' => $root . '/install/install.pw',
+                'config_file'   => $root . '/config/config.toml',
+            ],
+            'log' => [
+                'path'  => $root . '/data/lexnova.log',
+                'level' => 'warning',
+            ],
+            'session' => [
+                'name'     => 'lexnova_session',
+                'secure'   => false,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ],
+        ]);
     }
 }

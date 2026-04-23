@@ -21,8 +21,8 @@ final readonly class DoctrineConnectionFactory
             throw new RuntimeException('Database DSN is not configured.');
         }
 
-        $user     = $db['user'] ?? null;
-        $password = $db['password'] ?? null;
+        $user     = ($db['user'] ?? '') !== '' ? (string) $db['user'] : null;
+        $password = ($db['password'] ?? '') !== '' ? (string) $db['password'] : null;
 
         $params = self::parseDsn($dsn, $user, $password);
 

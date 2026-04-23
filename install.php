@@ -46,45 +46,29 @@ function build_db_dsn(string $type, string $host, string $name, string $port, st
 
 function build_config_file_contents(string $dbDsn, ?string $dbUser, ?string $dbPassword): string
 {
-    $dsnValue = var_export($dbDsn, true);
-    $userValue = $dbUser !== null && $dbUser !== '' ? var_export($dbUser, true) : 'null';
-    $passwordValue = $dbPassword !== null && $dbPassword !== '' ? var_export($dbPassword, true) : 'null';
+    $root = dirname(__FILE__);
 
-    return <<<PHP
-<?php
-
-declare(strict_types=1);
-
-\$root = dirname(__DIR__);
-
-return [
-    'app' => [
-        'base_url' => '',
-    ],
-    'db' => [
-        'dsn' => {$dsnValue},
-        'user' => {$userValue},
-        'password' => {$passwordValue},
-        'options' => [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
+    return toml_encode([
+        'app' => [
+            'base_url' => '',
         ],
-    ],
-    'install' => [
-        'lock' => \$root . '/install/install.lock',
-        'password_file' => \$root . '/install/install.pw',
-        'config_file' => __DIR__ . '/config.php',
-    ],
-    'session' => [
-        'name' => 'lexnova_session',
-        'secure' => false,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ],
-    'security' => require __DIR__ . '/security.php',
-];
-PHP;
+        'db' => [
+            'dsn'      => $dbDsn,
+            'user'     => $dbUser ?? '',
+            'password' => $dbPassword ?? '',
+        ],
+        'install' => [
+            'lock'          => $root . '/install/install.lock',
+            'password_file' => $root . '/install/install.pw',
+            'config_file'   => $root . '/config/config.toml',
+        ],
+        'session' => [
+            'name'     => 'lexnova_session',
+            'secure'   => false,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ],
+    ]);
 }
 
 $errors = [];
