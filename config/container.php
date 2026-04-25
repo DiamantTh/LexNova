@@ -45,11 +45,32 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Log\LoggerInterface;
 
-$root       = dirname(__DIR__);
-$configFile = $root . '/config/config.php';
-$config     = is_file($configFile)
-    ? require $configFile
-    : require $root . '/config/config.example.php';
+$root = dirname(__DIR__);
+
+// ── Config loading: prefer TOML, fall back to PHP files ─────────────────────
+$configToml  = $root . '/config/config.toml';
+$exampleToml = $root . '/config/config.example.toml';
+$configPhp   = $root . '/config/config.php';
+$examplePhp  = $root . '/config/config.example.php';
+
+if (is_file($configToml)) {
+    $config = toml_decode((string) file_get_contents($configToml), asArray: true);
+} elseif (is_file($exampleToml)) {
+    $config = toml_decode((string) file_get_contents($exampleToml), asArray: true);
+} elseif (is_file($configPhp)) {
+    $config = require $configPhp;
+} else {
+    $config = require $examplePhp;
+}
+
+// Security config lives in its own TOML file
+$securityToml = $root . '/config/security.toml';
+if (is_file($securityToml)) {
+    $config['security'] = toml_decode((string) file_get_contents($securityToml), asArray: true);
+} elseif (isset($config['security']) && is_string($config['security'])) {
+    // legacy: security key was a require path — drop it, use defaults
+    unset($config['security']);
+}
 
 // Merge framework config into app config
 $config['templates'] = [

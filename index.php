@@ -15,19 +15,6 @@ $factory = $container->get(\Mezzio\MiddlewareFactory::class);
 
 $app->run();
 
-if (!is_installed()) {
-    http_response_code(503);
-    echo 'LexNova is not installed.';
-    exit;
-}
-
-$hash = trim((string) ($_GET['hash'] ?? ''));
-$mode = (string) ($_GET['mode'] ?? 'imprint');
-$mode = $mode === 'privacy' ? 'privacy' : 'imprint';
-
-$entity = null;
-$document = null;
-$error = null;
 
 if ($hash === '') {
     http_response_code(400);
