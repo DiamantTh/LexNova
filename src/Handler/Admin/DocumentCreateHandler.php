@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\DocumentInputFilter;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
-use Locale;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
@@ -34,52 +34,40 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
-        $entityId = (int) ($body['entity_id'] ?? 0);
-        $type     = trim((string) ($body['type'] ?? ''));
-        $language = trim((string) ($body['language'] ?? ''));
-        $content  = trim((string) ($body['content'] ?? ''));
-        $version  = trim((string) ($body['version'] ?? ''));
+        $filter = new DocumentInputFilter();
+        $filter->setData($body);
 
         $errors = [];
 
-        if ($entityId <= 0 || $this->entities->findById($entityId) === null) {
-            $errors[] = 'Please select a valid entity.';
-        }
+        if (!$filter->isValid()) {
+            foreach ($filter->getMessages() as $fieldMessages) {
+                foreach ($fieldMessages as $message) {
+                    $errors[] = $message;
+                }
+            }
+        } else {
+            $values   = $filter->getValues();
+            $entityId = (int) $values['entity_id'];
 
-        if (!in_array($type, ['imprint', 'privacy'], true)) {
-            $errors[] = 'Type must be "imprint" or "privacy".';
-        }
-
-        if ($language === '' || !$this->isValidBcp47($language)) {
-            $errors[] = 'Language must be a valid BCP 47 tag (e.g. de, en-US, fr-CH).';
-        }
-
-        if ($content === '') {
-            $errors[] = 'Content is required.';
-        }
-
-        if ($version === '') {
-            $errors[] = 'Version is required.';
+            if ($entityId <= 0 || $this->entities->findById($entityId) === null) {
+                $errors[] = 'Please select a valid entity.';
+            }
         }
 
         if ($errors !== []) {
             $session->set('flash_errors', $errors);
         } else {
-            $this->documents->create($entityId, $type, $language, $content, $version);
+            $values = $filter->getValues();
+            $this->documents->create(
+                (int) $values['entity_id'],
+                $values['type'],
+                $values['language'],
+                $values['content'],
+                $values['version'],
+            );
             $session->set('flash_messages', ['Document created.']);
         }
 
         return new RedirectResponse('/admin');
-    }
-
-    private function isValidBcp47(string $tag): bool
-    {
-        if (!preg_match('/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/', $tag)) {
-            return false;
-        }
-
-        $parsed = Locale::parseLocale($tag);
-
-        return isset($parsed['language']);
     }
 }

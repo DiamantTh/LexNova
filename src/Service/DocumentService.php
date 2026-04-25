@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace LexNova\Service;
 
 use Doctrine\DBAL\Connection;
+use Psr\SimpleCache\CacheInterface;
 
 final readonly class DocumentService
 {
-    public function __construct(private readonly Connection $db) {}
+    public function __construct(
+        private readonly Connection $db,
+        private readonly CacheInterface $cache,
+    ) {}
 
     public function list(): array
     {
@@ -37,6 +41,12 @@ final readonly class DocumentService
 
     public function findLatest(int $entityId, string $type): ?array
     {
+        $key = "doc_latest_{$entityId}_{$type}";
+
+        if ($this->cache->has($key)) {
+            return $this->cache->get($key);
+        }
+
         $row = $this->db->createQueryBuilder()
             ->select('id', 'entity_id', 'type', 'language', 'content', 'version', 'updated_at')
             ->from('legal_documents')
@@ -50,7 +60,10 @@ final readonly class DocumentService
             ->executeQuery()
             ->fetchAssociative();
 
-        return $row ?: null;
+        $result = $row ?: null;
+        $this->cache->set($key, $result, 3600);
+
+        return $result;
     }
 
     public function create(int $entityId, string $type, string $language, string $content, string $version): int
@@ -64,7 +77,10 @@ final readonly class DocumentService
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
-        return (int) $this->db->lastInsertId();
+        $id = (int) $this->db->lastInsertId();
+        $this->cache->delete("doc_latest_{$entityId}_{$type}");
+
+        return $id;
     }
 
     public function update(int $id, int $entityId, string $type, string $language, string $content, string $version): void
@@ -77,5 +93,7 @@ final readonly class DocumentService
             'version'    => $version,
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $id]);
+
+        $this->cache->delete("doc_latest_{$entityId}_{$type}");
     }
 }

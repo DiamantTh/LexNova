@@ -46,6 +46,9 @@ use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Log\LoggerInterface;
+use Psr\SimpleCache\CacheInterface;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Symfony\Component\Cache\Psr16Cache;
 
 final class ContainerFactory
 {
@@ -81,7 +84,7 @@ final class ContainerFactory
         $config['session']['samesite']      ??= 'Lax';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
-        foreach ([$root . '/cache/twig', $root . '/logs'] as $dir) {
+        foreach ([$root . '/cache/twig', $root . '/cache/app', $root . '/logs'] as $dir) {
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -184,6 +187,12 @@ final class ContainerFactory
             PasswordService::class => fn(ContainerInterface $c) =>
                 new PasswordService($c->get('config')),
 
+            // ── Cache ────────────────────────────────────────────────────────────────
+            // PSR-16 filesystem cache (symfony/cache) – used by DocumentService
+            // to cache public document lookups for 1 hour; invalidated on write.
+            CacheInterface::class => fn() =>
+                new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/cache/app')),
+
             // ── Password generators ─────────────────────────────────────────────────
             DicewareGenerator::class => fn(ContainerInterface $c) => new DicewareGenerator(
                 wordCount:    (int) ($c->get('config')['security']['generator']['diceware']['word_count'] ?? 6),
@@ -205,7 +214,7 @@ final class ContainerFactory
                 new EntityService($c->get(Connection::class)),
 
             DocumentService::class => fn(ContainerInterface $c) =>
-                new DocumentService($c->get(Connection::class)),
+                new DocumentService($c->get(Connection::class), $c->get(CacheInterface::class)),
 
             InstallService::class => fn(ContainerInterface $c) =>
                 new InstallService($c->get('config')),

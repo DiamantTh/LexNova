@@ -11,10 +11,13 @@ threads     = 2
 # min_length : minimum accepted length (8–256)
 # max_length : maximum accepted length
 # ascii_only : restrict to printable ASCII 0x20–0x7E (prevents keyboard lockouts)
+# min_score  : minimum zxcvbn strength score required (0 = disabled, 1–4)
+#              2 = rejects trivially guessable passwords (recommended)
 [password_policy]
 min_length = 16
 max_length = 256
 ascii_only = true
+min_score  = 2
 
 # ── E-Mail-Subject-Format im mailto-Filter ────────────────────────────────────
 # format         : "domain_datetime_tz" | "domain_date" | "domain_only" | "custom"

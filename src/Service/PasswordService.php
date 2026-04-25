@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace LexNova\Service;
 
+use ZxcvbnPhp\Zxcvbn;
+
 final readonly class PasswordService
 {
     private int $minLength;
     private int $maxLength;
     private bool $asciiOnly;
+    /** @var int zxcvbn score threshold (0 = disabled, 1–4 = required minimum) */
+    private int $minScore;
     private string $algo;
     private array $options;
 
@@ -18,6 +22,7 @@ final readonly class PasswordService
         $this->minLength = max(8, (int) ($policy['min_length'] ?? 16));
         $this->maxLength = min(256, max($this->minLength, (int) ($policy['max_length'] ?? 256)));
         $this->asciiOnly = (bool) ($policy['ascii_only'] ?? true);
+        $this->minScore  = min(4, max(0, (int) ($policy['min_score'] ?? 2)));
 
         $pw            = $config['security']['password'] ?? [];
         $this->algo    = $pw['algo'] ?? PASSWORD_ARGON2ID;
@@ -55,6 +60,14 @@ final readonly class PasswordService
                  . '(letters, digits and keyboard symbols like !, @, #, $, …). '
                  . 'Accented, non-Latin or special Unicode characters are not allowed '
                  . 'to prevent keyboard-layout lockouts.';
+        }
+
+        if ($this->minScore > 0) {
+            $result = (new Zxcvbn())->passwordStrength($password);
+            if ($result['score'] < $this->minScore) {
+                return "Password is too weak (strength {$result['score']}/4). "
+                     . 'Use a longer password or avoid common words and predictable patterns.';
+            }
         }
 
         return null;
