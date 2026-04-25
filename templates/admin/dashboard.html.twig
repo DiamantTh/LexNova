@@ -18,6 +18,9 @@
 {% for msg in messages %}
 <div class="notice success">{{ msg }}</div>
 {% endfor %}
+{% if not twig_cache_enabled %}
+<div class="notice warning">Twig-Template-Cache ist deaktiviert. In <code>configs/config.toml</code> aktivieren: <code>[twig]</code> <code>cache = true</code></div>
+{% endif %}
 
 {# ── Create user ────────────────────────────────────────────────────────── #}
 <div class="card">

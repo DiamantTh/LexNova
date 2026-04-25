@@ -88,16 +88,19 @@ final class ContainerFactory
         }
 
         // ── Framework config ──────────────────────────────────────────────────────
+        // twig.cache can be set to false in config.toml to disable template caching
+        $twigCache = (bool) ($config['twig']['cache'] ?? true);
+
         $config['templates'] = [
             'extension' => 'html.twig',
             'paths'     => [$root . '/templates'],
         ];
         $config['twig'] = [
-            'cache_dir'   => $root . '/cache/twig',
+            'cache_dir'   => $twigCache ? $root . '/cache/twig' : false,
             'debug'       => false,
             'auto_reload' => true,
             'timezone'    => 'UTC',
-            'globals'     => [],
+            'globals'     => ['twig_cache_enabled' => $twigCache],
             'extensions'  => [
                 EmailExtension::class,
             ],

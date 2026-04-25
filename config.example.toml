@@ -25,3 +25,8 @@ samesite = "Lax"
 [log]
 path  = "/path/to/lexnova/logs/lexnova.log"
 level = "info"
+
+[twig]
+# Set to false to disable template caching (e.g. during development).
+# A warning will be shown in the admin panel when cache is disabled.
+cache = true
