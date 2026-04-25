@@ -19,7 +19,7 @@ use LexNova\Console\UserListCommand;
 use LexNova\Console\UserSetPasswordCommand;
 use Symfony\Component\Console\Application;
 
-$container = require $root . '/configs/container.php';
+$container = \LexNova\Application\ContainerFactory::create();
 
 $application = new Application('LexNova', '1.0.0');
 $application->add($container->get(UserCreateCommand::class));

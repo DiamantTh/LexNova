@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$container = require __DIR__ . '/../configs/container.php';
+$container = \LexNova\Application\ContainerFactory::create();
 
 /** @var \Mezzio\Application $app */
 $app     = $container->get(\Mezzio\Application::class);
 $factory = $container->get(\Mezzio\MiddlewareFactory::class);
 
-(require __DIR__ . '/config/pipeline.php')($app, $factory, $container);
-(require __DIR__ . '/config/routes.php')($app);
+\LexNova\Application\Pipeline::configure($app, $factory, $container);
+\LexNova\Application\Routes::configure($app);
 
 $app->run();
 
