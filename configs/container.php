@@ -47,30 +47,39 @@ use Psr\Log\LoggerInterface;
 
 $root = dirname(__DIR__);
 
-// ── Config loading: prefer TOML, fall back to PHP files ─────────────────────
-$configToml  = $root . '/configs/config.toml';
-$exampleToml = $root . '/configs/config.example.toml';
-$configPhp   = $root . '/configs/config.php';
-$examplePhp  = $root . '/configs/config.example.php';
+// ── Config loading: config.toml when installed, empty array before ───────────
+$configToml = $root . '/configs/config.toml';
+$config = is_file($configToml)
+    ? toml_decode((string) file_get_contents($configToml), asArray: true)
+    : [];
 
-if (is_file($configToml)) {
-    $config = toml_decode((string) file_get_contents($configToml), asArray: true);
-} elseif (is_file($exampleToml)) {
-    $config = toml_decode((string) file_get_contents($exampleToml), asArray: true);
-} elseif (is_file($configPhp)) {
-    $config = require $configPhp;
-} else {
-    $config = require $examplePhp;
-}
-
-// Security config lives in its own TOML file
+// Security config ships in the repository and is always loaded separately
 $securityToml = $root . '/configs/security.toml';
 if (is_file($securityToml)) {
     $config['security'] = toml_decode((string) file_get_contents($securityToml), asArray: true);
-} elseif (isset($config['security']) && is_string($config['security'])) {
-    // legacy: security key was a require path — drop it, use defaults
-    unset($config['security']);
 }
+
+// ── Runtime path defaults ─────────────────────────────────────────────────────
+// Applied when no config.toml exists yet (pre-install) or when a value is absent.
+// ConfigureStep writes these with the correct absolute paths; the defaults here
+// only take effect during the installation wizard itself.
+$config['install']['lock']          ??= $root . '/data/install.lock';
+$config['install']['password_file'] ??= $root . '/data/install.pw';
+$config['install']['config_file']   ??= $root . '/configs/config.toml';
+$config['log']['path']              ??= $root . '/logs/lexnova.log';
+$config['log']['level']             ??= 'warning';
+$config['session']['name']          ??= 'lexnova_session';
+$config['session']['secure']        ??= false;
+$config['session']['httponly']      ??= true;
+$config['session']['samesite']      ??= 'Lax';
+
+// ── Ensure runtime directories exist ─────────────────────────────────────────
+foreach ([$root . '/cache/twig', $root . '/logs'] as $_dir) {
+    if (!is_dir($_dir)) {
+        mkdir($_dir, 0755, true);
+    }
+}
+unset($_dir);
 
 // Merge framework config into app config
 $config['templates'] = [

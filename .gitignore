@@ -2,14 +2,10 @@
 /data/*.sqlite
 /data/install.lock
 /data/install.pw
-/logs/*
-!/logs/.gitkeep
 
-# Cache
-/cache/twig/*
-!/cache/twig/.gitkeep
-/cache/*
-!/cache/.gitkeep
+# Cache and logs (created at runtime by bootstrap)
+/cache/
+/logs/
 
 # Config (generated at install time)
 /configs/config.toml
