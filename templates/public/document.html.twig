@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ locale|default('en') }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% if error %}Error{% elseif type == 'privacy' %}Privacy Policy{% else %}Imprint{% endif %} · LexNova</title>
+    <title>{% if error %}{{ trans('Error', locale) }}{% elseif type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %} · LexNova</title>
     <style>
         :root { color-scheme: light; }
         body { font-family: "Georgia","Times New Roman",serif; margin: 0; background: #f4f1ea; color: #1f1f1f; }
@@ -20,19 +20,19 @@
 <body>
 <div class="wrap">
     <header>
-        <div class="meta">LexNova Legal Documents</div>
-        <h1>{% if type == 'privacy' %}Privacy Policy{% else %}Imprint{% endif %}</h1>
+        <div class="meta">{{ trans('LexNova Legal Documents', locale) }}</div>
+        <h1>{% if type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %}</h1>
     </header>
     <div class="card">
         {% if error %}
             <div class="error">{{ error }}</div>
         {% else %}
             <div class="meta">Entity: {{ entity.name }} · <code>{{ entity.hash }}</code></div>
-            <div class="section-title">Contact</div>
+            <div class="section-title">{{ trans('Contact', locale) }}</div>
             <div class="content">{{ entity.contact_data | obfuscate }}</div>
-            <div class="section-title">Document</div>
+            <div class="section-title">{{ trans('Document', locale) }}</div>
             <div class="content">{{ doc.content | obfuscate }}</div>
-            <div class="meta">Version {{ doc.version }} · Updated {{ doc.updated_at }}</div>
+            <div class="meta">{{ trans('Version %s · Updated %s', locale)|format(doc.version, doc.updated_at) }}</div>
         {% endif %}
     </div>
 </div>

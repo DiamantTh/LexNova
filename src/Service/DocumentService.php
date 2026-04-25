@@ -39,15 +39,26 @@ final readonly class DocumentService
         return $row ?: null;
     }
 
-    public function findLatest(int $entityId, string $type): ?array
+    /**
+     * Returns the latest document for a given entity + type.
+     *
+     * If $language is provided, tries an exact BCP 47 match first, then falls
+     * back to the newest document of that type regardless of language.
+     * The cache key includes the requested language so each variant is cached
+     * independently; the fallback result is stored under the original key only.
+     */
+    public function findLatest(int $entityId, string $type, ?string $language = null): ?array
     {
-        $key = "doc_latest_{$entityId}_{$type}";
+        $lang    = $language !== null ? strtolower(trim($language)) : null;
+        $cacheKey = $lang !== null
+            ? "doc_latest_{$entityId}_{$type}_{$lang}"
+            : "doc_latest_{$entityId}_{$type}";
 
-        if ($this->cache->has($key)) {
-            return $this->cache->get($key);
+        if ($this->cache->has($cacheKey)) {
+            return $this->cache->get($cacheKey);
         }
 
-        $row = $this->db->createQueryBuilder()
+        $base = $this->db->createQueryBuilder()
             ->select('id', 'entity_id', 'type', 'language', 'content', 'version', 'updated_at')
             ->from('legal_documents')
             ->where('entity_id = :entity_id')
@@ -55,13 +66,27 @@ final readonly class DocumentService
             ->setParameter('entity_id', $entityId)
             ->setParameter('type', $type)
             ->orderBy('updated_at', 'DESC')
-            ->addOrderBy('id', 'DESC')
-            ->setMaxResults(1)
-            ->executeQuery()
-            ->fetchAssociative();
+            ->addOrderBy('id', 'DESC');
 
+        // Try exact language match first
+        if ($lang !== null) {
+            $row = (clone $base)
+                ->andWhere('LOWER(language) = :lang')
+                ->setParameter('lang', $lang)
+                ->setMaxResults(1)
+                ->executeQuery()
+                ->fetchAssociative();
+
+            if ($row !== false) {
+                $this->cache->set($cacheKey, $row, 3600);
+                return $row;
+            }
+        }
+
+        // No language requested or no exact match → newest of any language
+        $row    = $base->setMaxResults(1)->executeQuery()->fetchAssociative();
         $result = $row ?: null;
-        $this->cache->set($key, $result, 3600);
+        $this->cache->set($cacheKey, $result, 3600);
 
         return $result;
     }

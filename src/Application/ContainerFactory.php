@@ -19,7 +19,9 @@ use LexNova\Service\Password\DicewareGenerator;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
+use Laminas\I18n\Translator\Translator;
 use LexNova\Twig\EmailExtension;
+use LexNova\Twig\TranslationExtension;
 use Mezzio\Application;
 use Mezzio\ApplicationPipeline;
 use Mezzio\Container\ApplicationFactory;
@@ -82,6 +84,7 @@ final class ContainerFactory
         $config['session']['secure']        ??= false;
         $config['session']['httponly']      ??= true;
         $config['session']['samesite']      ??= 'Lax';
+        $config['app']['locale']            ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
         foreach ([$root . '/cache/twig', $root . '/cache/app', $root . '/logs'] as $dir) {
@@ -106,6 +109,7 @@ final class ContainerFactory
             'globals'     => ['twig_cache_enabled' => $twigCache],
             'extensions'  => [
                 EmailExtension::class,
+                TranslationExtension::class,
             ],
         ];
 
@@ -177,6 +181,25 @@ final class ContainerFactory
                 new SystemClock(),
 
             // ── Twig extensions ──────────────────────────────────────────────────────
+            Translator::class => function (ContainerInterface $c) use ($root): Translator {
+                $locale     = str_replace('-', '_', (string) ($c->get('config')['app']['locale'] ?? 'de'));
+                $translator = new Translator();
+                $translator->setLocale($locale);
+                $translator->setFallbackLocale('en');
+                $translator->addTranslationFilePattern(
+                    'phparray',
+                    $root . '/resources/translations',
+                    '%s.php',
+                );
+                return $translator;
+            },
+
+            TranslationExtension::class => fn(ContainerInterface $c) =>
+                new TranslationExtension(
+                    $c->get(Translator::class),
+                    (string) ($c->get('config')['app']['locale'] ?? 'de'),
+                ),
+
             EmailExtension::class => fn(ContainerInterface $c) =>
                 new EmailExtension(
                     $c->get(ClockInterface::class),
@@ -237,7 +260,6 @@ final class ContainerFactory
             InstalledCheckMiddleware::class => fn(ContainerInterface $c) =>
                 new InstalledCheckMiddleware(
                     $c->get(InstallService::class),
-                    $c->get(ResponseFactoryInterface::class)
                 ),
 
             // ── Console commands ─────────────────────────────────────────────────────

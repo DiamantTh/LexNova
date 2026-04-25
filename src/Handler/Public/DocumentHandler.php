@@ -26,6 +26,10 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $type = (string) $request->getAttribute('type', 'imprint');
         $type = in_array($type, ['imprint', 'privacy'], true) ? $type : 'imprint';
 
+        // Optional BCP 47 language tag from the URL (e.g. /hash/imprint/de)
+        $langAttr = $request->getAttribute('lang');
+        $language = ($langAttr !== null && $langAttr !== '') ? (string) $langAttr : null;
+
         $entity = $this->entities->findByHash($hash);
 
         if ($entity === null) {
@@ -35,12 +39,13 @@ final readonly class DocumentHandler implements RequestHandlerInterface
                     'entity' => null,
                     'doc'    => null,
                     'type'   => $type,
+                    'locale' => $language,
                 ]),
                 404,
             );
         }
 
-        $doc = $this->documents->findLatest((int) $entity['id'], $type);
+        $doc = $this->documents->findLatest((int) $entity['id'], $type, $language);
 
         if ($doc === null) {
             return new HtmlResponse(
@@ -49,6 +54,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
                     'entity' => $entity,
                     'doc'    => null,
                     'type'   => $type,
+                    'locale' => $language,
                 ]),
                 404,
             );
@@ -59,6 +65,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
             'entity' => $entity,
             'doc'    => $doc,
             'type'   => $type,
+            'locale' => $language ?? $doc['language'],
         ]));
     }
 }

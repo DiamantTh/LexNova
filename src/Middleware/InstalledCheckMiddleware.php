@@ -6,7 +6,6 @@ namespace LexNova\Middleware;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\InstallService;
-use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -16,7 +15,6 @@ final readonly class InstalledCheckMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly InstallService $install,
-        private readonly ResponseFactoryInterface $responseFactory,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface

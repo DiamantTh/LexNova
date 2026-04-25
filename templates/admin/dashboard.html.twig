@@ -7,7 +7,7 @@
     <h1>LexNova Admin</h1>
     <form method="post" action="/admin/logout">
         <input type="hidden" name="__csrf" value="{{ csrf_token }}">
-        <button type="submit" class="secondary">Logout</button>
+        <button type="submit" class="secondary">{{ trans('Logout') }}</button>
     </form>
 </header>
 
@@ -24,47 +24,47 @@
 
 {# ── Create user ────────────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>Create User</h2>
+    <h2>{{ trans('Create User') }}</h2>
     <form method="post" action="/admin/users/create">
         <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <div class="grid">
             <div>
-                <label for="new_username">Username</label>
+                <label for="new_username">{{ trans('Username') }}</label>
                 <input type="text" id="new_username" name="username" autocomplete="off" required>
             </div>
             <div>
-                <label for="new_role">Role</label>
+                <label for="new_role">{{ trans('Role') }}</label>
                 <select id="new_role" name="role">
                     <option value="admin">admin</option>
                 </select>
             </div>
             <div>
-                <label for="new_password">Password</label>
+                <label for="new_password">{{ trans('Password') }}</label>
                 <input type="password" id="new_password" name="password" class="pw-field"
                        minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
-                <p class="hint">Min {{ pw_min }} chars, max {{ pw_max }}, printable ASCII only.</p>
+                <p class="hint">{{ trans('pw_hint')|format(pw_min, pw_max) }}</p>
             </div>
             <div>
-                <label for="new_password_confirm">Confirm password</label>
+                <label for="new_password_confirm">{{ trans('Confirm password') }}</label>
                 <input type="password" id="new_password_confirm" name="password_confirm" class="pw-field"
                        minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
             </div>
         </div>
         <div class="actions">
-            <button type="submit">Create User</button>
+            <button type="submit">{{ trans('Create User') }}</button>
         </div>
     </form>
 </div>
 
 {# ── Users table ────────────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>Users</h2>
+    <h2>{{ trans('Users') }}</h2>
     {% if users is empty %}
-        <p>No users yet.</p>
+        <p>{{ trans('No users yet.') }}</p>
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+            <tr><th>ID</th><th>{{ trans('Username') }}</th><th>{{ trans('Role') }}</th><th>{{ trans('Created') }}</th><th>{{ trans('Actions') }}</th></tr>
         </thead>
         <tbody>
         {% for user in users %}
@@ -77,10 +77,10 @@
                     <select name="role" style="width:auto;">
                         <option value="admin"{{ user.role == 'admin' ? ' selected' : '' }}>admin</option>
                     </select>
-                    <input type="password" name="new_password" class="pw-field" placeholder="New password (optional)"
+                    <input type="password" name="new_password" class="pw-field" placeholder="{{ trans('New password (optional)') }}"
                            minlength="{{ pw_min }}" maxlength="{{ pw_max }}" autocomplete="new-password"
                            style="width:200px;">
-                    <button type="submit" class="secondary" style="padding:6px 12px;font-size:13px;">Update</button>
+                    <button type="submit" class="secondary" style="padding:6px 12px;font-size:13px;">{{ trans('Update') }}</button>
                 </form>
             </td>
             <td>{{ user.created_at }}</td>
@@ -94,7 +94,7 @@
 
 {# ── Create entity ───────────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>Create Legal Entity</h2>
+    <h2>{{ trans('Create Legal Entity') }}</h2>
     <form method="post" action="/admin/entities/create">
         <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <div class="grid">
@@ -103,21 +103,21 @@
                 <input type="text" id="entity_name" name="name" required>
             </div>
             <div>
-                <label for="entity_contact">Contact Data</label>
+                <label for="entity_contact">{{ trans('Contact Data') }}</label>
                 <textarea id="entity_contact" name="contact_data" style="min-height:80px;" required></textarea>
             </div>
         </div>
         <div class="actions">
-            <button type="submit">Create Entity</button>
+            <button type="submit">{{ trans('Create Entity') }}</button>
         </div>
     </form>
 </div>
 
 {# ── Entities table ─────────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>Legal Entities</h2>
+    <h2>{{ trans('Legal Entities') }}</h2>
     {% if entities is empty %}
-        <p>No entities yet.</p>
+        <p>{{ trans('No entities yet.') }}</p>
     {% else %}
     <table>
         <thead>
@@ -139,18 +139,18 @@
 {# ── Create / Edit document ─────────────────────────────────────────────── #}
 <div class="card">
     {% if editDoc %}
-        <h2>Edit Document #{{ editDoc.id }}</h2>
+        <h2>{{ trans('Edit Document') }} #{{ editDoc.id }}</h2>
         <form method="post" action="/admin/documents/{{ editDoc.id }}/edit">
     {% else %}
-        <h2>Create Document</h2>
+        <h2>{{ trans('Create Document') }}</h2>
         <form method="post" action="/admin/documents/create">
     {% endif %}
         <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <div class="grid">
             <div>
-                <label for="doc_entity">Entity</label>
+                <label for="doc_entity">{{ trans('Entity') }}</label>
                 <select id="doc_entity" name="entity_id" required>
-                    <option value="">— select —</option>
+                    <option value="">{{ trans('— select —') }}</option>
                     {% for entity in entities %}
                     <option value="{{ entity.id }}"
                         {{ editDoc and editDoc.entity_id == entity.id ? 'selected' : '' }}>
@@ -160,14 +160,14 @@
                 </select>
             </div>
             <div>
-                <label for="doc_type">Type</label>
+                <label for="doc_type">{{ trans('Type') }}</label>
                 <select id="doc_type" name="type" required>
-                    <option value="imprint" {{ editDoc and editDoc.type == 'imprint' ? 'selected' : '' }}>Imprint</option>
-                    <option value="privacy" {{ editDoc and editDoc.type == 'privacy' ? 'selected' : '' }}>Privacy Policy</option>
+                    <option value="imprint" {{ editDoc and editDoc.type == 'imprint' ? 'selected' : '' }}>{{ trans('Imprint') }}</option>
+                    <option value="privacy" {{ editDoc and editDoc.type == 'privacy' ? 'selected' : '' }}>{{ trans('Privacy Policy') }}</option>
                 </select>
             </div>
             <div>
-                <label for="doc_lang">Language</label>
+                <label for="doc_lang">{{ trans('Language') }}</label>
                 <input type="text" id="doc_lang" name="language" maxlength="10" placeholder="e.g. en, de"
                     value="{{ editDoc ? editDoc.language : '' }}" required>
             </div>
@@ -178,13 +178,13 @@
             </div>
         </div>
         <div style="margin-top:14px;">
-            <label for="doc_content">Content</label>
+            <label for="doc_content">{{ trans('Content') }}</label>
             <textarea id="doc_content" name="content" required>{{ editDoc ? editDoc.content : '' }}</textarea>
         </div>
         <div class="actions">
-            <button type="submit">{{ editDoc ? 'Update Document' : 'Create Document' }}</button>
+            <button type="submit">{{ editDoc ? trans('Update Document') : trans('Create Document') }}</button>
             {% if editDoc %}
-            <a href="/admin" style="align-self:center;font-size:14px;">Cancel</a>
+            <a href="/admin" style="align-self:center;font-size:14px;">{{ trans('Cancel') }}</a>
             {% endif %}
         </div>
     </form>
@@ -192,13 +192,13 @@
 
 {# ── Documents table ────────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>Documents</h2>
+    <h2>{{ trans('Documents') }}</h2>
     {% if documents is empty %}
-        <p>No documents yet.</p>
+        <p>{{ trans('No documents yet.') }}</p>
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>Entity</th><th>Type</th><th>Lang</th><th>Version</th><th>Updated</th><th></th></tr>
+            <tr><th>ID</th><th>{{ trans('Entity') }}</th><th>{{ trans('Type') }}</th><th>{{ trans('Language') }}</th><th>Version</th><th>{{ trans('Updated') }}</th><th></th></tr>
         </thead>
         <tbody>
         {% for doc in documents %}
@@ -209,7 +209,7 @@
             <td>{{ doc.language }}</td>
             <td>{{ doc.version }}</td>
             <td>{{ doc.updated_at }}</td>
-            <td><a href="/admin?doc_id={{ doc.id }}">Edit</a></td>
+            <td><a href="/admin?doc_id={{ doc.id }}">{{ trans('Edit Document') }}</a></td>
         </tr>
         {% endfor %}
         </tbody>
