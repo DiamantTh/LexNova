@@ -31,6 +31,6 @@ final readonly class AdminAuthMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/login');
     }
 }

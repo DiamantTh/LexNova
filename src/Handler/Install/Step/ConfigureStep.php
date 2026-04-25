@@ -36,7 +36,7 @@ final class ConfigureStep
         $errors = $this->validate($formData, $passwords);
 
         if ($install->configExists()) {
-            $errors[] = 'Configuration already exists. Remove config/config.php to reinstall.';
+            $errors[] = 'Configuration already exists. Remove config/config.toml to reinstall.';
         }
 
         if ($errors !== []) {

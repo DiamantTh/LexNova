@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace LexNova\Handler\Admin;
 
-use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
@@ -12,7 +11,6 @@ use Locale;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -22,7 +20,6 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
     public function __construct(
         private readonly DocumentService $documents,
         private readonly EntityService $entities,
-        private readonly TemplateRendererInterface $renderer,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -38,13 +35,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         }
 
         if ($request->getMethod() === 'GET') {
-            $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-            return new HtmlResponse($this->renderer->render('admin/document_edit', [
-                'doc'        => $doc,
-                'entities'   => $this->entities->list(),
-                'csrf_token' => $guard->generateToken(),
-                'errors'     => [],
-            ]));
+            return new RedirectResponse('/admin?doc_id=' . $id);
         }
 
         // POST

@@ -23,8 +23,7 @@ return static function (Application $app): void {
     // ── Admin ────────────────────────────────────────────────────────────────
     $app->get('/admin[/]', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.dashboard');
 
-    $app->post('/admin/login', LoginHandler::class, 'admin.login');
-    $app->get('/admin', LoginHandler::class, 'admin.login.form');        // fallback for non-authed GET
+    $app->route('/admin/login', LoginHandler::class, ['GET', 'POST'], 'admin.login');
 
     $app->post('/admin/logout', [AdminAuthMiddleware::class, LogoutHandler::class], 'admin.logout');
 

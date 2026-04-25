@@ -25,6 +25,6 @@ final readonly class LogoutHandler implements RequestHandlerInterface
             $session->clear();
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/login');
     }
 }
