@@ -12,9 +12,9 @@ user     = ""
 password = ""
 
 [install]
-lock          = "/path/to/lexnova/install/install.lock"
-password_file = "/path/to/lexnova/install/install.pw"
-config_file   = "/path/to/lexnova/config/config.toml"
+lock          = "/path/to/lexnova/data/install.lock"
+password_file = "/path/to/lexnova/data/install.pw"
+config_file   = "/path/to/lexnova/configs/config.toml"
 
 [session]
 name     = "lexnova_session"
@@ -23,5 +23,5 @@ httponly = true
 samesite = "Lax"
 
 [log]
-path  = "/path/to/lexnova/data/lexnova.log"
+path  = "/path/to/lexnova/logs/lexnova.log"
 level = "info"

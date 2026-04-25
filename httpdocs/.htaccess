@@ -6,9 +6,6 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Block direct access to sensitive project directories
-    RewriteRule ^(?:vendor|config|src|data|sql|templates|install|bin)(?:/|$) - [F,L]
-
     # Serve existing static files directly (assets/, favicon, robots.txt …)
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]

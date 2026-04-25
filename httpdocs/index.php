@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
 
-$container = require __DIR__ . '/config/container.php';
+$container = require __DIR__ . '/../configs/container.php';
 
 /** @var \Mezzio\Application $app */
 $app     = $container->get(\Mezzio\Application::class);

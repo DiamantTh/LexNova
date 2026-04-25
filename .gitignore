@@ -1,7 +1,23 @@
+# Runtime data
 /data/*.sqlite
-/config/config.php
-/install/install.pw
-/install/install.lock
-.vscode/
+/data/install.lock
+/data/install.pw
+/logs/*
+!/logs/.gitkeep
+
+# Cache
+/cache/twig/*
+!/cache/twig/.gitkeep
+/cache/*
+!/cache/.gitkeep
+
+# Config (generated at install time)
+/configs/config.toml
+/configs/config.php
+
+# Composer
 /vendor/
 /composer.lock
+
+# Editor
+.vscode/

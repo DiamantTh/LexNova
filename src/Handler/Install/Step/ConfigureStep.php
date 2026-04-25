@@ -36,7 +36,7 @@ final class ConfigureStep
         $errors = $this->validate($formData, $passwords);
 
         if ($install->configExists()) {
-            $errors[] = 'Configuration already exists. Remove config/config.toml to reinstall.';
+            $errors[] = 'Configuration already exists. Remove configs/config.toml to reinstall.';
         }
 
         if ($errors !== []) {
@@ -214,12 +214,12 @@ final class ConfigureStep
                 'password' => $password ?? '',
             ],
             'install' => [
-                'lock'          => $root . '/install/install.lock',
-                'password_file' => $root . '/install/install.pw',
-                'config_file'   => $root . '/config/config.toml',
+                'lock'          => $root . '/data/install.lock',
+                'password_file' => $root . '/data/install.pw',
+                'config_file'   => $root . '/configs/config.toml',
             ],
             'log' => [
-                'path'  => $root . '/data/lexnova.log',
+                'path'  => $root . '/logs/lexnova.log',
                 'level' => 'warning',
             ],
             'session' => [
