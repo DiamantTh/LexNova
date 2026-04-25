@@ -1,9 +1,12 @@
 # Runtime data (created at install time by InstallService)
-/data/
+/data/*
+!/data/.gitkeep
 
 # Cache and logs (created at runtime by bootstrap)
-/cache/
-/logs/
+/cache/*
+!/cache/.gitkeep
+/logs/*
+!/logs/.gitkeep
 
 # Config (generated at install time)
 /configs/config.toml

@@ -16,6 +16,7 @@ $factory = $container->get(\Mezzio\MiddlewareFactory::class);
 $app->run();
 
 
+
 if ($hash === '') {
     http_response_code(400);
     $error = 'Missing required parameter: hash.';
