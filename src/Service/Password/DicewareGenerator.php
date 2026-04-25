@@ -18,7 +18,7 @@ use RuntimeException;
  *
  * @see https://www.eff.org/deeplinks/2016/07/new-wordlists-random-passphrases
  */
-final readonly class DicewareGenerator implements PasswordGeneratorInterface
+final readonly class DicewareGenerator
 {
     /** Number of possible words in the EFF Large Wordlist (6^5). */
     private const int WORDLIST_SIZE = 7776;

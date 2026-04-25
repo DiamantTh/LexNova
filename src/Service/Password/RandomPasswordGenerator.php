@@ -22,7 +22,7 @@ namespace LexNova\Service\Password;
  * then fills remaining positions uniformly from the full charset. A
  * cryptographically secure Fisher-Yates shuffle randomises all positions.
  */
-final readonly class RandomPasswordGenerator implements PasswordGeneratorInterface
+final readonly class RandomPasswordGenerator
 {
     private const string LOWER   = 'abcdefghijklmnopqrstuvwxyz';
     private const string UPPER   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
