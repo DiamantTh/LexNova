@@ -36,11 +36,10 @@ final class UserTotpResetCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io       = new SymfonyStyle($input, $output);
+        $io     = new SymfonyStyle($input, $output);
         $username = trim((string) $input->getArgument('username'));
-        $user     = $this->users->findById(0); // init; will be overridden below
 
-        // findByUsername returns only limited columns — findById needs it
+        // findByUsername returns only limited columns — fetch full record via findById
         $byName = $this->users->findByUsername($username);
 
         if ($byName === null) {
