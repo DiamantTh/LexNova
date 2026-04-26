@@ -23,9 +23,9 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 
 $container = \LexNova\Application\ContainerFactory::create();
 
-// ── Vertical colour gradient banner ─────────────────────────────────────────
-// Lines cycle top→bottom through a curated palette (256-colour ANSI).
-// Degrades gracefully on terminals that do not support 256 colours.
+// ── Vertical colour gradient banner — Corporate Blue palette ─────────────
+// Deep navy (#0a1928) → slate steel → accent blue (#3273DC) → light blue
+// Uses 256-colour ANSI; degrades silently on basic terminals.
 $bannerLines = [
     '  ██╗     ███████╗██╗  ██╗███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ',
     '  ██║     ██╔════╝╚██╗██╔╝████╗  ██║██╔═══██╗██║   ██║██╔══██╗',
@@ -34,8 +34,8 @@ $bannerLines = [
     '  ███████╗███████╗██╔╝ ██╗██║ ╚████║╚██████╔╝ ╚████╔╝ ██║  ██║',
     '  ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝',
 ];
-// 256-colour codes: deep-blue → indigo → violet → magenta
-$gradientCodes = [21, 57, 93, 129, 165, 201];
+// Corporate Blue: #0a1928 deep navy → #005f87 slate → #005fd7 → #3273DC → #5fafff → #87afff
+$gradientCodes = [17, 24, 26, 33, 75, 111];
 $output = new ConsoleOutput();
 foreach ($bannerLines as $i => $line) {
     $code = $gradientCodes[$i % count($gradientCodes)];
