@@ -34,7 +34,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $entity = $this->entities->findByHash($hash);
 
         if ($entity === null) {
-            return new HtmlResponse(
+            return (new HtmlResponse(
                 $this->renderer->render('public/document', [
                     'error' => 'Entity not found.',
                     'entity' => null,
@@ -43,13 +43,13 @@ final readonly class DocumentHandler implements RequestHandlerInterface
                     'locale' => $language,
                 ]),
                 404,
-            );
+            ))->withHeader('Cache-Control', 'no-store');
         }
 
         $doc = $this->documents->findLatest((int) $entity['id'], $type, $language);
 
         if ($doc === null) {
-            return new HtmlResponse(
+            return (new HtmlResponse(
                 $this->renderer->render('public/document', [
                     'error' => 'No document found for this entity.',
                     'entity' => $entity,
@@ -58,15 +58,15 @@ final readonly class DocumentHandler implements RequestHandlerInterface
                     'locale' => $language,
                 ]),
                 404,
-            );
+            ))->withHeader('Cache-Control', 'no-store');
         }
 
-        return new HtmlResponse($this->renderer->render('public/document', [
+        return (new HtmlResponse($this->renderer->render('public/document', [
             'error' => null,
             'entity' => $entity,
             'doc' => $doc,
             'type' => $type,
             'locale' => $language ?? $doc['language'],
-        ]));
+        ])))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
     }
 }
