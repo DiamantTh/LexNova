@@ -12,7 +12,19 @@
 {% endfor %}
 
 <div style="max-width:520px;margin:0 auto;">
-    <h2>{{ trans('Two-Factor Authentication (TOTP)') }}</h2>
+    <h2>
+        {% if existing_key_count > 0 %}
+            {{ trans('Add another TOTP key') }}
+        {% else %}
+            {{ trans('Two-Factor Authentication (TOTP)') }}
+        {% endif %}
+    </h2>
+
+    {% if existing_key_count > 0 %}
+    <p style="color:#555;margin-bottom:18px;">
+        Du hast bereits {{ existing_key_count }} aktiven Key(s). Scanne den neuen QR-Code mit einem weiteren Gerät und bestätige ihn mit einem Code.
+    </p>
+    {% endif %}
 
     {# ── Compatibility notice ─────────────────────────────────────────── #}
     <div class="notice" style="background:#fff8e1;border-left:4px solid #f9a825;padding:14px 18px;margin-bottom:22px;border-radius:4px;">

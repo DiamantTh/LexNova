@@ -48,11 +48,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
-        // Already enrolled — redirect to dashboard
-        if ($this->users->hasActiveTotpKey($userId)) {
-            $session->set('flash_messages', ['TOTP is already active for your account. Add another key via the dashboard.']);
-            return new RedirectResponse('/admin');
-        }
+        $existingKeyCount = $this->users->countActiveKeys($userId);
 
         $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $errors = [];
@@ -76,7 +72,10 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
                     $encrypted = $this->totp->encrypt($enrollSecret);
                     $this->users->addTotpKey($userId, $encrypted, $label);
                     $session->unset('totp_enrolling_secret');
-                    $session->set('flash_messages', ['TOTP two-factor authentication has been enabled.']);
+                    $msg = $existingKeyCount === 0
+                        ? 'TOTP two-factor authentication has been enabled.'
+                        : 'Additional TOTP key enrolled successfully.';
+                    $session->set('flash_messages', [$msg]);
                     return new RedirectResponse('/admin');
                 } else {
                     $errors[] = 'Invalid code — please wait for the next 30-second window and try again.';
@@ -100,11 +99,12 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
         }
 
         return new HtmlResponse($this->renderer->render('admin/totp_enroll', [
-            'errors'     => $errors,
-            'csrf_token' => $guard->generateToken(),
-            'qr_svg'     => $this->buildQrSvg($uri),
-            'secret'     => $enrollSecret,
-            'uri'        => $uri,
+            'errors'           => $errors,
+            'csrf_token'       => $guard->generateToken(),
+            'qr_svg'           => $this->buildQrSvg($uri),
+            'secret'           => $enrollSecret,
+            'uri'              => $uri,
+            'existing_key_count' => $existingKeyCount,
         ]));
     }
 
