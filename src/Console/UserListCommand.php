@@ -33,11 +33,12 @@ final class UserListCommand extends Command
         }
 
         $io->table(
-            ['ID', 'Username', 'Role', 'Created at'],
+            ['ID', 'Username', 'Role', 'TOTP', 'Created at'],
             array_map(static fn(array $u) => [
                 $u['id'],
                 $u['username'],
                 $u['role'],
+                ((bool) ($u['totp_enabled'] ?? false)) ? '<info>on</info>' : '<fg=gray>off</>',
                 $u['created_at'],
             ], $users)
         );

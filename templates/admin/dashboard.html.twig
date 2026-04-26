@@ -64,7 +64,14 @@
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>{{ trans('Username') }}</th><th>{{ trans('Role') }}</th><th>{{ trans('Created') }}</th><th>{{ trans('Actions') }}</th></tr>
+            <tr>
+                <th>ID</th>
+                <th>{{ trans('Username') }}</th>
+                <th>{{ trans('Role') }}</th>
+                <th>{{ trans('TOTP Status') }}</th>
+                <th>{{ trans('Created') }}</th>
+                <th>{{ trans('Actions') }}</th>
+            </tr>
         </thead>
         <tbody>
         {% for user in users %}
@@ -83,8 +90,27 @@
                     <button type="submit" class="secondary" style="padding:6px 12px;font-size:13px;">{{ trans('Update') }}</button>
                 </form>
             </td>
+            <td>
+                {% if user.totp_enabled %}
+                    <span style="color:#2e7d32;font-weight:600;">{{ trans('active') }}</span>
+                {% else %}
+                    <span style="color:#9e9e9e;">{{ trans('inactive') }}</span>
+                {% endif %}
+            </td>
             <td>{{ user.created_at }}</td>
-            <td></td>
+            <td style="white-space:nowrap;">
+                {# TOTP reset — any user with TOTP active #}
+                {% if user.totp_enabled %}
+                <form method="post" action="/admin/totp/reset/{{ user.id }}" style="display:inline;" onsubmit="return confirm('{{ trans('Disable TOTP for this user?') }}')">
+                    <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                    <button type="submit" class="secondary" style="padding:4px 10px;font-size:12px;">{{ trans('Disable TOTP') }}</button>
+                </form>
+                {% endif %}
+                {# Enroll link — only for the currently logged-in user if not enrolled #}
+                {% if user.id == current_user_id and not user.totp_enabled %}
+                <a href="/admin/totp/enroll" style="font-size:13px;">{{ trans('Enroll TOTP') }}</a>
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
         </tbody>

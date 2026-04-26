@@ -16,7 +16,7 @@ final readonly class UserService
     public function list(): array
     {
         return $this->db->createQueryBuilder()
-            ->select('id', 'username', 'role', 'created_at')
+            ->select('id', 'username', 'role', 'totp_enabled', 'created_at')
             ->from('users')
             ->orderBy('username', 'ASC')
             ->executeQuery()
@@ -26,7 +26,7 @@ final readonly class UserService
     public function findById(int $id): ?array
     {
         $row = $this->db->createQueryBuilder()
-            ->select('id', 'username', 'role', 'created_at')
+            ->select('id', 'username', 'role', 'totp_secret', 'totp_enabled', 'created_at')
             ->from('users')
             ->where('id = :id')
             ->setParameter('id', $id)
@@ -39,7 +39,7 @@ final readonly class UserService
     public function findByUsername(string $username): ?array
     {
         $row = $this->db->createQueryBuilder()
-            ->select('id', 'username', 'password_hash', 'role')
+            ->select('id', 'username', 'password_hash', 'role', 'totp_enabled')
             ->from('users')
             ->where('username = :username')
             ->setParameter('username', $username)
@@ -86,5 +86,17 @@ final readonly class UserService
     {
         $hash = $this->passwords->hash($password);
         $this->db->update('users', ['password_hash' => $hash], ['id' => $id]);
+    }
+
+    /**
+     * Saves (or clears) an encrypted TOTP secret and updates the enabled flag.
+     * Pass null for $encryptedSecret to disable TOTP and wipe the secret.
+     */
+    public function setTotpSecret(int $id, ?string $encryptedSecret, bool $enabled): void
+    {
+        $this->db->update('users', [
+            'totp_secret'  => $encryptedSecret,
+            'totp_enabled' => $enabled ? 1 : 0,
+        ], ['id' => $id]);
     }
 }

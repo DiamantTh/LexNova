@@ -20,6 +20,10 @@ use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Laminas\I18n\Translator\Translator;
+use LexNova\Handler\Admin\TotpResetHandler;
+use LexNova\Handler\Auth\TotpEnrollHandler;
+use LexNova\Handler\Auth\TotpVerifyHandler;
+use LexNova\Service\TotpService;
 use LexNova\Twig\EmailExtension;
 use LexNova\Twig\TranslationExtension;
 use Mezzio\Application;
@@ -65,10 +69,16 @@ final class ContainerFactory
             ? toml_decode((string) file_get_contents($configToml), asArray: true)
             : [];
 
-        // Security config ships in the repository and is always loaded separately
+        // Security config ships in the repository and is always loaded separately.
+        // Merge: config.toml [security] (user settings like totp_app_key) wins first,
+        // then security.toml values are overlaid (repo-managed policy takes precedence).
         $securityToml = $root . '/configs/security.toml';
         if (is_file($securityToml)) {
-            $config['security'] = toml_decode((string) file_get_contents($securityToml), asArray: true);
+            $repoSecurity    = toml_decode((string) file_get_contents($securityToml), asArray: true);
+            $config['security'] = array_replace_recursive(
+                $config['security'] ?? [],
+                $repoSecurity,
+            );
         }
 
         // ── Runtime path defaults ─────────────────────────────────────────────────
@@ -239,6 +249,14 @@ final class ContainerFactory
             DocumentService::class => fn(ContainerInterface $c) =>
                 new DocumentService($c->get(Connection::class), $c->get(CacheInterface::class)),
 
+            TotpService::class => fn(ContainerInterface $c) => new TotpService(
+                appKey:    (string) ($c->get('config')['security']['totp_app_key'] ?? ''),
+                digits:    (int)    ($c->get('config')['security']['totp']['digits']    ?? 8),
+                algorithm: (string) ($c->get('config')['security']['totp']['algorithm'] ?? 'sha256'),
+                period:    (int)    ($c->get('config')['security']['totp']['period']    ?? 30),
+                window:    (int)    ($c->get('config')['security']['totp']['window']    ?? 1),
+            ),
+
             InstallService::class => fn(ContainerInterface $c) =>
                 new InstallService($c->get('config')),
 
@@ -249,6 +267,26 @@ final class ContainerFactory
                     $c->get(PasswordService::class),
                     $c->get(TemplateRendererInterface::class),
                     $c->get('config'),
+                ),
+
+            // ── Handlers: Auth (TOTP) ────────────────────────────────────────────────
+            TotpVerifyHandler::class => fn(ContainerInterface $c) =>
+                new TotpVerifyHandler(
+                    $c->get(TotpService::class),
+                    $c->get(UserService::class),
+                    $c->get(TemplateRendererInterface::class),
+                ),
+
+            TotpEnrollHandler::class => fn(ContainerInterface $c) =>
+                new TotpEnrollHandler(
+                    $c->get(TotpService::class),
+                    $c->get(UserService::class),
+                    $c->get(TemplateRendererInterface::class),
+                ),
+
+            TotpResetHandler::class => fn(ContainerInterface $c) =>
+                new TotpResetHandler(
+                    $c->get(UserService::class),
                 ),
 
             // ── Middleware ───────────────────────────────────────────────────────────
@@ -277,6 +315,11 @@ final class ContainerFactory
                     $c->get(PasswordService::class),
                     $c->get(DicewareGenerator::class),
                     $c->get(RandomPasswordGenerator::class),
+                ),
+
+            \LexNova\Console\UserTotpResetCommand::class => fn(ContainerInterface $c) =>
+                new \LexNova\Console\UserTotpResetCommand(
+                    $c->get(UserService::class),
                 ),
 
         ]);

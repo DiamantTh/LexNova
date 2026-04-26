@@ -76,6 +76,7 @@ final class ConfigureStep
                 $pdoUser,
                 $pdoPass,
                 $formData['appLocale'],
+                sodium_bin2hex(random_bytes(32)),
                 $root,
             );
 
@@ -201,12 +202,18 @@ final class ConfigureStep
         ?string $user,
         ?string $password,
         string  $appLocale,
+        string  $totpAppKey,
         string  $root,
     ): string {
         return toml_encode([
             'app' => [
                 'base_url' => '',
                 'locale'   => $appLocale,
+            ],
+            'security' => [
+                // XSalsa20-Poly1305 key for TOTP secret encryption (32 bytes / 64 hex chars).
+                // Do NOT change after TOTP secrets are enrolled — it will invalidate them.
+                'totp_app_key' => $totpAppKey,
             ],
             'db' => [
                 'dsn'      => $dsn,

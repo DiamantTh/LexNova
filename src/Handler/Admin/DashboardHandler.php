@@ -44,15 +44,16 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         $editDoc = $editId !== null ? $this->documents->findById($editId) : null;
 
         return new HtmlResponse($this->renderer->render('admin/dashboard', [
-            'users'      => $this->users->list(),
-            'entities'   => $this->entities->list(),
-            'documents'  => $this->documents->list(),
-            'editDoc'    => $editDoc,
-            'csrf_token' => $guard->generateToken(),
-            'pw_min'     => $this->passwords->getMinLength(),
-            'pw_max'     => $this->passwords->getMaxLength(),
-            'errors'     => $errors,
-            'messages'   => $messages,
+            'users'           => $this->users->list(),
+            'entities'        => $this->entities->list(),
+            'documents'       => $this->documents->list(),
+            'editDoc'         => $editDoc,
+            'csrf_token'      => $guard->generateToken(),
+            'pw_min'          => $this->passwords->getMinLength(),
+            'pw_max'          => $this->passwords->getMaxLength(),
+            'errors'          => $errors,
+            'messages'        => $messages,
+            'current_user_id' => (int) $session->get('user_id'),
         ]));
     }
 }

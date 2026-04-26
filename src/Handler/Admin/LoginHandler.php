@@ -47,6 +47,13 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
                 if ($user !== null) {
                     $session->regenerate();
+
+                    if ((bool) ($user['totp_enabled'] ?? false)) {
+                        // Password OK but TOTP required — park pending state and redirect
+                        $session->set('totp_pending_user_id', (int) $user['id']);
+                        return new RedirectResponse('/admin/totp/verify');
+                    }
+
                     $session->set('user_id',  (int) $user['id']);
                     $session->set('username', (string) $user['username']);
                     $session->set('role',     (string) $user['role']);

@@ -10,8 +10,11 @@ use LexNova\Handler\Admin\DocumentUpdateHandler;
 use LexNova\Handler\Admin\EntityCreateHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
+use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
+use LexNova\Handler\Auth\TotpEnrollHandler;
+use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Install\InstallHandler;
 use LexNova\Handler\Public\DocumentHandler;
 use LexNova\Middleware\AdminAuthMiddleware;
@@ -30,6 +33,20 @@ final class Routes
         $app->route('/admin/login', LoginHandler::class, ['GET', 'POST'], 'admin.login');
 
         $app->post('/admin/logout', [AdminAuthMiddleware::class, LogoutHandler::class], 'admin.logout');
+
+        // ── TOTP: verification during login (no AdminAuthMiddleware — user not yet logged in)
+        $app->route('/admin/totp/verify', TotpVerifyHandler::class, ['GET', 'POST'], 'admin.totp.verify');
+
+        // ── TOTP: enrollment + reset (requires admin session)
+        $app->route('/admin/totp/enroll',
+            [AdminAuthMiddleware::class, TotpEnrollHandler::class],
+            ['GET', 'POST'],
+            'admin.totp.enroll'
+        );
+        $app->post('/admin/totp/reset/{id:\d+}',
+            [AdminAuthMiddleware::class, TotpResetHandler::class],
+            'admin.totp.reset'
+        );
 
         $app->post('/admin/users/create',
             [AdminAuthMiddleware::class, UserCreateHandler::class],

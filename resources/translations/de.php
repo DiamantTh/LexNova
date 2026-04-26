@@ -61,4 +61,28 @@ return [
     'Updated'              => 'Aktualisiert',
     '— select —'           => '— auswählen —',
 
+    // ── TOTP / Zwei-Faktor-Authentifizierung ───────────────────────────────
+    'Two-Factor Authentication'                    => 'Zwei-Faktor-Authentifizierung',
+    'Two-Factor Authentication (TOTP)'             => 'Zwei-Faktor-Authentifizierung (TOTP)',
+    'TOTP Status'                                  => 'TOTP-Status',
+    'active'                                       => 'aktiv',
+    'inactive'                                     => 'inaktiv',
+    'Enroll TOTP'                                  => 'TOTP einrichten',
+    'Enroll'                                       => 'Einrichten',
+    'Disable TOTP'                                 => 'TOTP deaktivieren',
+    'Disable TOTP for this user?'                  => 'TOTP für diesen Benutzer deaktivieren?',
+    'Authentication Code'                          => 'Authenticator-Code',
+    'Authenticator Code'                           => 'Authenticator-Code',
+    'Enter the 8-digit code from your authenticator app to complete sign-in.' => 'Gib den 8-stelligen Code aus deiner Authenticator-App ein, um die Anmeldung abzuschließen.',
+    'Enter the 8-digit code from your authenticator app.' => 'Gib den 8-stelligen Code aus deiner Authenticator-App ein.',
+    'Verify'                                       => 'Verifizieren',
+    'Scan QR Code'                                 => 'QR-Code scannen',
+    'Manual entry (Base32 secret):'                => 'Manuelle Eingabe (Base32-Secret):',
+    'Copy provisioning URI'                        => 'Bereitstellungs-URI kopieren',
+    'Confirm enrollment with a code:'              => 'Einrichtung mit einem Code bestätigen:',
+    'Back to login'                                => 'Zurück zum Login',
+    'App compatibility notice'                     => 'Hinweis zur App-Kompatibilität',
+    'This application uses TOTP with SHA-256 and 8-digit codes. Google Authenticator is <strong>not supported</strong>. Recommended apps:' =>
+        'Diese Anwendung verwendet TOTP mit SHA-256 und 8-stelligen Codes. Google Authenticator wird <strong>nicht unterstützt</strong>. Empfohlene Apps:',
+
 ];

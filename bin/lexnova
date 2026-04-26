@@ -17,12 +17,36 @@ date_default_timezone_set('UTC');
 use LexNova\Console\UserCreateCommand;
 use LexNova\Console\UserListCommand;
 use LexNova\Console\UserSetPasswordCommand;
+use LexNova\Console\UserTotpResetCommand;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Output\ConsoleOutput;
 
 $container = \LexNova\Application\ContainerFactory::create();
 
+// ── Vertical colour gradient banner ─────────────────────────────────────────
+// Lines cycle top→bottom through a curated palette (256-colour ANSI).
+// Degrades gracefully on terminals that do not support 256 colours.
+$bannerLines = [
+    '  ██╗     ███████╗██╗  ██╗███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ',
+    '  ██║     ██╔════╝╚██╗██╔╝████╗  ██║██╔═══██╗██║   ██║██╔══██╗',
+    '  ██║     █████╗   ╚███╔╝ ██╔██╗ ██║██║   ██║██║   ██║███████║',
+    '  ██║     ██╔══╝   ██╔██╗ ██║╚██╗██║██║   ██║╚██╗ ██╔╝██╔══██║',
+    '  ███████╗███████╗██╔╝ ██╗██║ ╚████║╚██████╔╝ ╚████╔╝ ██║  ██║',
+    '  ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝',
+];
+// 256-colour codes: deep-blue → indigo → violet → magenta
+$gradientCodes = [21, 57, 93, 129, 165, 201];
+$output = new ConsoleOutput();
+foreach ($bannerLines as $i => $line) {
+    $code = $gradientCodes[$i % count($gradientCodes)];
+    $output->writeln("\e[38;5;{$code}m{$line}\e[0m");
+}
+$output->writeln('');
+
+// ── Application ──────────────────────────────────────────────────────────────
 $application = new Application('LexNova', '1.0.0');
 $application->add($container->get(UserCreateCommand::class));
 $application->add($container->get(UserListCommand::class));
 $application->add($container->get(UserSetPasswordCommand::class));
-$application->run();
+$application->add($container->get(UserTotpResetCommand::class));
+$application->run(null, $output);

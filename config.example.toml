@@ -2,6 +2,11 @@
 base_url = ""
 locale   = "de"
 
+# Generated during installation — do NOT change after TOTP secrets are enrolled.
+# Changing this key invalidates all existing TOTP registrations.
+[security]
+totp_app_key = ""
+
 [db]
 # Supported drivers: sqlite, mysql, pgsql
 # SQLite  : dsn = "sqlite:/absolute/path/to/lexnova.sqlite"

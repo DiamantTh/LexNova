@@ -46,3 +46,17 @@ length          = 20
 require_upper   = true
 require_digits  = true
 require_symbols = true
+
+# ── TOTP two-factor authentication ────────────────────────────────────────────
+# digits    : code length (8 recommended; Google Authenticator only supports 6)
+# algorithm : hash algorithm (sha256 recommended; Google Authenticator only sha1)
+# period    : TOTP time step in seconds (30 is universal)
+# window    : accepted time steps before/after current (1 = ±30 s clock drift)
+#
+# ⚠  SHA-256 + 8 digits is NOT supported by Google Authenticator.
+#    Recommended apps: Aegis (Android), 2FAS, Raivo (iOS), KeePassXC, Ente Auth.
+[totp]
+digits    = 8
+algorithm = "sha256"
+period    = 30
+window    = 1

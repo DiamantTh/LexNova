@@ -1,0 +1,68 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}{{ trans('Enroll TOTP') }} · LexNova{% endblock %}
+
+{% block body %}
+<header>
+    <h1>LexNova</h1>
+</header>
+
+{% for msg in errors %}
+<div class="notice error">{{ msg }}</div>
+{% endfor %}
+
+<div style="max-width:520px;margin:0 auto;">
+    <h2>{{ trans('Two-Factor Authentication (TOTP)') }}</h2>
+
+    {# ── Compatibility notice ─────────────────────────────────────────── #}
+    <div class="notice" style="background:#fff8e1;border-left:4px solid #f9a825;padding:14px 18px;margin-bottom:22px;border-radius:4px;">
+        <strong>{{ trans('App compatibility notice') }}</strong><br>
+        {{ trans('This application uses TOTP with SHA-256 and 8-digit codes. Google Authenticator is <strong>not supported</strong>. Recommended apps:') }}
+        <ul style="margin:6px 0 0 18px;">
+            <li>Aegis Authenticator (Android)</li>
+            <li>2FAS Auth (Android / iOS)</li>
+            <li>Raivo OTP (iOS)</li>
+            <li>KeePassXC (Desktop)</li>
+            <li>Ente Auth (Android / iOS / Desktop)</li>
+            <li>Bitwarden Authenticator</li>
+        </ul>
+    </div>
+
+    {# ── QR code ─────────────────────────────────────────────────────── #}
+    <div class="card" style="text-align:center;padding:24px;margin-bottom:22px;">
+        <p style="margin-bottom:14px;font-weight:600;">{{ trans('Scan QR Code') }}</p>
+        {{ qr_svg|raw }}
+
+        {# Manual entry #}
+        <p style="margin-top:18px;font-size:13px;color:#555;">
+            {{ trans('Manual entry (Base32 secret):') }}<br>
+            <code style="font-size:15px;letter-spacing:.08em;user-select:all;">{{ secret }}</code>
+        </p>
+
+        <details style="margin-top:12px;text-align:left;">
+            <summary style="font-size:13px;cursor:pointer;">{{ trans('Copy provisioning URI') }}</summary>
+            <pre style="font-size:11px;white-space:pre-wrap;word-break:break-all;background:#f4f4f4;padding:10px;border-radius:4px;margin-top:8px;">{{ uri }}</pre>
+        </details>
+    </div>
+
+    {# ── Confirmation form ────────────────────────────────────────────── #}
+    <div class="card" style="padding:24px;">
+        <p style="font-weight:600;margin-bottom:14px;">{{ trans('Confirm enrollment with a code:') }}</p>
+        <form method="post" action="/admin/totp/enroll" autocomplete="off">
+            <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+            <div style="margin-bottom:18px;">
+                <label for="code">{{ trans('Authentication Code') }}</label>
+                <input type="text" id="code" name="code"
+                       inputmode="numeric" pattern="[0-9]{8}" maxlength="8"
+                       required autofocus autocomplete="one-time-code"
+                       style="letter-spacing:.25em;font-size:1.5em;text-align:center;width:100%;">
+                <small style="color:#666;">{{ trans('Enter the 8-digit code from your authenticator app.') }}</small>
+            </div>
+            <div class="actions">
+                <button type="submit">{{ trans('Enroll') }}</button>
+                <a href="/admin" style="align-self:center;font-size:14px;">{{ trans('Cancel') }}</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

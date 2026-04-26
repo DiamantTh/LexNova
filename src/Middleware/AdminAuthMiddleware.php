@@ -31,6 +31,11 @@ final readonly class AdminAuthMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        // Password verified but TOTP step pending
+        if ($session !== null && $session->has('totp_pending_user_id')) {
+            return new RedirectResponse('/admin/totp/verify');
+        }
+
         return new RedirectResponse('/admin/login');
     }
 }
