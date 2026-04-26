@@ -6,6 +6,22 @@
     <title>{% if error %}{{ trans('Error', locale) }}{% elseif type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %} · LexNova</title>
     <style>
         :root { color-scheme: light; }
+        /* Screen-reader-only utility (WCAG 2.4.1, 1.3.1) */
+        .sr-only {
+            position: absolute; width: 1px; height: 1px;
+            padding: 0; margin: -1px; overflow: hidden;
+            clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+        /* Skip navigation (WCAG 2.4.1) */
+        .skip-link {
+            position: absolute; top: -100%; left: 8px;
+            background: #5c4a34; color: #fff; padding: 8px 16px;
+            border-radius: 0 0 8px 8px; font-size: 14px;
+            z-index: 1000; text-decoration: none;
+        }
+        .skip-link:focus { top: 0; }
+        /* Focus indicator (WCAG 2.4.7) */
+        :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
         body { font-family: "Georgia","Times New Roman",serif; margin: 0; background: #f4f1ea; color: #1f1f1f; }
         .wrap { max-width: 900px; margin: 0 auto; padding: 48px 20px 80px; }
         header { margin-bottom: 32px; }
@@ -18,14 +34,15 @@
     </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip-link" href="#main-content">{{ trans('Skip to main content', locale) }}</a>
+<main id="main-content" class="wrap">
     <header>
         <div class="meta">{{ trans('LexNova Legal Documents', locale) }}</div>
         <h1>{% if type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %}</h1>
     </header>
     <div class="card">
         {% if error %}
-            <div class="error">{{ error }}</div>
+            <div class="error" role="alert">{{ error }}</div>
         {% else %}
             <div class="meta">Entity: {{ entity.name }} · <code>{{ entity.hash }}</code></div>
             <div class="section-title">{{ trans('Contact', locale) }}</div>
@@ -35,6 +52,6 @@
             <div class="meta">{{ trans('Version %s · Updated %s', locale)|format(doc.version, doc.updated_at) }}</div>
         {% endif %}
     </div>
-</div>
+</main>
 </body>
 </html>

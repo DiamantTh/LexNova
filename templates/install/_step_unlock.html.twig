@@ -8,9 +8,9 @@
     <table style="width:100%;font-size:14px;">
         <thead>
             <tr>
-                <th style="text-align:left;padding:4px 8px;">Voraussetzung</th>
-                <th style="text-align:left;padding:4px 8px;">Status</th>
-                <th style="text-align:left;padding:4px 8px;">Wert</th>
+                <th scope="col" style="text-align:left;padding:4px 8px;">Voraussetzung</th>
+                <th scope="col" style="text-align:left;padding:4px 8px;">Status</th>
+                <th scope="col" style="text-align:left;padding:4px 8px;">Wert</th>
             </tr>
         </thead>
         <tbody>
@@ -22,11 +22,11 @@
             </td>
             <td style="padding:5px 8px;">
                 {% if check.ok %}
-                    <span style="color:#2e7d32;font-weight:600;">✓ OK</span>
+                    <span style="color:#2e7d32;font-weight:600;"><span aria-hidden="true">✓</span> OK</span>
                 {% elseif check.required %}
-                    <span style="color:#b71c1c;font-weight:600;">✗ Fehlt</span>
+                    <span style="color:#b71c1c;font-weight:600;"><span aria-hidden="true">✗</span> Fehlt</span>
                 {% else %}
-                    <span style="color:#e65100;font-weight:600;">⚠ Fehlt</span>
+                    <span style="color:#e65100;font-weight:600;"><span aria-hidden="true">⚠</span> Fehlt (empfohlen)</span>
                 {% endif %}
             </td>
             <td style="padding:5px 8px;font-family:monospace;font-size:13px;color:#555;">

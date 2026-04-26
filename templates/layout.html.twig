@@ -6,6 +6,25 @@
     <title>{% block title %}LexNova{% endblock %}</title>
     <style>
         :root { color-scheme: light; }
+        /* Screen-reader-only utility (WCAG 2.4.1, 1.3.1) */
+        .sr-only {
+            position: absolute; width: 1px; height: 1px;
+            padding: 0; margin: -1px; overflow: hidden;
+            clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+        /* Skip navigation (WCAG 2.4.1) */
+        .skip-link {
+            position: absolute; top: -100%; left: 8px;
+            background: #2f3a2f; color: #fff; padding: 8px 16px;
+            border-radius: 0 0 8px 8px; font-size: 14px;
+            z-index: 1000; text-decoration: none;
+        }
+        .skip-link:focus { top: 0; }
+        /* Focus indicator (WCAG 2.4.7) */
+        :focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: 2px;
+        }
         body {
             font-family: "Trebuchet MS", "Verdana", sans-serif;
             margin: 0;
@@ -60,9 +79,10 @@
     </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip-link" href="#main-content">{% block skip_link_label %}Zum Hauptinhalt springen{% endblock %}</a>
+<main id="main-content" class="wrap">
     {% block body %}{% endblock %}
-</div>
+</main>
 {% block scripts %}{% endblock %}
 </body>
 </html>

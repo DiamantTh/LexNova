@@ -65,12 +65,12 @@
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>{{ trans('Username') }}</th>
-                <th>{{ trans('Role') }}</th>
-                <th>{{ trans('TOTP Status') }}</th>
-                <th>{{ trans('Created') }}</th>
-                <th>{{ trans('Actions') }}</th>
+                <th scope="col">ID</th>
+                <th scope="col">{{ trans('Username') }}</th>
+                <th scope="col">{{ trans('Role') }}</th>
+                <th scope="col">{{ trans('TOTP Status') }}</th>
+                <th scope="col">{{ trans('Created') }}</th>
+                <th scope="col">{{ trans('Actions') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -100,10 +100,10 @@
                         <table style="margin-top:8px;font-size:12px;width:100%;">
                             <thead>
                                 <tr>
-                                    <th style="text-align:left;padding:2px 6px;">ID</th>
-                                    <th style="text-align:left;padding:2px 6px;">{{ trans('Key label (e.g. Phone, YubiKey)') }}</th>
-                                    <th style="text-align:left;padding:2px 6px;">{{ trans('active') }}</th>
-                                    <th style="padding:2px 6px;"></th>
+                                    <th scope="col" style="text-align:left;padding:2px 6px;">ID</th>
+                                    <th scope="col" style="text-align:left;padding:2px 6px;">{{ trans('Key label (e.g. Phone, YubiKey)') }}</th>
+                                    <th scope="col" style="text-align:left;padding:2px 6px;">{{ trans('active') }}</th>
+                                    <th scope="col" style="padding:2px 6px;"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -111,7 +111,13 @@
                             <tr>
                                 <td style="padding:2px 6px;">{{ key.id }}</td>
                                 <td style="padding:2px 6px;">{{ key.label }}</td>
-                                <td style="padding:2px 6px;">{{ key.is_active ? '✓' : '–' }}</td>
+                                <td style="padding:2px 6px;">
+                                    {% if key.is_active %}
+                                        <span aria-hidden="true">✓</span><span class="sr-only">{{ trans('active') }}</span>
+                                    {% else %}
+                                        <span aria-hidden="true">–</span><span class="sr-only">{{ trans('inactive') }}</span>
+                                    {% endif %}
+                                </td>
                                 <td style="padding:2px 6px;">
                                     <form method="post"
                                           action="/admin/users/{{ user.id }}/totp-keys/{{ key.id }}/delete"
@@ -199,7 +205,7 @@
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>Hash</th><th>Name</th><th>{{ trans('Actions') }}</th></tr>
+            <tr><th scope="col">ID</th><th scope="col">Hash</th><th scope="col">Name</th><th scope="col">{{ trans('Actions') }}</th></tr>
         </thead>
         <tbody>
         {% for entity in entities %}
@@ -284,7 +290,7 @@
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>{{ trans('Entity') }}</th><th>{{ trans('Type') }}</th><th>{{ trans('Language') }}</th><th>Version</th><th>{{ trans('Updated') }}</th><th></th></tr>
+            <tr><th scope="col">ID</th><th scope="col">{{ trans('Entity') }}</th><th scope="col">{{ trans('Type') }}</th><th scope="col">{{ trans('Language') }}</th><th scope="col">Version</th><th scope="col">{{ trans('Updated') }}</th><th scope="col"></th></tr>
         </thead>
         <tbody>
         {% for doc in documents %}
@@ -479,12 +485,12 @@
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead>
                 <tr style="background:#f6f4ef;text-align:left;">
-                    <th style="padding:10px 12px;white-space:nowrap;">{{ trans('When') }}</th>
-                    <th style="padding:10px 12px;">{{ trans('Actor') }}</th>
-                    <th style="padding:10px 12px;">{{ trans('Action') }}</th>
-                    <th style="padding:10px 12px;">{{ trans('Target') }}</th>
-                    <th style="padding:10px 12px;">{{ trans('Detail') }}</th>
-                    <th style="padding:10px 12px;">IP</th>
+                    <th scope="col" style="padding:10px 12px;white-space:nowrap;">{{ trans('When') }}</th>
+                    <th scope="col" style="padding:10px 12px;">{{ trans('Actor') }}</th>
+                    <th scope="col" style="padding:10px 12px;">{{ trans('Action') }}</th>
+                    <th scope="col" style="padding:10px 12px;">{{ trans('Target') }}</th>
+                    <th scope="col" style="padding:10px 12px;">{{ trans('Detail') }}</th>
+                    <th scope="col" style="padding:10px 12px;">IP</th>
                 </tr>
             </thead>
             <tbody>
