@@ -150,7 +150,8 @@
                 {% if user.totp_key_count > 0 %}
                 <form method="post" action="/admin/totp/reset/{{ user.id }}" style="display:inline;" onsubmit="return confirm('{{ trans('Disable TOTP for this user?') }}')">
                     <input type="hidden" name="__csrf" value="{{ csrf_token }}">
-                    <button type="submit" class="secondary" style="padding:4px 10px;font-size:12px;">{{ trans('Disable TOTP') }}</button>
+                    <button type="submit" class="secondary" style="padding:4px 10px;font-size:12px;"
+                            aria-label="{{ trans('Disable TOTP') }}: {{ user.username }}">{{ trans('Disable TOTP') }}</button>
                 </form>
                 {% endif %}
                 {# Enroll link — for the current user always (to add more keys) #}
@@ -427,6 +428,7 @@
         const btnRnd = document.createElement('button');
         btnRnd.type  = 'button';
         btnRnd.textContent = '⚡ Random (131 bit)';
+        btnRnd.setAttribute('aria-label', 'Random password (131 bit entropy, CSPRNG, 20 chars)');
         btnRnd.title = 'CSPRNG, 94 printable ASCII chars, 20 chars → ~131 bits';
         btnRnd.addEventListener('click', () => {
             input.value = generateRandom(20);
@@ -437,6 +439,7 @@
         const btnPass = document.createElement('button');
         btnPass.type  = 'button';
         btnPass.textContent = '📖 Diceware (78 bit)';
+        btnPass.setAttribute('aria-label', 'Diceware passphrase (78 bit entropy, EFF Large Wordlist, 6 words)');
         btnPass.title = 'EFF Large Wordlist, 6 words → ~77.5 bits';
         btnPass.addEventListener('click', async () => {
             btnPass.disabled = true;

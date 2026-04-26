@@ -8,7 +8,7 @@
 </header>
 
 {% for msg in errors %}
-<div class="notice error">{{ msg }}</div>
+<div class="notice error" role="alert">{{ msg }}</div>
 {% endfor %}
 
 <div style="max-width:520px;margin:0 auto;">
@@ -43,7 +43,9 @@
     {# ── QR code ─────────────────────────────────────────────────────── #}
     <div class="card" style="text-align:center;padding:24px;margin-bottom:22px;">
         <p style="margin-bottom:14px;font-weight:600;">{{ trans('Scan QR Code') }}</p>
-        {{ qr_svg|raw }}
+        <figure role="img" aria-label="{{ trans('QR code for TOTP enrollment — scan with your authenticator app') }}" style="display:inline-block;margin:0;">
+            {{ qr_svg|raw }}
+        </figure>
 
         {# Manual entry #}
         <p style="margin-top:18px;font-size:13px;color:#555;">
