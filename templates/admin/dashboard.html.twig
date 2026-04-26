@@ -91,8 +91,44 @@
                 </form>
             </td>
             <td>
+                {% set keys = totp_keys[user.id] ?? [] %}
                 {% if user.totp_key_count > 0 %}
-                    <span style="color:#2e7d32;font-weight:600;">{{ trans('active') }} ({{ user.totp_key_count }})</span>
+                    <details style="cursor:pointer;">
+                        <summary style="color:#2e7d32;font-weight:600;list-style:none;cursor:pointer;">
+                            {{ trans('active') }} ({{ user.totp_key_count }})
+                        </summary>
+                        <table style="margin-top:8px;font-size:12px;width:100%;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;padding:2px 6px;">ID</th>
+                                    <th style="text-align:left;padding:2px 6px;">{{ trans('Key label (e.g. Phone, YubiKey)') }}</th>
+                                    <th style="text-align:left;padding:2px 6px;">{{ trans('active') }}</th>
+                                    <th style="padding:2px 6px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for key in keys %}
+                            <tr>
+                                <td style="padding:2px 6px;">{{ key.id }}</td>
+                                <td style="padding:2px 6px;">{{ key.label }}</td>
+                                <td style="padding:2px 6px;">{{ key.is_active ? '✓' : '–' }}</td>
+                                <td style="padding:2px 6px;">
+                                    <form method="post"
+                                          action="/admin/users/{{ user.id }}/totp-keys/{{ key.id }}/delete"
+                                          style="display:inline;"
+                                          onsubmit="return confirm('{{ trans('Delete TOTP key') }} #{{ key.id }} ({{ key.label|e('js') }})?')">
+                                        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                                        <button type="submit"
+                                                style="background:#b71c1c;padding:2px 7px;font-size:11px;">
+                                            {{ trans('Delete') }}
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </details>
                 {% else %}
                     <span style="color:#9e9e9e;">{{ trans('inactive') }}</span>
                 {% endif %}

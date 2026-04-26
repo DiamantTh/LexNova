@@ -13,6 +13,7 @@ use LexNova\Handler\Admin\EntityDeleteHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
+use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
@@ -49,6 +50,10 @@ final class Routes
         $app->post('/admin/totp/reset/{id:\d+}',
             [AdminAuthMiddleware::class, TotpResetHandler::class],
             'admin.totp.reset'
+        );
+        $app->post('/admin/users/{userId:\d+}/totp-keys/{keyId:\d+}/delete',
+            [AdminAuthMiddleware::class, TotpKeyDeleteHandler::class],
+            'admin.totp.key.delete'
         );
 
         $app->post('/admin/users/create',

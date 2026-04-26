@@ -21,6 +21,7 @@ use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Laminas\I18n\Translator\Translator;
 use LexNova\Handler\Admin\LoginHandler;
+use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
@@ -322,6 +323,12 @@ final class ContainerFactory
 
             TotpResetHandler::class => fn(ContainerInterface $c) =>
                 new TotpResetHandler(
+                    $c->get(UserService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            TotpKeyDeleteHandler::class => fn(ContainerInterface $c) =>
+                new TotpKeyDeleteHandler(
                     $c->get(UserService::class),
                     $c->get(AuditService::class),
                 ),

@@ -45,8 +45,17 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             : null;
         $editDoc = $editId !== null ? $this->documents->findById($editId) : null;
 
+        $users = $this->users->list();
+
+        // Load all TOTP keys per user (N+1 is acceptable — admin tool, few users).
+        $totpKeys = [];
+        foreach ($users as $u) {
+            $totpKeys[(int) $u['id']] = $this->users->getTotpKeys((int) $u['id']);
+        }
+
         return new HtmlResponse($this->renderer->render('admin/dashboard', [
-            'users'           => $this->users->list(),
+            'users'           => $users,
+            'totp_keys'       => $totpKeys,
             'entities'        => $this->entities->list(),
             'documents'       => $this->documents->list(),
             'editDoc'         => $editDoc,
@@ -57,38 +66,6 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'messages'        => $messages,
             'current_user_id' => (int) $session->get('user_id'),
             'audit_log'       => $this->audit->recent(50),
-        ]));
-    }
-}
-
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var SessionInterface $session */
-        $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
-
-        $errors   = $session->get('flash_errors', []);
-        $messages = $session->get('flash_messages', []);
-        $session->unset('flash_errors');
-        $session->unset('flash_messages');
-
-        $editId  = isset($request->getQueryParams()['doc_id'])
-            ? (int) $request->getQueryParams()['doc_id']
-            : null;
-        $editDoc = $editId !== null ? $this->documents->findById($editId) : null;
-
-        return new HtmlResponse($this->renderer->render('admin/dashboard', [
-            'users'           => $this->users->list(),
-            'entities'        => $this->entities->list(),
-            'documents'       => $this->documents->list(),
-            'editDoc'         => $editDoc,
-            'csrf_token'      => $guard->generateToken(),
-            'pw_min'          => $this->passwords->getMinLength(),
-            'pw_max'          => $this->passwords->getMaxLength(),
-            'errors'          => $errors,
-            'messages'        => $messages,
-            'current_user_id' => (int) $session->get('user_id'),
         ]));
     }
 }

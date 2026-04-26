@@ -91,6 +91,7 @@ return [
     'Key label (e.g. Phone, YubiKey)'              => 'Key-Bezeichnung (z. B. Handy, YubiKey)',
     'A name to identify this key among multiple keys.' => 'Ein Name, um diesen Key unter mehreren zu unterscheiden.',
     'Add another TOTP key'                         => 'Weiteren TOTP-Key hinzufügen',
+    'Delete TOTP key'                              => 'TOTP-Key löschen',
 
     // ── Audit-Log ──────────────────────────────────────────────────────────
     'Audit log'   => 'Audit-Protokoll',
