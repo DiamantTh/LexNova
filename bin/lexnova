@@ -14,6 +14,7 @@ require $root . '/vendor/autoload.php';
 
 date_default_timezone_set('UTC');
 
+use LexNova\Console\EntityListCommand;
 use LexNova\Console\UserCreateCommand;
 use LexNova\Console\UserDeleteCommand;
 use LexNova\Console\UserListCommand;
@@ -46,6 +47,7 @@ $output->writeln('');
 
 // ── Application ──────────────────────────────────────────────────────────────
 $application = new Application('LexNova', '1.0.0');
+$application->add($container->get(EntityListCommand::class));
 $application->add($container->get(UserCreateCommand::class));
 $application->add($container->get(UserDeleteCommand::class));
 $application->add($container->get(UserListCommand::class));

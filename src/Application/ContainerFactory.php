@@ -342,6 +342,11 @@ final class ContainerFactory
                     $c->get(UserService::class),
                 ),
 
+            \LexNova\Console\EntityListCommand::class => fn(ContainerInterface $c) =>
+                new \LexNova\Console\EntityListCommand(
+                    $c->get(EntityService::class),
+                ),
+
         ]);
 
         return $builder->build();
