@@ -20,9 +20,12 @@ use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Laminas\I18n\Translator\Translator;
+use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
+use LexNova\Service\AuditService;
+use LexNova\Service\RateLimitService;
 use LexNova\Service\TotpService;
 use LexNova\Twig\EmailExtension;
 use LexNova\Twig\TranslationExtension;
@@ -109,7 +112,10 @@ final class ContainerFactory
 
         $config['templates'] = [
             'extension' => 'html.twig',
-            'paths'     => [$root . '/templates'],
+            'paths'     => [
+                $root . '/templates',
+                'error' => $root . '/templates/error',
+            ],
         ];
         $config['twig'] = [
             'cache_dir'   => $twigCache ? $root . '/cache/twig' : false,
@@ -260,6 +266,15 @@ final class ContainerFactory
             InstallService::class => fn(ContainerInterface $c) =>
                 new InstallService($c->get('config')),
 
+            RateLimitService::class => fn(ContainerInterface $c) => new RateLimitService(
+                $c->get(Connection::class),
+                maxAttempts:  (int) ($c->get('config')['security']['rate_limit']['max_attempts']  ?? 5),
+                blockSeconds: (int) ($c->get('config')['security']['rate_limit']['block_seconds'] ?? 300),
+            ),
+
+            AuditService::class => fn(ContainerInterface $c) =>
+                new AuditService($c->get(Connection::class)),
+
             // ── Handlers: Install ───────────────────────────────────────────────────
             \LexNova\Handler\Install\InstallHandler::class => fn(ContainerInterface $c) =>
                 new \LexNova\Handler\Install\InstallHandler(
@@ -269,11 +284,32 @@ final class ContainerFactory
                     $c->get('config'),
                 ),
 
+            // ── Handlers: Admin (Login) ─────────────────────────────────────────────
+            LoginHandler::class => fn(ContainerInterface $c) =>
+                new LoginHandler(
+                    $c->get(UserService::class),
+                    $c->get(RateLimitService::class),
+                    $c->get(AuditService::class),
+                    $c->get(TemplateRendererInterface::class),
+                ),
+
+            \LexNova\Handler\Admin\DashboardHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\DashboardHandler(
+                    $c->get(UserService::class),
+                    $c->get(EntityService::class),
+                    $c->get(DocumentService::class),
+                    $c->get(PasswordService::class),
+                    $c->get(AuditService::class),
+                    $c->get(TemplateRendererInterface::class),
+                ),
+
             // ── Handlers: Auth (TOTP) ────────────────────────────────────────────────
             TotpVerifyHandler::class => fn(ContainerInterface $c) =>
                 new TotpVerifyHandler(
                     $c->get(TotpService::class),
                     $c->get(UserService::class),
+                    $c->get(RateLimitService::class),
+                    $c->get(AuditService::class),
                     $c->get(TemplateRendererInterface::class),
                 ),
 
@@ -287,21 +323,59 @@ final class ContainerFactory
             TotpResetHandler::class => fn(ContainerInterface $c) =>
                 new TotpResetHandler(
                     $c->get(UserService::class),
+                    $c->get(AuditService::class),
                 ),
 
             \LexNova\Handler\Admin\UserDeleteHandler::class => fn(ContainerInterface $c) =>
                 new \LexNova\Handler\Admin\UserDeleteHandler(
                     $c->get(UserService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            \LexNova\Handler\Admin\UserCreateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\UserCreateHandler(
+                    $c->get(UserService::class),
+                    $c->get(PasswordService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            \LexNova\Handler\Admin\UserUpdateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\UserUpdateHandler(
+                    $c->get(UserService::class),
+                    $c->get(PasswordService::class),
+                    $c->get(AuditService::class),
                 ),
 
             \LexNova\Handler\Admin\EntityDeleteHandler::class => fn(ContainerInterface $c) =>
                 new \LexNova\Handler\Admin\EntityDeleteHandler(
                     $c->get(EntityService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            \LexNova\Handler\Admin\EntityCreateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\EntityCreateHandler(
+                    $c->get(EntityService::class),
+                    $c->get(AuditService::class),
                 ),
 
             \LexNova\Handler\Admin\DocumentDeleteHandler::class => fn(ContainerInterface $c) =>
                 new \LexNova\Handler\Admin\DocumentDeleteHandler(
                     $c->get(DocumentService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            \LexNova\Handler\Admin\DocumentCreateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\DocumentCreateHandler(
+                    $c->get(DocumentService::class),
+                    $c->get(EntityService::class),
+                    $c->get(AuditService::class),
+                ),
+
+            \LexNova\Handler\Admin\DocumentUpdateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\DocumentUpdateHandler(
+                    $c->get(DocumentService::class),
+                    $c->get(EntityService::class),
+                    $c->get(AuditService::class),
                 ),
 
             // ── Middleware ───────────────────────────────────────────────────────────
@@ -313,6 +387,23 @@ final class ContainerFactory
             InstalledCheckMiddleware::class => fn(ContainerInterface $c) =>
                 new InstalledCheckMiddleware(
                     $c->get(InstallService::class),
+                ),
+
+            // ── Error handling ───────────────────────────────────────────────────────
+            // Replace Mezzio's default plain-text 404/500 responses with styled templates.
+            \Mezzio\Handler\NotFoundHandler::class => fn(ContainerInterface $c) =>
+                new \Mezzio\Handler\NotFoundHandler(
+                    $c->get(ResponseFactoryInterface::class),
+                    $c->get(TemplateRendererInterface::class),
+                    'error::404',
+                ),
+
+            ServerRequestErrorResponseGenerator::class => fn(ContainerInterface $c) =>
+                new ServerRequestErrorResponseGenerator(
+                    $c->get(ResponseFactoryInterface::class),
+                    false,
+                    $c->get(TemplateRendererInterface::class),
+                    'error::500',
                 ),
 
             // ── Console commands ─────────────────────────────────────────────────────

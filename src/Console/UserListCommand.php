@@ -38,7 +38,7 @@ final class UserListCommand extends Command
                 $u['id'],
                 $u['username'],
                 $u['role'],
-                ((bool) ($u['totp_enabled'] ?? false)) ? '<info>on</info>' : '<fg=gray>off</>',
+                ((int) ($u['totp_key_count'] ?? 0)) > 0 ? '<info>on</info> (' . (int) $u['totp_key_count'] . ')' : '<fg=gray>off</>',
                 $u['created_at'],
             ], $users)
         );

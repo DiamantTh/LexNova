@@ -60,3 +60,10 @@ digits    = 8
 algorithm = "sha256"
 period    = 30
 window    = 1
+
+# ── Brute-force rate limiting ────────────────────────────────────────────────
+# max_attempts  : failed attempts allowed before the IP is blocked
+# block_seconds : block duration in seconds (300 = 5 minutes)
+[rate_limit]
+max_attempts  = 5
+block_seconds = 300

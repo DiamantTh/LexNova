@@ -49,8 +49,8 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
         }
 
         // Already enrolled — redirect to dashboard
-        if ((bool) ($user['totp_enabled'] ?? false)) {
-            $session->set('flash_messages', ['TOTP is already active for your account.']);
+        if ($this->users->hasActiveTotpKey($userId)) {
+            $session->set('flash_messages', ['TOTP is already active for your account. Add another key via the dashboard.']);
             return new RedirectResponse('/admin');
         }
 
@@ -65,12 +65,16 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             } else {
                 $code         = trim((string) ($body['code'] ?? ''));
                 $enrollSecret = (string) ($session->get('totp_enrolling_secret') ?? '');
+                $label        = trim((string) ($body['label'] ?? 'Default'));
+                if ($label === '') {
+                    $label = 'Default';
+                }
 
                 if ($enrollSecret === '') {
                     $errors[] = 'Enrollment session expired. Please reload the page.';
                 } elseif ($this->totp->verifyPlain($enrollSecret, $code)) {
                     $encrypted = $this->totp->encrypt($enrollSecret);
-                    $this->users->setTotpSecret($userId, $encrypted, true);
+                    $this->users->addTotpKey($userId, $encrypted, $label);
                     $session->unset('totp_enrolling_secret');
                     $session->set('flash_messages', ['TOTP two-factor authentication has been enabled.']);
                     return new RedirectResponse('/admin');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Service\AuditService;
 use LexNova\Service\EntityService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -15,7 +16,10 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class EntityCreateHandler implements RequestHandlerInterface
 {
-    public function __construct(private readonly EntityService $entities) {}
+    public function __construct(
+        private readonly EntityService $entities,
+        private readonly AuditService  $audit,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -36,6 +40,15 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
             $session->set('flash_errors', ['Name and contact data are required.']);
         } else {
             $entity = $this->entities->create($name, $contactData);
+            $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+            $this->audit->log(
+                (int) ($session->get('user_id') ?? 0),
+                (string) ($session->get('username') ?? ''),
+                'entity.create',
+                'entity:' . $entity['hash'],
+                $name,
+                $ip,
+            );
             $session->set('flash_messages', ["Entity created. Hash: {$entity['hash']}"]);
         }
 

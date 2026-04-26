@@ -6,6 +6,7 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\InputFilter\DocumentInputFilter;
+use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -19,7 +20,8 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly DocumentService $documents,
-        private readonly EntityService $entities,
+        private readonly EntityService   $entities,
+        private readonly AuditService    $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -74,6 +76,15 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
 
         $values = $filter->getValues();
         $this->documents->update($id, (int) $values['entity_id'], $values['type'], $values['language'], $values['content'], $values['version']);
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+        $this->audit->log(
+            (int) ($session->get('user_id') ?? 0),
+            (string) ($session->get('username') ?? ''),
+            'document.update',
+            'document:' . $id,
+            $values['type'] . '/' . $values['language'] . ' v' . $values['version'],
+            $ip,
+        );
         $session->set('flash_messages', ['Document updated.']);
 
         return new RedirectResponse('/admin');

@@ -6,6 +6,8 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Service\AuditService;
+use LexNova\Service\RateLimitService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -18,7 +20,9 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class LoginHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserService $users,
+        private readonly UserService               $users,
+        private readonly RateLimitService          $rateLimit,
+        private readonly AuditService              $audit,
         private readonly TemplateRendererInterface $renderer,
     ) {}
 
@@ -37,8 +41,12 @@ final readonly class LoginHandler implements RequestHandlerInterface
         if ($request->getMethod() === 'POST') {
             $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
             $body  = (array) ($request->getParsedBody() ?? []);
+            $ip    = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
-            if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
+            if ($this->rateLimit->isBlocked($ip, 'login')) {
+                $seconds = $this->rateLimit->secondsRemaining($ip, 'login');
+                $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
+            } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
                 $username = trim((string) ($body['username'] ?? ''));
@@ -46,13 +54,23 @@ final readonly class LoginHandler implements RequestHandlerInterface
                 $user     = $this->users->verifyCredentials($username, $password);
 
                 if ($user !== null) {
+                    $this->rateLimit->recordSuccess($ip, 'login');
                     $session->regenerate();
 
-                    if ((bool) ($user['totp_enabled'] ?? false)) {
+                    if ($this->users->hasActiveTotpKey((int) $user['id'])) {
                         // Password OK but TOTP required — park pending state and redirect
                         $session->set('totp_pending_user_id', (int) $user['id']);
                         return new RedirectResponse('/admin/totp/verify');
                     }
+
+                    $this->audit->log(
+                        (int) $user['id'],
+                        (string) $user['username'],
+                        'auth.login',
+                        'user:' . $user['id'],
+                        null,
+                        $ip,
+                    );
 
                     $session->set('user_id',  (int) $user['id']);
                     $session->set('username', (string) $user['username']);
@@ -60,6 +78,11 @@ final readonly class LoginHandler implements RequestHandlerInterface
                     return new RedirectResponse('/admin');
                 }
 
+                $this->rateLimit->recordFailure($ip, 'login');
+                $this->audit->log(
+                    null, $username, 'auth.login_failed',
+                    null, 'username: ' . $username, $ip,
+                );
                 $errors[] = 'Invalid username or password.';
             }
         }

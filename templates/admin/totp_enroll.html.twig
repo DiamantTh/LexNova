@@ -50,6 +50,13 @@
         <p style="font-weight:600;margin-bottom:14px;">{{ trans('Confirm enrollment with a code:') }}</p>
         <form method="post" action="/admin/totp/enroll" autocomplete="off">
             <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+            <div style="margin-bottom:14px;">
+                <label for="label">{{ trans('Key label (e.g. Phone, YubiKey)') }}</label>
+                <input type="text" id="label" name="label" value="Default"
+                       maxlength="100" autocomplete="off"
+                       style="width:100%;">
+                <small style="color:#666;">{{ trans('A name to identify this key among multiple keys.') }}</small>
+            </div>
             <div style="margin-bottom:18px;">
                 <label for="code">{{ trans('Authentication Code') }}</label>
                 <input type="text" id="code" name="code"

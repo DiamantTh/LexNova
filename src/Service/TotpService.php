@@ -81,6 +81,23 @@ final readonly class TotpService
     }
 
     /**
+     * Verifies a code against multiple active keys (multi-key support).
+     * Returns the matching key's ID, or null if no key matches.
+     *
+     * @param list<array{id: int, secret_enc: string}> $keys
+     */
+    public function verifyAny(array $keys, string $code): ?int
+    {
+        foreach ($keys as $key) {
+            if ($this->verify((string) $key['secret_enc'], $code)) {
+                return (int) $key['id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Verifies a code against a plain Base32 secret (during enrollment before DB save).
      */
     public function verifyPlain(string $secret, string $code): bool

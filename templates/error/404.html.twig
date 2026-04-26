@@ -1,0 +1,18 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}404 · Seite nicht gefunden · LexNova{% endblock %}
+
+{% block body %}
+<div style="max-width:600px;margin:80px auto;text-align:center;">
+    <p style="font-size:72px;font-weight:900;color:#d9d2c7;margin:0;line-height:1;">404</p>
+    <h2 style="margin:12px 0 8px;">Seite nicht gefunden</h2>
+    <p style="color:#6a5b4a;margin-bottom:32px;">
+        Die aufgerufene URL existiert nicht oder wurde verschoben.
+    </p>
+    <a href="/admin" style="
+        display:inline-block;background:#2f3a2f;color:#fff;
+        padding:10px 22px;border-radius:8px;text-decoration:none;font-size:14px;">
+        Zur Startseite
+    </a>
+</div>
+{% endblock %}

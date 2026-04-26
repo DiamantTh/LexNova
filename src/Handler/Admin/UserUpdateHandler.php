@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Service\AuditService;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -19,8 +20,9 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
     private const ALLOWED_ROLES = ['admin'];
 
     public function __construct(
-        private readonly UserService $users,
+        private readonly UserService     $users,
         private readonly PasswordService $passwords,
+        private readonly AuditService    $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -55,6 +57,16 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
             if ($newPassword !== '') {
                 $this->users->updatePassword($userId, $newPassword);
             }
+            $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+            $detail = $newPassword !== '' ? 'role+password' : 'role';
+            $this->audit->log(
+                (int) ($session->get('user_id') ?? 0),
+                (string) ($session->get('username') ?? ''),
+                'user.update',
+                'user:' . $userId,
+                $detail,
+                $ip,
+            );
             $session->set('flash_messages', ['User updated.']);
         }
 

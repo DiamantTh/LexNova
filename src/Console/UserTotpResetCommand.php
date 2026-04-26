@@ -36,39 +36,32 @@ final class UserTotpResetCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io     = new SymfonyStyle($input, $output);
+        $io       = new SymfonyStyle($input, $output);
         $username = trim((string) $input->getArgument('username'));
 
-        // findByUsername returns only limited columns — fetch full record via findById
-        $byName = $this->users->findByUsername($username);
-
-        if ($byName === null) {
-            $io->error("User '{$username}' not found.");
-            return Command::FAILURE;
-        }
-
-        $user = $this->users->findById((int) $byName['id']);
+        $user = $this->users->findByUsername($username);
 
         if ($user === null) {
             $io->error("User '{$username}' not found.");
             return Command::FAILURE;
         }
 
-        $totpEnabled = (bool) ($user['totp_enabled'] ?? false);
+        $userId   = (int) $user['id'];
+        $keyCount = $this->users->countActiveKeys($userId);
 
-        if (!$totpEnabled) {
-            $io->info("TOTP is not enabled for '{$username}'. Nothing to reset.");
+        if ($keyCount === 0) {
+            $io->info("No active TOTP keys found for '{$username}'. Nothing to reset.");
             return Command::SUCCESS;
         }
 
         $io->table(
-            ['ID', 'Username', 'Role', 'TOTP'],
-            [[$user['id'], $user['username'], $user['role'], $totpEnabled ? 'enabled' : 'disabled']]
+            ['ID', 'Username', 'Role', 'Active TOTP keys'],
+            [[$userId, $username, $user['role'] ?? '?', $keyCount]]
         );
 
         if (!$input->getOption('yes')) {
             $q = new ConfirmationQuestion(
-                "Disable and wipe TOTP for '{$username}'? [y/N] ",
+                "Delete all {$keyCount} TOTP key(s) for '{$username}'? [y/N] ",
                 false
             );
             if (!$this->getHelper('question')->ask($input, $output, $q)) {
@@ -77,8 +70,8 @@ final class UserTotpResetCommand extends Command
             }
         }
 
-        $this->users->setTotpSecret((int) $user['id'], null, false);
-        $io->success("TOTP disabled and secret wiped for '{$username}'. The user can re-enroll via /admin/totp/enroll.");
+        $removed = $this->users->deleteAllTotpKeys($userId);
+        $io->success("Removed {$removed} TOTP key(s) for '{$username}'. The user can re-enroll via /admin/totp/enroll.");
 
         return Command::SUCCESS;
     }

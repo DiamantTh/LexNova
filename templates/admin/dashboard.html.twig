@@ -91,8 +91,8 @@
                 </form>
             </td>
             <td>
-                {% if user.totp_enabled %}
-                    <span style="color:#2e7d32;font-weight:600;">{{ trans('active') }}</span>
+                {% if user.totp_key_count > 0 %}
+                    <span style="color:#2e7d32;font-weight:600;">{{ trans('active') }} ({{ user.totp_key_count }})</span>
                 {% else %}
                     <span style="color:#9e9e9e;">{{ trans('inactive') }}</span>
                 {% endif %}
@@ -100,14 +100,14 @@
             <td>{{ user.created_at }}</td>
             <td style="white-space:nowrap;">
                 {# TOTP reset — any user with TOTP active #}
-                {% if user.totp_enabled %}
+                {% if user.totp_key_count > 0 %}
                 <form method="post" action="/admin/totp/reset/{{ user.id }}" style="display:inline;" onsubmit="return confirm('{{ trans('Disable TOTP for this user?') }}')">
                     <input type="hidden" name="__csrf" value="{{ csrf_token }}">
                     <button type="submit" class="secondary" style="padding:4px 10px;font-size:12px;">{{ trans('Disable TOTP') }}</button>
                 </form>
                 {% endif %}
-                {# Enroll link — only for the currently logged-in user if not enrolled #}
-                {% if user.id == current_user_id and not user.totp_enabled %}
+                {# Enroll link — for the current user always (to add more keys) #}
+                {% if user.id == current_user_id %}
                 <a href="/admin/totp/enroll" style="font-size:13px;">{{ trans('Enroll TOTP') }}</a>
                 {% endif %}
                 {% if user.id != current_user_id %}
@@ -422,5 +422,40 @@
     document.querySelectorAll('input.pw-field').forEach(initPasswordField);
 })();
 </script>
+
+{# ── Audit-Log ──────────────────────────────────────────────────────────── #}
+{% if audit_log is defined and audit_log|length > 0 %}
+<details style="margin-top:32px;">
+    <summary style="cursor:pointer;font-weight:600;font-size:16px;padding:8px 0;">
+        {{ trans('Audit log') }} ({{ audit_log|length }})
+    </summary>
+    <div class="card" style="margin-top:12px;overflow-x:auto;padding:0;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+                <tr style="background:#f6f4ef;text-align:left;">
+                    <th style="padding:10px 12px;white-space:nowrap;">{{ trans('When') }}</th>
+                    <th style="padding:10px 12px;">{{ trans('Actor') }}</th>
+                    <th style="padding:10px 12px;">{{ trans('Action') }}</th>
+                    <th style="padding:10px 12px;">{{ trans('Target') }}</th>
+                    <th style="padding:10px 12px;">{{ trans('Detail') }}</th>
+                    <th style="padding:10px 12px;">IP</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for entry in audit_log %}
+                <tr style="border-top:1px solid #ece8e2;">
+                    <td style="padding:8px 12px;white-space:nowrap;color:#6a5b4a;">{{ entry.created_at }}</td>
+                    <td style="padding:8px 12px;">{{ entry.actor_name ?? '—' }}</td>
+                    <td style="padding:8px 12px;font-family:monospace;">{{ entry.action }}</td>
+                    <td style="padding:8px 12px;font-family:monospace;">{{ entry.target ?? '—' }}</td>
+                    <td style="padding:8px 12px;color:#555;">{{ entry.detail ?? '' }}</td>
+                    <td style="padding:8px 12px;color:#6a5b4a;white-space:nowrap;">{{ entry.ip ?? '' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+{% endif %}
 {% endblock %}
 
