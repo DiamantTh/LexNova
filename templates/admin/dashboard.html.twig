@@ -193,6 +193,7 @@
             <div>
                 <label for="entity_contact">{{ trans('Contact Data') }}</label>
                 <textarea id="entity_contact" name="contact_data" style="min-height:80px;" required>{{ editEntity ? editEntity.contact_data : '' }}</textarea>
+                <small>{{ trans('Free text, one address component per line (e.g. name, street, postal code + city, country).') }}</small>
             </div>
         </div>
         <div class="actions">

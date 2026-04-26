@@ -44,6 +44,7 @@ return [
     'Edit Entity'          => 'Einheit bearbeiten',
     'Update Entity'        => 'Einheit aktualisieren',
     'Contact Data'         => 'Kontaktdaten',
+    'Free text, one address component per line (e.g. name, street, postal code + city, country).' => 'Freitext, je eine Zeile pro Adressbestandteil (z. B. Name, Straße, PLZ Ort, Land).',
     'Create Entity'        => 'Einheit anlegen',
     'Legal Entities'       => 'Rechtliche Einheiten',
     'No entities yet.'     => 'Noch keine Einheiten.',
