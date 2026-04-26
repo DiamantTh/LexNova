@@ -35,3 +35,11 @@ level = "info"
 # Set to false to disable template caching (e.g. during development).
 # A warning will be shown in the admin panel when cache is disabled.
 cache = true
+
+# ── Brute-force rate limiting ─────────────────────────────────────────────────
+# Applies to /admin/login and /admin/totp/verify.
+# max_attempts  : failed login/TOTP attempts before the IP is temporarily blocked
+# block_seconds : block duration in seconds (default: 5 minutes)
+[rate_limit]
+max_attempts  = 5
+block_seconds = 300
