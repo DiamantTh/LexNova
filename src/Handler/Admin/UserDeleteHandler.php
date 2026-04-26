@@ -16,20 +16,21 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class UserDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserService   $users,
-        private readonly AuditService  $audit,
-    ) {}
+        private readonly UserService $users,
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             return new RedirectResponse('/admin');
         }
 
-        $id      = (int) ($request->getAttribute('id') ?? 0);
+        $id = (int) ($request->getAttribute('id') ?? 0);
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
 
         // Prevent deleting yourself
@@ -54,4 +55,3 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         return new RedirectResponse('/admin');
     }
 }
-

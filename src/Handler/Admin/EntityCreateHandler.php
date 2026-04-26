@@ -18,22 +18,24 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly EntityService $entities,
-        private readonly AuditService  $audit,
-    ) {}
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body   = (array) ($request->getParsedBody() ?? []);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
-        $name        = trim((string) ($body['name'] ?? ''));
+        $name = trim((string) ($body['name'] ?? ''));
         $contactData = trim((string) ($body['contact_data'] ?? ''));
 
         if ($name === '' || $contactData === '') {

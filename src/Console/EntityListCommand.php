@@ -13,7 +13,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'entity:list',
-    description: 'List all legal entities with their public hash'
+    description: 'List all legal entities with their public hash',
 )]
 final class EntityListCommand extends Command
 {
@@ -25,21 +25,22 @@ final class EntityListCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io       = new SymfonyStyle($input, $output);
+        $io = new SymfonyStyle($input, $output);
         $entities = $this->entities->list();
 
         if (empty($entities)) {
             $io->info('No legal entities found.');
+
             return Command::SUCCESS;
         }
 
         $io->table(
             ['ID', 'Hash', 'Name'],
-            array_map(static fn(array $e) => [
+            array_map(static fn (array $e) => [
                 $e['id'],
                 $e['hash'],
                 $e['name'],
-            ], $entities)
+            ], $entities),
         );
 
         return Command::SUCCESS;

@@ -15,7 +15,9 @@ namespace LexNova\Handler\Install\Step;
  */
 final class PrerequisiteCheck
 {
-    public function __construct(private readonly string $rootDir) {}
+    public function __construct(private readonly string $rootDir)
+    {
+    }
 
     /**
      * @return array{checks: list<array{label:string, ok:bool, value:?string, required:bool}>, blocked: bool}
@@ -27,18 +29,18 @@ final class PrerequisiteCheck
         // ── PHP version ───────────────────────────────────────────────────
         $phpVersion = PHP_VERSION;
         $checks[] = [
-            'label'    => 'PHP ≥ 8.4',
-            'ok'       => version_compare($phpVersion, '8.4.0', '>='),
-            'value'    => $phpVersion,
+            'label' => 'PHP ≥ 8.4',
+            'ok' => version_compare($phpVersion, '8.4.0', '>='),
+            'value' => $phpVersion,
             'required' => true,
         ];
 
         // ── Required extensions ───────────────────────────────────────────
         foreach (['sodium', 'pdo', 'json', 'mbstring', 'openssl'] as $ext) {
             $checks[] = [
-                'label'    => 'ext-' . $ext,
-                'ok'       => extension_loaded($ext),
-                'value'    => null,
+                'label' => 'ext-' . $ext,
+                'ok' => extension_loaded($ext),
+                'value' => null,
                 'required' => true,
             ];
         }
@@ -49,35 +51,35 @@ final class PrerequisiteCheck
             : [];
 
         $checks[] = [
-            'label'    => 'PDO-Treiber (sqlite / mysql / pgsql)',
-            'ok'       => count($pdoDrivers) > 0,
-            'value'    => count($pdoDrivers) > 0 ? implode(', pdo_', $pdoDrivers) : null,
+            'label' => 'PDO-Treiber (sqlite / mysql / pgsql)',
+            'ok' => count($pdoDrivers) > 0,
+            'value' => count($pdoDrivers) > 0 ? implode(', pdo_', $pdoDrivers) : null,
             'required' => true,
         ];
 
         // ── Recommended extensions ────────────────────────────────────────
         $checks[] = [
-            'label'    => 'ext-intl (empfohlen)',
-            'ok'       => extension_loaded('intl'),
-            'value'    => null,
+            'label' => 'ext-intl (empfohlen)',
+            'ok' => extension_loaded('intl'),
+            'value' => null,
             'required' => false,
         ];
 
         // ── Directory writability ─────────────────────────────────────────
         $dirs = [
-            'data'    => true,
+            'data' => true,
             'configs' => true,
-            'cache'   => false,
-            'logs'    => false,
+            'cache' => false,
+            'logs' => false,
         ];
 
         foreach ($dirs as $dir => $required) {
             $path = $this->rootDir . '/' . $dir;
-            $ok   = is_dir($path) && is_writable($path);
+            $ok = is_dir($path) && is_writable($path);
             $checks[] = [
-                'label'    => $dir . '/ schreibbar',
-                'ok'       => $ok,
-                'value'    => null,
+                'label' => $dir . '/ schreibbar',
+                'ok' => $ok,
+                'value' => null,
                 'required' => $required,
             ];
         }

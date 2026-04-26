@@ -18,7 +18,8 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         private readonly EntityService $entities,
         private readonly DocumentService $documents,
         private readonly TemplateRendererInterface $renderer,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -35,10 +36,10 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         if ($entity === null) {
             return new HtmlResponse(
                 $this->renderer->render('public/document', [
-                    'error'  => 'Entity not found.',
+                    'error' => 'Entity not found.',
                     'entity' => null,
-                    'doc'    => null,
-                    'type'   => $type,
+                    'doc' => null,
+                    'type' => $type,
                     'locale' => $language,
                 ]),
                 404,
@@ -50,10 +51,10 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         if ($doc === null) {
             return new HtmlResponse(
                 $this->renderer->render('public/document', [
-                    'error'  => 'No document found for this entity.',
+                    'error' => 'No document found for this entity.',
                     'entity' => $entity,
-                    'doc'    => null,
-                    'type'   => $type,
+                    'doc' => null,
+                    'type' => $type,
                     'locale' => $language,
                 ]),
                 404,
@@ -61,10 +62,10 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         }
 
         return new HtmlResponse($this->renderer->render('public/document', [
-            'error'  => null,
+            'error' => null,
             'entity' => $entity,
-            'doc'    => $doc,
-            'type'   => $type,
+            'doc' => $doc,
+            'type' => $type,
             'locale' => $language ?? $doc['language'],
         ]));
     }

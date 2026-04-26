@@ -29,11 +29,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class InstallHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly InstallService            $install,
-        private readonly PasswordService           $passwords,
+        private readonly InstallService $install,
+        private readonly PasswordService $passwords,
         private readonly TemplateRendererInterface $renderer,
-        private readonly array                     $config,
-    ) {}
+        /** @var array<string, mixed> */
+        private readonly array $config,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -41,54 +43,54 @@ final readonly class InstallHandler implements RequestHandlerInterface
         // message instead of a hard 404.
         if ($this->install->isLocked()) {
             return new HtmlResponse($this->renderer->render('install/index', [
-                'step'              => 'done',
-                'errors'            => [],
-                'messages'          => [],
+                'step' => 'done',
+                'errors' => [],
+                'messages' => [],
                 'generatedPassword' => null,
-                'installReady'      => true,
-                'formData'          => [],
+                'installReady' => true,
+                'formData' => [],
             ]));
         }
 
         $security = $this->config['security']['password'] ?? [];
         // dirname(__DIR__, 3): src/Handler/Install → src/Handler → src → project root
-        $root     = dirname(__DIR__, 3);
+        $root = dirname(__DIR__, 3);
 
         // ── Prerequisites ─────────────────────────────────────────────────
         $prereq = (new PrerequisiteCheck($root))->run();
 
         // ── Step: Init ────────────────────────────────────────────────────
-        $init              = (new InitStep())->handle($this->install, $security);
-        $errors            = $init['errors'];
-        $messages          = $init['messages'];
+        $init = (new InitStep())->handle($this->install, $security);
+        $errors = $init['errors'];
+        $messages = $init['messages'];
         $generatedPassword = $init['generatedPassword'];
-        $installReady      = $init['installReady'];
+        $installReady = $init['installReady'];
         $installerUnlocked = false;
-        $formData          = [];
+        $formData = [];
 
         if ($request->getMethod() === 'POST' && $installReady) {
-            $body   = (array) ($request->getParsedBody() ?? []);
+            $body = (array) ($request->getParsedBody() ?? []);
             $action = trim((string) ($body['action'] ?? ''));
 
             $defaultDbPath = $root . '/data/lexnova.sqlite';
 
             $formData = [
-                'dbType'        => trim((string) ($body['db_type']                ?? 'sqlite')),
-                'dbHost'        => trim((string) ($body['db_host']                ?? 'localhost')),
-                'dbName'        => trim((string) ($body['db_name']                ?? '')),
-                'dbPort'        => trim((string) ($body['db_port']                ?? '')),
-                'dbPath'        => trim((string) ($body['db_path']                ?? $defaultDbPath)),
-                'dbUser'        => trim((string) ($body['db_user']                ?? '')),
-                'dbPassword'    => (string)      ($body['db_password']            ?? ''),
-                'adminUsername' => trim((string) ($body['admin_username']         ?? '')),
-                'adminPassword' => (string)      ($body['admin_password']         ?? ''),
-                'adminConfirm'  => (string)      ($body['admin_password_confirm'] ?? ''),
-                'appLocale'     => trim((string) ($body['app_locale']             ?? 'de')),
+                'dbType' => trim((string) ($body['db_type'] ?? 'sqlite')),
+                'dbHost' => trim((string) ($body['db_host'] ?? 'localhost')),
+                'dbName' => trim((string) ($body['db_name'] ?? '')),
+                'dbPort' => trim((string) ($body['db_port'] ?? '')),
+                'dbPath' => trim((string) ($body['db_path'] ?? $defaultDbPath)),
+                'dbUser' => trim((string) ($body['db_user'] ?? '')),
+                'dbPassword' => (string) ($body['db_password'] ?? ''),
+                'adminUsername' => trim((string) ($body['admin_username'] ?? '')),
+                'adminPassword' => (string) ($body['admin_password'] ?? ''),
+                'adminConfirm' => (string) ($body['admin_password_confirm'] ?? ''),
+                'appLocale' => trim((string) ($body['app_locale'] ?? 'de')),
             ];
 
             // ── Step: Unlock ──────────────────────────────────────────────
-            $unlock            = (new UnlockStep())->handle($this->install, (string) ($body['install_pw'] ?? ''));
-            $errors            = array_merge($errors, $unlock['errors']);
+            $unlock = (new UnlockStep())->handle($this->install, (string) ($body['install_pw'] ?? ''));
+            $errors = array_merge($errors, $unlock['errors']);
             $installerUnlocked = $unlock['installerUnlocked'];
 
             // ── Step: Configure ───────────────────────────────────────────
@@ -103,15 +105,15 @@ final readonly class InstallHandler implements RequestHandlerInterface
 
                 if ($configure['completed']) {
                     return new HtmlResponse($this->renderer->render('install/index', [
-                        'step'              => 'done',
-                        'errors'            => [],
-                        'messages'          => [
+                        'step' => 'done',
+                        'errors' => [],
+                        'messages' => [
                             'Installation complete. You can now log in at /admin.',
                             'Remove install/install.pw after verifying access.',
                         ],
                         'generatedPassword' => null,
-                        'installReady'      => true,
-                        'formData'          => [],
+                        'installReady' => true,
+                        'formData' => [],
                     ]));
                 }
 
@@ -122,13 +124,13 @@ final readonly class InstallHandler implements RequestHandlerInterface
         $step = $installerUnlocked ? 'configure' : 'unlock';
 
         return new HtmlResponse($this->renderer->render('install/index', [
-            'step'              => $step,
-            'errors'            => $errors,
-            'messages'          => $messages,
+            'step' => $step,
+            'errors' => $errors,
+            'messages' => $messages,
             'generatedPassword' => $generatedPassword,
-            'installReady'      => $installReady,
-            'formData'          => $formData,
-            'prereq'            => $prereq,
+            'installReady' => $installReady,
+            'formData' => $formData,
+            'prereq' => $prereq,
         ]));
     }
 }

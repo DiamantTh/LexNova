@@ -20,19 +20,21 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly DocumentService $documents,
-        private readonly EntityService   $entities,
-        private readonly AuditService    $audit,
-    ) {}
+        private readonly EntityService $entities,
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body   = (array) ($request->getParsedBody() ?? []);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
@@ -48,7 +50,7 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
                 }
             }
         } else {
-            $values   = $filter->getValues();
+            $values = $filter->getValues();
             $entityId = (int) $values['entity_id'];
 
             if ($entityId <= 0 || $this->entities->findById($entityId) === null) {

@@ -12,7 +12,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'user:list',
-    description: 'List all users'
+    description: 'List all users',
 )]
 final class UserListCommand extends Command
 {
@@ -29,18 +29,19 @@ final class UserListCommand extends Command
 
         if (empty($users)) {
             $io->info('No users found.');
+
             return Command::SUCCESS;
         }
 
         $io->table(
             ['ID', 'Username', 'Role', 'TOTP', 'Created at'],
-            array_map(static fn(array $u) => [
+            array_map(static fn (array $u) => [
                 $u['id'],
                 $u['username'],
                 $u['role'],
                 ((int) ($u['totp_key_count'] ?? 0)) > 0 ? '<info>on</info> (' . (int) $u['totp_key_count'] . ')' : '<fg=gray>off</>',
                 $u['created_at'],
-            ], $users)
+            ], $users),
         );
 
         return Command::SUCCESS;

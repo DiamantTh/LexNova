@@ -13,8 +13,8 @@ use LexNova\Handler\Admin\EntityDeleteHandler;
 use LexNova\Handler\Admin\EntityUpdateHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
-use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
+use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
@@ -46,62 +46,62 @@ final class Routes
         $app->route('/admin/totp/enroll',
             [AdminAuthMiddleware::class, TotpEnrollHandler::class],
             ['GET', 'POST'],
-            'admin.totp.enroll'
+            'admin.totp.enroll',
         );
         $app->post('/admin/totp/reset/{id:\d+}',
             [AdminAuthMiddleware::class, TotpResetHandler::class],
-            'admin.totp.reset'
+            'admin.totp.reset',
         );
         $app->post('/admin/users/{userId:\d+}/totp-keys/{keyId:\d+}/delete',
             [AdminAuthMiddleware::class, TotpKeyDeleteHandler::class],
-            'admin.totp.key.delete'
+            'admin.totp.key.delete',
         );
 
         $app->post('/admin/users/create',
             [AdminAuthMiddleware::class, UserCreateHandler::class],
-            'admin.users.create'
+            'admin.users.create',
         );
         $app->post('/admin/users/{id:\d+}/update',
             [AdminAuthMiddleware::class, UserUpdateHandler::class],
-            'admin.users.update'
+            'admin.users.update',
         );
         $app->post('/admin/users/{id:\d+}/delete',
             [AdminAuthMiddleware::class, UserDeleteHandler::class],
-            'admin.users.delete'
+            'admin.users.delete',
         );
 
         $app->post('/admin/entities/create',
             [AdminAuthMiddleware::class, EntityCreateHandler::class],
-            'admin.entities.create'
+            'admin.entities.create',
         );
         $app->route('/admin/entities/{id:\d+}/edit',
             [AdminAuthMiddleware::class, EntityUpdateHandler::class],
             ['GET', 'POST'],
-            'admin.entities.edit'
+            'admin.entities.edit',
         );
         $app->post('/admin/entities/{id:\d+}/delete',
             [AdminAuthMiddleware::class, EntityDeleteHandler::class],
-            'admin.entities.delete'
+            'admin.entities.delete',
         );
 
         $app->post('/admin/documents/create',
             [AdminAuthMiddleware::class, DocumentCreateHandler::class],
-            'admin.documents.create'
+            'admin.documents.create',
         );
         $app->route('/admin/documents/{id:\d+}/edit',
             [AdminAuthMiddleware::class, DocumentUpdateHandler::class],
             ['GET', 'POST'],
-            'admin.documents.edit'
+            'admin.documents.edit',
         );
         $app->post('/admin/documents/{id:\d+}/delete',
             [AdminAuthMiddleware::class, DocumentDeleteHandler::class],
-            'admin.documents.delete'
+            'admin.documents.delete',
         );
 
         // ── Public document display ──────────────────────────────────────────────
         $app->get('/{hash:[0-9a-f]{32}}/{type:imprint|privacy}[/{lang:[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*}]',
             DocumentHandler::class,
-            'document.view'
+            'document.view',
         );
     }
 }

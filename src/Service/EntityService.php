@@ -8,8 +8,11 @@ use Doctrine\DBAL\Connection;
 
 final readonly class EntityService
 {
-    public function __construct(private readonly Connection $db) {}
+    public function __construct(private readonly Connection $db)
+    {
+    }
 
+    /** @return list<array<string, mixed>> */
     public function list(): array
     {
         return $this->db->createQueryBuilder()
@@ -20,6 +23,7 @@ final readonly class EntityService
             ->fetchAllAssociative();
     }
 
+    /** @return array<string, mixed>|null */
     public function findByHash(string $hash): ?array
     {
         $row = $this->db->createQueryBuilder()
@@ -33,6 +37,7 @@ final readonly class EntityService
         return $row ?: null;
     }
 
+    /** @return array<string, mixed>|null */
     public function findById(int $id): ?array
     {
         $row = $this->db->createQueryBuilder()
@@ -46,18 +51,19 @@ final readonly class EntityService
         return $row ?: null;
     }
 
+    /** @return array{id: int, hash: string} */
     public function create(string $name, string $contactData): array
     {
         $hash = $this->generateUniqueHash();
 
         $this->db->insert('legal_entities', [
-            'hash'         => $hash,
-            'name'         => $name,
+            'hash' => $hash,
+            'name' => $name,
             'contact_data' => $contactData,
         ]);
 
         return [
-            'id'   => (int) $this->db->lastInsertId(),
+            'id' => (int) $this->db->lastInsertId(),
             'hash' => $hash,
         ];
     }
@@ -65,7 +71,7 @@ final readonly class EntityService
     public function update(int $id, string $name, string $contactData): void
     {
         $this->db->update('legal_entities', [
-            'name'         => $name,
+            'name' => $name,
             'contact_data' => $contactData,
         ], ['id' => $id]);
     }
@@ -78,7 +84,7 @@ final readonly class EntityService
     private function generateUniqueHash(): string
     {
         do {
-            $hash  = bin2hex(random_bytes(16));
+            $hash = bin2hex(random_bytes(16));
             $count = (int) $this->db->createQueryBuilder()
                 ->select('COUNT(*)')
                 ->from('legal_entities')

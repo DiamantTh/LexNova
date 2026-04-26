@@ -12,15 +12,15 @@ use LexNova\Service\InstallService;
 final class InitStep
 {
     /**
-     * @param  array<string, mixed> $securityConfig
+     * @param  array<string, mixed>                                                                                $securityConfig
      * @return array{installReady: bool, generatedPassword: ?string, errors: list<string>, messages: list<string>}
      */
     public function handle(InstallService $install, array $securityConfig): array
     {
-        $installReady      = $install->readPasswordHash() !== null;
+        $installReady = $install->readPasswordHash() !== null;
         $generatedPassword = null;
-        $errors            = [];
-        $messages          = [];
+        $errors = [];
+        $messages = [];
 
         if (!$installReady) {
             $generatedPassword = $install->initializePassword($securityConfig);
@@ -28,7 +28,7 @@ final class InitStep
                 $errors[] = 'Failed to generate install password. Check data/ directory permissions.';
             } else {
                 $installReady = true;
-                $messages[]   = 'Install password generated — copy it now, it will not be shown again.';
+                $messages[] = 'Install password generated — copy it now, it will not be shown again.';
             }
         }
 

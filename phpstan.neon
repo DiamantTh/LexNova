@@ -1,0 +1,53 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - httpdocs
+        - bin
+
+    # Exclude vendor and generated files
+    excludePaths:
+        - vendor
+
+    # Treat all classes used in the project as analysed
+    scanDirectories:
+        - vendor
+
+    # Report unmatched ignored errors
+    reportUnmatchedIgnoredErrors: false
+
+    ignoreErrors:
+        # devium/toml provides toml_encode/toml_decode as global functions via
+        # a function file — PHPStan cannot see them without a stub extension.
+        - '#Function toml_(encode|decode) not found#'
+
+        # spomky-labs/otphp TOTP::generate() uses named constructor parameters
+        # that PHPStan's stubs do not reflect correctly.
+        - '#Unknown parameter \$(digest|digits|period) in call to static method OTPHP\\TOTP::generate\(\)#'
+
+        # AdminAuthMiddleware holds $responseFactory for PSR-17 constructor
+        # convention (injected by DI) but delegates redirects to RedirectResponse
+        # directly — PHPStan marks it as "only written".
+        - '#Property LexNova\\Middleware\\AdminAuthMiddleware::\$responseFactory is never read, only written#'
+
+        # DocumentInputFilter extends a generic Laminas class; specifying the
+        # generic type parameter requires forking the return signature of every
+        # Laminas method — not worth the churn at this stage.
+        - '#Class LexNova\\InputFilter\\DocumentInputFilter extends generic class#'
+
+        # password_hash() in PHP 8 never returns false (signature changed from
+        # string|false to string), so === false is always false. The checks are
+        # intentionally kept as forward-compatible defensive guards.
+        - '#Strict comparison using === between non-empty-string and false will always evaluate to false#'
+
+        # ??-null-coalesce on initialized array property in EmailExtension — the
+        # array keys *may* be absent depending on config, so ?? is intentional.
+        - '#Property LexNova\\Twig\\EmailExtension::\$subjectConfig on left side of \?\? is not nullable nor uninitialized#'
+
+        # DoctrineConnectionFactory private methods return associative string arrays;
+        # the missing generic annotation is acceptable for internal parsing helpers.
+        - '#Method LexNova\\Factory\\DoctrineConnectionFactory::parse(Dsn|MysqlDsn|PgsqlDsn)\(\) return type has no value type specified in iterable type array#'
+
+        # ContainerFactory uses optional Mezzio packages (FastRouteRouter, ApplicationPipeline,
+        # Mezzio\Twig) that are not installed as dev dependencies but are present at runtime.
+        - '#(Instantiated class|Class) Mezzio\\(Router\\FastRoute\\FastRouteRouter|ApplicationPipeline|Twig\\TwigEnvironment) not found#'

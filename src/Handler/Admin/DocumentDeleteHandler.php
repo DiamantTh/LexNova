@@ -17,22 +17,23 @@ final readonly class DocumentDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly DocumentService $documents,
-        private readonly AuditService    $audit,
-    ) {}
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             return new RedirectResponse('/admin');
         }
 
-        $id      = (int) ($request->getAttribute('id') ?? 0);
+        $id = (int) ($request->getAttribute('id') ?? 0);
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
         $actorId = (int) ($session?->get('user_id') ?? 0);
-        $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
         $this->documents->delete($id);
 
@@ -48,4 +49,3 @@ final readonly class DocumentDeleteHandler implements RequestHandlerInterface
         return new RedirectResponse('/admin');
     }
 }
-

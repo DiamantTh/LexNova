@@ -32,17 +32,18 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class TotpEnrollHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TotpService               $totp,
-        private readonly UserService               $users,
+        private readonly TotpService $totp,
+        private readonly UserService $users,
         private readonly TemplateRendererInterface $renderer,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
-        $userId  = (int) $session->get('user_id');
-        $user    = $this->users->findById($userId);
+        $userId = (int) $session->get('user_id');
+        $user = $this->users->findById($userId);
 
         if ($user === null) {
             return new RedirectResponse('/admin');
@@ -50,7 +51,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
 
         $existingKeyCount = $this->users->countActiveKeys($userId);
 
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $errors = [];
 
         if ($request->getMethod() === 'POST') {
@@ -59,9 +60,9 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
-                $code         = trim((string) ($body['code'] ?? ''));
+                $code = trim((string) ($body['code'] ?? ''));
                 $enrollSecret = (string) ($session->get('totp_enrolling_secret') ?? '');
-                $label        = trim((string) ($body['label'] ?? 'Default'));
+                $label = trim((string) ($body['label'] ?? 'Default'));
                 if ($label === '') {
                     $label = 'Default';
                 }
@@ -76,6 +77,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
                         ? 'TOTP two-factor authentication has been enabled.'
                         : 'Additional TOTP key enrolled successfully.';
                     $session->set('flash_messages', [$msg]);
+
                     return new RedirectResponse('/admin');
                 } else {
                     $errors[] = 'Invalid code — please wait for the next 30-second window and try again.';
@@ -86,7 +88,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
         // GET or failed POST: generate or restore in-progress secret
         $enrollSecret = $session->get('totp_enrolling_secret');
         if (!is_string($enrollSecret) || $enrollSecret === '') {
-            $data         = $this->totp->generate('LexNova Admin', (string) $user['username']);
+            $data = $this->totp->generate('LexNova Admin', (string) $user['username']);
             $enrollSecret = $data['secret'];
             $session->set('totp_enrolling_secret', $enrollSecret);
             $uri = $data['uri'];
@@ -99,11 +101,11 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
         }
 
         return new HtmlResponse($this->renderer->render('admin/totp_enroll', [
-            'errors'           => $errors,
-            'csrf_token'       => $guard->generateToken(),
-            'qr_svg'           => $this->buildQrSvg($uri),
-            'secret'           => $enrollSecret,
-            'uri'              => $uri,
+            'errors' => $errors,
+            'csrf_token' => $guard->generateToken(),
+            'qr_svg' => $this->buildQrSvg($uri),
+            'secret' => $enrollSecret,
+            'uri' => $uri,
             'existing_key_count' => $existingKeyCount,
         ]));
     }

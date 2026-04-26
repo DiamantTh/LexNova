@@ -21,13 +21,13 @@ if (!is_file(__DIR__ . '/../vendor/autoload.php')) {
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$container = \LexNova\Application\ContainerFactory::create();
+$container = LexNova\Application\ContainerFactory::create();
 
-/** @var \Mezzio\Application $app */
-$app     = $container->get(\Mezzio\Application::class);
-$factory = $container->get(\Mezzio\MiddlewareFactory::class);
+/** @var Mezzio\Application $app */
+$app = $container->get(Mezzio\Application::class);
+$factory = $container->get(Mezzio\MiddlewareFactory::class);
 
-\LexNova\Application\Pipeline::configure($app, $factory, $container);
-\LexNova\Application\Routes::configure($app);
+LexNova\Application\Pipeline::configure($app, $factory, $container);
+LexNova\Application\Routes::configure($app);
 
 $app->run();

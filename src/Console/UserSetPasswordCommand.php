@@ -10,6 +10,7 @@ use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -20,7 +21,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'user:set-password',
-    description: 'Reset the password of a user (server-side admin access)'
+    description: 'Reset the password of a user (server-side admin access)',
 )]
 final class UserSetPasswordCommand extends Command
 {
@@ -48,10 +49,11 @@ final class UserSetPasswordCommand extends Command
         $io = new SymfonyStyle($input, $output);
 
         $username = trim((string) $input->getArgument('username'));
-        $user     = $this->users->findByUsername($username);
+        $user = $this->users->findByUsername($username);
 
         if ($user === null) {
             $io->error("User '{$username}' not found.");
+
             return Command::FAILURE;
         }
 
@@ -59,7 +61,7 @@ final class UserSetPasswordCommand extends Command
             "Resetting password for '%s' (ID: %d, role: %s).",
             $user['username'],
             (int) $user['id'],
-            $user['role']
+            $user['role'],
         ));
 
         if ($input->getOption('generate')) {
@@ -68,6 +70,7 @@ final class UserSetPasswordCommand extends Command
                 return Command::FAILURE;
             }
         } else {
+            /** @var QuestionHelper $helper */
             $helper = $this->getHelper('question');
 
             $q = new Question('New password: ');
@@ -80,6 +83,7 @@ final class UserSetPasswordCommand extends Command
 
             if ($password !== $confirm) {
                 $io->error('Passwords do not match.');
+
                 return Command::FAILURE;
             }
         }
@@ -87,6 +91,7 @@ final class UserSetPasswordCommand extends Command
         $error = $this->passwords->validate($password);
         if ($error !== null) {
             $io->error($error);
+
             return Command::FAILURE;
         }
 
@@ -101,26 +106,28 @@ final class UserSetPasswordCommand extends Command
         $mode = strtolower((string) $input->getOption('mode'));
 
         if ($mode === 'random') {
-            $gen   = $this->random;
+            $gen = $this->random;
             $label = 'random';
         } else {
-            $gen   = $this->diceware;
+            $gen = $this->diceware;
             $label = 'diceware';
         }
 
         $password = $gen->generate();
-        $bits     = round($gen->entropyBits(), 1);
+        $bits = round($gen->entropyBits(), 1);
 
         $io->section("Generated password ({$label}, ~{$bits} bits entropy)");
         $io->writeln("  <info>{$password}</info>");
         $io->newLine();
 
         if ($input->isInteractive()) {
+            /** @var QuestionHelper $helper */
             $helper = $this->getHelper('question');
-            $q      = new ConfirmationQuestion('Use this password? [y/N] ', false);
+            $q = new ConfirmationQuestion('Use this password? [y/N] ', false);
 
             if (!$helper->ask($input, $io, $q)) {
                 $io->note('Aborted. Re-run without --generate to enter a password manually.');
+
                 return null;
             }
         }

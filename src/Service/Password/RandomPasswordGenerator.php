@@ -24,33 +24,34 @@ namespace LexNova\Service\Password;
  */
 final readonly class RandomPasswordGenerator implements PasswordGeneratorInterface
 {
-    private const string LOWER   = 'abcdefghijklmnopqrstuvwxyz';
-    private const string UPPER   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    private const string DIGITS  = '0123456789';
+    private const string LOWER = 'abcdefghijklmnopqrstuvwxyz';
+    private const string UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    private const string DIGITS = '0123456789';
     private const string SYMBOLS = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
 
     public function __construct(
-        private int  $length,
+        private int $length,
         private bool $requireUpper,
         private bool $requireDigits,
         private bool $requireSymbols,
-    ) {}
+    ) {
+    }
 
     public function generate(): string
     {
-        $charset  = self::LOWER;
+        $charset = self::LOWER;
         $required = [];
 
         if ($this->requireUpper) {
-            $charset  .= self::UPPER;
+            $charset .= self::UPPER;
             $required[] = self::UPPER;
         }
         if ($this->requireDigits) {
-            $charset  .= self::DIGITS;
+            $charset .= self::DIGITS;
             $required[] = self::DIGITS;
         }
         if ($this->requireSymbols) {
-            $charset  .= self::SYMBOLS;
+            $charset .= self::SYMBOLS;
             $required[] = self::SYMBOLS;
         }
 
@@ -58,18 +59,18 @@ final readonly class RandomPasswordGenerator implements PasswordGeneratorInterfa
 
         // Pre-fill with one mandatory character per required pool.
         $password = array_map(
-            static fn(string $pool): string => $pool[random_int(0, strlen($pool) - 1)],
-            $required
+            static fn (string $pool): string => $pool[random_int(0, strlen($pool) - 1)],
+            $required,
         );
 
         // Fill remaining positions from the full charset.
-        for ($i = count($password); $i < $this->length; $i++) {
+        for ($i = count($password); $i < $this->length; ++$i) {
             $password[] = $charset[random_int(0, $charLen - 1)];
         }
 
         // Cryptographically secure Fisher-Yates shuffle.
-        for ($i = count($password) - 1; $i > 0; $i--) {
-            $j               = random_int(0, $i);
+        for ($i = count($password) - 1; $i > 0; --$i) {
+            $j = random_int(0, $i);
             [$password[$i], $password[$j]] = [$password[$j], $password[$i]];
         }
 
@@ -79,9 +80,15 @@ final readonly class RandomPasswordGenerator implements PasswordGeneratorInterfa
     public function entropyBits(): float
     {
         $size = strlen(self::LOWER);
-        if ($this->requireUpper)   $size += strlen(self::UPPER);
-        if ($this->requireDigits)  $size += strlen(self::DIGITS);
-        if ($this->requireSymbols) $size += strlen(self::SYMBOLS);
+        if ($this->requireUpper) {
+            $size += strlen(self::UPPER);
+        }
+        if ($this->requireDigits) {
+            $size += strlen(self::DIGITS);
+        }
+        if ($this->requireSymbols) {
+            $size += strlen(self::SYMBOLS);
+        }
 
         return $this->length * log($size, 2);
     }

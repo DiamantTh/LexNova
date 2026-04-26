@@ -30,7 +30,8 @@ final class TranslationExtension extends AbstractExtension
         private readonly Translator $translator,
         /** BCP 47, z. B. "de" oder "de-CH" */
         private readonly string $defaultLocale,
-    ) {}
+    ) {
+    }
 
     /** @return array<string, mixed> */
     public function getGlobals(): array
@@ -38,7 +39,7 @@ final class TranslationExtension extends AbstractExtension
         return ['locale' => $this->defaultLocale];
     }
 
-    /** @return list<\Twig\TwigFunction> */
+    /** @return list<TwigFunction> */
     #[\Override]
     public function getFunctions(): array
     {
@@ -54,6 +55,7 @@ final class TranslationExtension extends AbstractExtension
     public function trans(string $key, ?string $locale = null): string
     {
         $resolved = $this->normalizeLocale($locale ?? $this->defaultLocale);
+
         return $this->translator->translate($key, 'default', $resolved);
     }
 

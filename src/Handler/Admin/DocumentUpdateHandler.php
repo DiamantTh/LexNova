@@ -20,9 +20,10 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly DocumentService $documents,
-        private readonly EntityService   $entities,
-        private readonly AuditService    $audit,
-    ) {}
+        private readonly EntityService $entities,
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -33,6 +34,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         $doc = $this->documents->findById($id);
         if ($doc === null) {
             $session->set('flash_errors', ['Document not found.']);
+
             return new RedirectResponse('/admin');
         }
 
@@ -41,11 +43,12 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         }
 
         // POST
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body   = (array) ($request->getParsedBody() ?? []);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
@@ -61,7 +64,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
                 }
             }
         } else {
-            $values   = $filter->getValues();
+            $values = $filter->getValues();
             $entityId = (int) $values['entity_id'];
 
             if ($entityId <= 0 || $this->entities->findById($entityId) === null) {
@@ -71,6 +74,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
 
         if ($errors !== []) {
             $session->set('flash_errors', $errors);
+
             return new RedirectResponse('/admin');
         }
 

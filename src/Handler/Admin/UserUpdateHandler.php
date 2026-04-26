@@ -20,27 +20,29 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
     private const ALLOWED_ROLES = ['admin'];
 
     public function __construct(
-        private readonly UserService     $users,
+        private readonly UserService $users,
         private readonly PasswordService $passwords,
-        private readonly AuditService    $audit,
-    ) {}
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body   = (array) ($request->getParsedBody() ?? []);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
-        $userId      = (int) ($request->getAttribute('id') ?? 0);
-        $role        = (string) ($body['role'] ?? 'admin');
+        $userId = (int) ($request->getAttribute('id') ?? 0);
+        $role = (string) ($body['role'] ?? 'admin');
         $newPassword = (string) ($body['new_password'] ?? '');
-        $errors      = [];
+        $errors = [];
 
         if ($userId <= 0 || $this->users->findById($userId) === null) {
             $errors[] = 'User not found.';

@@ -30,12 +30,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class TotpVerifyHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TotpService               $totp,
-        private readonly UserService               $users,
-        private readonly RateLimitService          $rateLimit,
-        private readonly AuditService              $audit,
+        private readonly TotpService $totp,
+        private readonly UserService $users,
+        private readonly RateLimitService $rateLimit,
+        private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -47,22 +48,22 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         }
 
         $userId = (int) $session->get('totp_pending_user_id');
-        $guard  = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $errors = [];
 
         if ($request->getMethod() === 'POST') {
             $body = (array) ($request->getParsedBody() ?? []);
-            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+            $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
             if ($this->rateLimit->isBlocked($ip, 'totp_verify')) {
-                $seconds  = $this->rateLimit->secondsRemaining($ip, 'totp_verify');
+                $seconds = $this->rateLimit->secondsRemaining($ip, 'totp_verify');
                 $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
             } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
-                $code    = trim((string) ($body['code'] ?? ''));
-                $user    = $this->users->findById($userId);
-                $keys    = $user !== null ? $this->users->getActiveTotpKeys($userId) : [];
+                $code = trim((string) ($body['code'] ?? ''));
+                $user = $this->users->findById($userId);
+                $keys = $user !== null ? $this->users->getActiveTotpKeys($userId) : [];
                 $matched = $keys !== [] ? $this->totp->verifyAny($keys, $code) : null;
 
                 if ($matched !== null) {
@@ -70,9 +71,9 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                     $this->users->touchTotpKey($matched);
                     $session->unset('totp_pending_user_id');
                     $session->regenerate();
-                    $session->set('user_id',  $userId);
+                    $session->set('user_id', $userId);
                     $session->set('username', (string) ($user['username'] ?? ''));
-                    $session->set('role',     (string) ($user['role'] ?? 'admin'));
+                    $session->set('role', (string) ($user['role'] ?? 'admin'));
 
                     $this->audit->log(
                         $userId,
@@ -96,7 +97,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         }
 
         return new HtmlResponse($this->renderer->render('auth/totp_verify', [
-            'errors'     => $errors,
+            'errors' => $errors,
             'csrf_token' => $guard->generateToken(),
         ]));
     }

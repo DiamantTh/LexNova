@@ -18,8 +18,9 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly EntityService $entities,
-        private readonly AuditService  $audit,
-    ) {}
+        private readonly AuditService $audit,
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -29,6 +30,7 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
 
         if ($this->entities->findById($id) === null) {
             $session->set('flash_errors', ['Entity not found.']);
+
             return new RedirectResponse('/admin');
         }
 
@@ -38,18 +40,20 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
 
         // POST
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
-        $name        = trim((string) ($body['name'] ?? ''));
+        $name = trim((string) ($body['name'] ?? ''));
         $contactData = trim((string) ($body['contact_data'] ?? ''));
 
         if ($name === '' || $contactData === '') {
             $session->set('flash_errors', ['Name and contact data are required.']);
+
             return new RedirectResponse('/admin?entity_id=' . $id);
         }
 

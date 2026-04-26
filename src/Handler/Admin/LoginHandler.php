@@ -20,11 +20,12 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class LoginHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserService               $users,
-        private readonly RateLimitService          $rateLimit,
-        private readonly AuditService              $audit,
+        private readonly UserService $users,
+        private readonly RateLimitService $rateLimit,
+        private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -40,8 +41,8 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         if ($request->getMethod() === 'POST') {
             $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-            $body  = (array) ($request->getParsedBody() ?? []);
-            $ip    = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+            $body = (array) ($request->getParsedBody() ?? []);
+            $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
             if ($this->rateLimit->isBlocked($ip, 'login')) {
                 $seconds = $this->rateLimit->secondsRemaining($ip, 'login');
@@ -51,7 +52,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
             } else {
                 $username = trim((string) ($body['username'] ?? ''));
                 $password = (string) ($body['password'] ?? '');
-                $user     = $this->users->verifyCredentials($username, $password);
+                $user = $this->users->verifyCredentials($username, $password);
 
                 if ($user !== null) {
                     $this->rateLimit->recordSuccess($ip, 'login');
@@ -60,6 +61,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
                     if ($this->users->hasActiveTotpKey((int) $user['id'])) {
                         // Password OK but TOTP required — park pending state and redirect
                         $session->set('totp_pending_user_id', (int) $user['id']);
+
                         return new RedirectResponse('/admin/totp/verify');
                     }
 
@@ -72,9 +74,10 @@ final readonly class LoginHandler implements RequestHandlerInterface
                         $ip,
                     );
 
-                    $session->set('user_id',  (int) $user['id']);
+                    $session->set('user_id', (int) $user['id']);
                     $session->set('username', (string) $user['username']);
-                    $session->set('role',     (string) $user['role']);
+                    $session->set('role', (string) $user['role']);
+
                     return new RedirectResponse('/admin');
                 }
 
@@ -90,7 +93,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
         return new HtmlResponse($this->renderer->render('admin/login', [
-            'errors'     => $errors,
+            'errors' => $errors,
             'csrf_token' => $guard->generateToken(),
         ]));
     }

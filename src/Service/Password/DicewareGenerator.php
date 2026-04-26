@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace LexNova\Service\Password;
 
-use RuntimeException;
-
 /**
  * Generates passphrases using the EFF Large Wordlist + Diceware algorithm.
  *
@@ -27,16 +25,14 @@ final readonly class DicewareGenerator implements PasswordGeneratorInterface
     private array $wordlist;
 
     public function __construct(
-        private int    $wordCount,
+        private int $wordCount,
         private string $separator,
-        string         $wordlistPath,
+        string $wordlistPath,
     ) {
         $wl = require $wordlistPath;
 
         if (!is_array($wl) || count($wl) !== self::WORDLIST_SIZE) {
-            throw new RuntimeException(
-                'EFF Large Wordlist must contain exactly 7776 entries.'
-            );
+            throw new \RuntimeException('EFF Large Wordlist must contain exactly 7776 entries.');
         }
 
         $this->wordlist = $wl;
@@ -46,15 +42,15 @@ final readonly class DicewareGenerator implements PasswordGeneratorInterface
     {
         $words = [];
 
-        for ($w = 0; $w < $this->wordCount; $w++) {
+        for ($w = 0; $w < $this->wordCount; ++$w) {
             // Simulate rolling 5 six-sided dice (values 1–6 each).
             $key = '';
-            for ($d = 0; $d < 5; $d++) {
+            for ($d = 0; $d < 5; ++$d) {
                 $key .= (string) random_int(1, 6);
             }
 
             $words[] = $this->wordlist[$key]
-                ?? throw new RuntimeException("EFF wordlist key '{$key}' not found.");
+                ?? throw new \RuntimeException("EFF wordlist key '{$key}' not found.");
         }
 
         return implode($this->separator, $words);

@@ -7,21 +7,20 @@ namespace LexNova\Factory;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Psr\Container\ContainerInterface;
-use RuntimeException;
 
 final readonly class DoctrineConnectionFactory
 {
     public function __invoke(ContainerInterface $container): Connection
     {
         $config = $container->get('config');
-        $db     = $config['db'] ?? [];
-        $dsn    = (string) ($db['dsn'] ?? '');
+        $db = $config['db'] ?? [];
+        $dsn = (string) ($db['dsn'] ?? '');
 
         if ($dsn === '') {
-            throw new RuntimeException('Database DSN is not configured.');
+            throw new \RuntimeException('Database DSN is not configured.');
         }
 
-        $user     = ($db['user'] ?? '') !== '' ? (string) $db['user'] : null;
+        $user = ($db['user'] ?? '') !== '' ? (string) $db['user'] : null;
         $password = ($db['password'] ?? '') !== '' ? (string) $db['password'] : null;
 
         $params = self::parseDsn($dsn, $user, $password);
@@ -33,14 +32,17 @@ final readonly class DoctrineConnectionFactory
      * Maps a PDO-style DSN + optional credentials to Doctrine DBAL connection params.
      *
      * Supported drivers: sqlite, mysql/mariadb, pgsql.
+     *
+     * @return array<string, mixed>
      */
     private static function parseDsn(string $dsn, ?string $user, ?string $password): array
     {
         if (str_starts_with($dsn, 'sqlite:')) {
             $path = ltrim(substr($dsn, 7), '/');
+
             return [
                 'driver' => 'pdo_sqlite',
-                'path'   => '/' . $path,
+                'path' => '/' . $path,
             ];
         }
 
@@ -48,11 +50,11 @@ final readonly class DoctrineConnectionFactory
             return array_merge(
                 self::parseMysqlDsn($dsn),
                 [
-                    'driver'   => 'pdo_mysql',
-                    'user'     => $user,
+                    'driver' => 'pdo_mysql',
+                    'user' => $user,
                     'password' => $password,
-                    'charset'  => 'utf8mb4',
-                ]
+                    'charset' => 'utf8mb4',
+                ],
             );
         }
 
@@ -60,20 +62,21 @@ final readonly class DoctrineConnectionFactory
             return array_merge(
                 self::parsePgsqlDsn($dsn),
                 [
-                    'driver'   => 'pdo_pgsql',
-                    'user'     => $user,
+                    'driver' => 'pdo_pgsql',
+                    'user' => $user,
                     'password' => $password,
-                ]
+                ],
             );
         }
 
-        throw new RuntimeException("Unsupported database driver in DSN: {$dsn}");
+        throw new \RuntimeException("Unsupported database driver in DSN: {$dsn}");
     }
 
+    /** @return array<string, mixed> */
     private static function parseMysqlDsn(string $dsn): array
     {
         $parts = [];
-        $raw   = substr($dsn, 6); // strip "mysql:"
+        $raw = substr($dsn, 6); // strip "mysql:"
         foreach (explode(';', $raw) as $segment) {
             [$k, $v] = array_pad(explode('=', $segment, 2), 2, '');
             $parts[trim($k)] = trim($v);
@@ -85,13 +88,15 @@ final readonly class DoctrineConnectionFactory
         if (isset($parts['dbname'])) {
             $out['dbname'] = $parts['dbname'];
         }
+
         return $out;
     }
 
+    /** @return array<string, mixed> */
     private static function parsePgsqlDsn(string $dsn): array
     {
         $parts = [];
-        $raw   = substr($dsn, 6); // strip "pgsql:"
+        $raw = substr($dsn, 6); // strip "pgsql:"
         foreach (explode(';', $raw) as $segment) {
             [$k, $v] = array_pad(explode('=', $segment, 2), 2, '');
             $parts[trim($k)] = trim($v);
@@ -103,6 +108,7 @@ final readonly class DoctrineConnectionFactory
         if (isset($parts['dbname'])) {
             $out['dbname'] = $parts['dbname'];
         }
+
         return $out;
     }
 }

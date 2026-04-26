@@ -10,11 +10,12 @@ final readonly class InstallService
     private string $configPath;
     private string $passwordPath;
 
+    /** @param array<string, mixed> $config */
     public function __construct(array $config)
     {
-        $install            = $config['install'] ?? [];
-        $this->lockPath     = (string) ($install['lock'] ?? '');
-        $this->configPath   = (string) ($install['config_file'] ?? '');
+        $install = $config['install'] ?? [];
+        $this->lockPath = (string) ($install['lock'] ?? '');
+        $this->configPath = (string) ($install['config_file'] ?? '');
         $this->passwordPath = (string) ($install['password_file'] ?? '');
     }
 
@@ -39,6 +40,7 @@ final readonly class InstallService
             return null;
         }
         $value = trim((string) file_get_contents($this->passwordPath));
+
         return $value !== '' ? $value : null;
     }
 
@@ -46,6 +48,7 @@ final readonly class InstallService
      * Generates a random install password, hashes it with Argon2id, writes the hash
      * to the password file, and returns the plain-text password for one-time display.
      */
+    /** @param array<string, mixed> $securityConfig */
     public function initializePassword(array $securityConfig): ?string
     {
         $dir = dirname($this->passwordPath);
@@ -54,13 +57,13 @@ final readonly class InstallService
         }
 
         $plain = bin2hex(random_bytes(8));
-        $hash  = password_hash(
+        $hash = password_hash(
             $plain,
             $securityConfig['algo'] ?? PASSWORD_ARGON2ID,
-            $securityConfig['options'] ?? []
+            $securityConfig['options'] ?? [],
         );
 
-        if ($hash === false) {
+        if ($hash === false) { // @phpstan-ignore identical.alwaysFalse
             return null;
         }
 
@@ -79,6 +82,7 @@ final readonly class InstallService
         if (str_starts_with($stored, '$argon2')) {
             return password_verify($input, $stored);
         }
+
         return hash_equals($stored, $input);
     }
 
@@ -88,6 +92,7 @@ final readonly class InstallService
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             return false;
         }
+
         return file_put_contents($this->configPath, $content, LOCK_EX) !== false;
     }
 

@@ -17,7 +17,7 @@ final readonly class LogoutHandler implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if ($guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             /** @var SessionInterface $session */

@@ -16,7 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Resets (deletes all) TOTP keys for a user.
- * POST /admin/totp/reset/{id:\d+}
+ * POST /admin/totp/reset/{id:\d+}.
  *
  * Any admin can reset any user's TOTP — use as recovery when a user has lost
  * their authenticator.
@@ -24,20 +24,22 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class TotpResetHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserService  $users,
+        private readonly UserService $users,
         private readonly AuditService $audit,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
-        $guard   = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body    = (array) ($request->getParsedBody() ?? []);
-        $id      = (int) $request->getAttribute('id', 0);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
+        $id = (int) $request->getAttribute('id', 0);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
@@ -62,4 +64,3 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
         return new RedirectResponse('/admin');
     }
 }
-

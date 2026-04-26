@@ -7,10 +7,6 @@ namespace LexNova\Handler\Install\Step;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
 use Locale;
-use PDO;
-use PDOException;
-use RuntimeException;
-use Throwable;
 
 /**
  * Validates all installation inputs, creates the database schema, inserts the
@@ -22,16 +18,16 @@ use Throwable;
 final class ConfigureStep
 {
     /**
-     * @param  array<string, string> $formData
-     * @param  array<string, mixed>  $securityConfig
+     * @param  array<string, string>                        $formData
+     * @param  array<string, mixed>                         $securityConfig
      * @return array{errors: list<string>, completed: bool}
      */
     public function handle(
-        InstallService  $install,
+        InstallService $install,
         PasswordService $passwords,
-        array           $formData,
-        array           $securityConfig,
-        string          $root,
+        array $formData,
+        array $securityConfig,
+        string $root,
     ): array {
         $errors = $this->validate($formData, $passwords);
 
@@ -44,14 +40,14 @@ final class ConfigureStep
         }
 
         try {
-            $dsn     = $this->buildDsn($formData);
+            $dsn = $this->buildDsn($formData);
             $pdoUser = $formData['dbUser'] !== '' ? $formData['dbUser'] : null;
             $pdoPass = $formData['dbPassword'] !== '' ? $formData['dbPassword'] : null;
 
-            $pdo = new PDO($dsn, $pdoUser, $pdoPass, [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false,
+            $pdo = new \PDO($dsn, $pdoUser, $pdoPass, [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                \PDO::ATTR_EMULATE_PREPARES => false,
             ]);
 
             $this->runSchema($pdo, $root . '/sql/schema.sql');
@@ -62,12 +58,12 @@ final class ConfigureStep
                 $securityConfig['options'] ?? [],
             );
 
-            if ($hash === false) {
-                throw new RuntimeException('Failed to hash admin password.');
+            if ($hash === false) { // @phpstan-ignore identical.alwaysFalse
+                throw new \RuntimeException('Failed to hash admin password.');
             }
 
             $stmt = $pdo->prepare(
-                'INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)'
+                'INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)',
             );
             $stmt->execute([$formData['adminUsername'], $hash, 'admin', date('Y-m-d H:i:s')]);
 
@@ -81,21 +77,23 @@ final class ConfigureStep
             );
 
             if (!$install->writeConfig($configContent)) {
-                throw new RuntimeException('Failed to write config file.');
+                throw new \RuntimeException('Failed to write config file.');
             }
 
             $install->lock();
-
-        } catch (PDOException $e) {
+        } catch (\PDOException $e) {
             return ['errors' => ['Database error: ' . $e->getMessage()], 'completed' => false];
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             return ['errors' => ['Installation failed: ' . $e->getMessage()], 'completed' => false];
         }
 
         return ['errors' => [], 'completed' => true];
     }
 
-    /** @return list<string> */
+    /**
+     * @param  array<string, mixed> $formData
+     * @return list<string>
+     */
     private function validate(array $formData, PasswordService $passwords): array
     {
         $errors = [];
@@ -117,7 +115,7 @@ final class ConfigureStep
         // ── Admin account ──────────────────────────────────────────────────
         $adminUsername = $formData['adminUsername'] ?? '';
         $adminPassword = $formData['adminPassword'] ?? '';
-        $adminConfirm  = $formData['adminConfirm']  ?? '';
+        $adminConfirm = $formData['adminConfirm'] ?? '';
 
         if ($adminUsername === '') {
             $errors[] = 'Admin username is required.';
@@ -163,11 +161,12 @@ final class ConfigureStep
             return true; // structural check passed, intl not available for deeper validation
         }
 
-        $parsed = Locale::parseLocale($tag);
+        $parsed = \Locale::parseLocale($tag);
 
         return isset($parsed['language']);
     }
 
+    /** @param array<string, mixed> $formData */
     private function buildDsn(array $formData): string
     {
         $type = $formData['dbType'];
@@ -189,7 +188,7 @@ final class ConfigureStep
         return "pgsql:host={$host}{$portPart};dbname={$name}";
     }
 
-    private function runSchema(PDO $pdo, string $schemaPath): void
+    private function runSchema(\PDO $pdo, string $schemaPath): void
     {
         $sql = (string) file_get_contents($schemaPath);
 
@@ -202,17 +201,17 @@ final class ConfigureStep
     }
 
     private function buildConfigFile(
-        string  $dsn,
+        string $dsn,
         ?string $user,
         ?string $password,
-        string  $appLocale,
-        string  $totpAppKey,
-        string  $root,
+        string $appLocale,
+        string $totpAppKey,
+        string $root,
     ): string {
         return toml_encode([
             'app' => [
                 'base_url' => '',
-                'locale'   => $appLocale,
+                'locale' => $appLocale,
             ],
             'security' => [
                 // XSalsa20-Poly1305 key for TOTP secret encryption (32 bytes / 64 hex chars).
@@ -220,22 +219,22 @@ final class ConfigureStep
                 'totp_app_key' => $totpAppKey,
             ],
             'db' => [
-                'dsn'      => $dsn,
-                'user'     => $user ?? '',
+                'dsn' => $dsn,
+                'user' => $user ?? '',
                 'password' => $password ?? '',
             ],
             'install' => [
-                'lock'          => $root . '/data/install.lock',
+                'lock' => $root . '/data/install.lock',
                 'password_file' => $root . '/data/install.pw',
-                'config_file'   => $root . '/configs/config.toml',
+                'config_file' => $root . '/configs/config.toml',
             ],
             'log' => [
-                'path'  => $root . '/logs/lexnova.log',
+                'path' => $root . '/logs/lexnova.log',
                 'level' => 'warning',
             ],
             'session' => [
-                'name'     => 'lexnova_session',
-                'secure'   => false,
+                'name' => 'lexnova_session',
+                'secure' => false,
                 'httponly' => true,
                 'samesite' => 'Lax',
             ],

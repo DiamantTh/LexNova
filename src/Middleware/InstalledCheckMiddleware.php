@@ -15,7 +15,8 @@ final readonly class InstalledCheckMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly InstallService $install,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

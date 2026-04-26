@@ -21,11 +21,12 @@ final readonly class TotpService
     public function __construct(
         /** Hex-encoded 32-byte sodium key. Empty string = no encryption (pre-install). */
         private readonly string $appKey,
-        private readonly int    $digits    = 8,
+        private readonly int $digits = 8,
         private readonly string $algorithm = 'sha256',
-        private readonly int    $period    = 30,
-        private readonly int    $window    = 1,
-    ) {}
+        private readonly int $period = 30,
+        private readonly int $window = 1,
+    ) {
+    }
 
     /**
      * Generates a new TOTP with a random secret.
@@ -45,9 +46,9 @@ final readonly class TotpService
         $secret = $totp->getSecret();
 
         return [
-            'secret'    => $secret,
+            'secret' => $secret,
             'encrypted' => $this->encrypt($secret),
-            'uri'       => $totp->getProvisioningUri(),
+            'uri' => $totp->getProvisioningUri(),
         ];
     }
 
@@ -121,9 +122,9 @@ final readonly class TotpService
             return $secret;
         }
 
-        $key   = sodium_hex2bin($this->appKey);
+        $key = sodium_hex2bin($this->appKey);
         $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $box   = sodium_crypto_secretbox($secret, $nonce, $key);
+        $box = sodium_crypto_secretbox($secret, $nonce, $key);
         sodium_memzero($key);
 
         return sodium_bin2hex($nonce . $box);
@@ -139,10 +140,10 @@ final readonly class TotpService
         }
 
         try {
-            $raw   = sodium_hex2bin($stored);
+            $raw = sodium_hex2bin($stored);
             $nonce = substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            $box   = substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            $key   = sodium_hex2bin($this->appKey);
+            $box = substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+            $key = sodium_hex2bin($this->appKey);
 
             $plain = sodium_crypto_secretbox_open($box, $nonce, $key);
             sodium_memzero($key);

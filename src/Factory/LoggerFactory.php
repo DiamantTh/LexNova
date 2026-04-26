@@ -14,9 +14,9 @@ final readonly class LoggerFactory
     public function __invoke(ContainerInterface $container): LoggerInterface
     {
         $config = $container->get('config');
-        $log    = $config['log'] ?? [];
+        $log = $config['log'] ?? [];
 
-        $path  = (string) ($log['path'] ?? 'php://stderr');
+        $path = (string) ($log['path'] ?? 'php://stderr');
         $level = $log['level'] ?? 'warning';
 
         $logger = new Logger('lexnova');

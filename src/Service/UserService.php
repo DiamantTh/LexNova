@@ -11,7 +11,8 @@ final readonly class UserService
     public function __construct(
         private readonly Connection $db,
         private readonly PasswordService $passwords,
-    ) {}
+    ) {
+    }
 
     // ── Users ────────────────────────────────────────────────────────────────
 
@@ -81,10 +82,10 @@ final readonly class UserService
         $hash = $this->passwords->hash($password);
 
         $this->db->insert('users', [
-            'username'      => $username,
+            'username' => $username,
             'password_hash' => $hash,
-            'role'          => $role,
-            'created_at'    => date('Y-m-d H:i:s'),
+            'role' => $role,
+            'created_at' => date('Y-m-d H:i:s'),
         ]);
 
         return (int) $this->db->lastInsertId();
@@ -161,15 +162,15 @@ final readonly class UserService
     /**
      * Adds a new TOTP key for the user.
      *
-     * @return int  New key ID
+     * @return int New key ID
      */
     public function addTotpKey(int $userId, string $encryptedSecret, string $label = 'Default'): int
     {
         $this->db->insert('user_totp_keys', [
-            'user_id'    => $userId,
-            'label'      => $label,
+            'user_id' => $userId,
+            'label' => $label,
             'secret_enc' => $encryptedSecret,
-            'is_active'  => 1,
+            'is_active' => 1,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 

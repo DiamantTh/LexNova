@@ -14,7 +14,9 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class AuditService
 {
-    public function __construct(private readonly Connection $db) {}
+    public function __construct(private readonly Connection $db)
+    {
+    }
 
     /**
      * @param int|null    $actorId   Logged-in user's ID; null for CLI/system
@@ -25,20 +27,20 @@ final readonly class AuditService
      * @param string|null $ip        Remote IP; null for CLI
      */
     public function log(
-        ?int    $actorId,
+        ?int $actorId,
         ?string $actorName,
-        string  $action,
-        ?string $target  = null,
-        ?string $detail  = null,
-        ?string $ip      = null,
+        string $action,
+        ?string $target = null,
+        ?string $detail = null,
+        ?string $ip = null,
     ): void {
         $this->db->insert('audit_log', [
-            'actor_id'   => $actorId,
+            'actor_id' => $actorId,
             'actor_name' => $actorName,
-            'action'     => $action,
-            'target'     => $target,
-            'detail'     => $detail,
-            'ip'         => $ip,
+            'action' => $action,
+            'target' => $target,
+            'detail' => $detail,
+            'ip' => $ip,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
     }

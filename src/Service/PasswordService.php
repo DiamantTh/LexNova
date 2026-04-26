@@ -14,18 +14,20 @@ final readonly class PasswordService
     /** @var int zxcvbn score threshold (0 = disabled, 1–4 = required minimum) */
     private int $minScore;
     private string $algo;
+    /** @var array<string, mixed> */
     private array $options;
 
+    /** @param array<string, mixed> $config */
     public function __construct(array $config)
     {
-        $policy          = $config['security']['password_policy'] ?? [];
+        $policy = $config['security']['password_policy'] ?? [];
         $this->minLength = max(8, (int) ($policy['min_length'] ?? 16));
         $this->maxLength = min(256, max($this->minLength, (int) ($policy['max_length'] ?? 256)));
         $this->asciiOnly = (bool) ($policy['ascii_only'] ?? true);
-        $this->minScore  = min(4, max(0, (int) ($policy['min_score'] ?? 2)));
+        $this->minScore = min(4, max(0, (int) ($policy['min_score'] ?? 2)));
 
-        $pw            = $config['security']['password'] ?? [];
-        $this->algo    = $pw['algo'] ?? PASSWORD_ARGON2ID;
+        $pw = $config['security']['password'] ?? [];
+        $this->algo = $pw['algo'] ?? PASSWORD_ARGON2ID;
         $this->options = $pw['options'] ?? [];
     }
 
@@ -76,9 +78,10 @@ final readonly class PasswordService
     public function hash(string $password): string
     {
         $hash = password_hash($password, $this->algo, $this->options);
-        if ($hash === false) {
+        if ($hash === false) { // @phpstan-ignore identical.alwaysFalse
             throw new \RuntimeException('Password hashing failed.');
         }
+
         return $hash;
     }
 

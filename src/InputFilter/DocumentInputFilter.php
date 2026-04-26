@@ -11,7 +11,6 @@ use Laminas\Validator\Callback;
 use Laminas\Validator\InArray;
 use Laminas\Validator\NotEmpty;
 use Laminas\Validator\StringLength;
-use Locale;
 
 /**
  * Validates and filters the document create/update form.
@@ -51,7 +50,7 @@ final class DocumentInputFilter extends InputFilter
             ->attach(new NotEmpty())
             ->attach(new InArray([
                 'haystack' => ['imprint', 'privacy'],
-                'strict'   => InArray::COMPARE_STRICT,
+                'strict' => InArray::COMPARE_STRICT,
                 'messages' => [InArray::NOT_IN_ARRAY => 'Type must be "imprint" or "privacy".'],
             ]));
 
@@ -70,7 +69,8 @@ final class DocumentInputFilter extends InputFilter
                     if (!preg_match('/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/', $tag)) {
                         return false;
                     }
-                    $parsed = Locale::parseLocale($tag);
+                    $parsed = \Locale::parseLocale($tag);
+
                     return isset($parsed['language']);
                 },
                 'messages' => [

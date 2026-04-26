@@ -16,9 +16,9 @@ final class UnlockStep
      */
     public function handle(InstallService $install, string $installPwInput): array
     {
-        $storedHash        = $install->readPasswordHash();
+        $storedHash = $install->readPasswordHash();
         $installerUnlocked = false;
-        $errors            = [];
+        $errors = [];
 
         if ($storedHash === null || !$install->verifyPassword($installPwInput, $storedHash)) {
             $errors[] = 'Invalid install password.';

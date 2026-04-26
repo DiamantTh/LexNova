@@ -10,6 +10,7 @@ use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -20,7 +21,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'user:create',
-    description: 'Create a new admin user'
+    description: 'Create a new admin user',
 )]
 final class UserCreateCommand extends Command
 {
@@ -51,11 +52,13 @@ final class UserCreateCommand extends Command
 
         if ($username === '') {
             $io->error('Username must not be empty.');
+
             return Command::FAILURE;
         }
 
         if ($this->users->findByUsername($username) !== null) {
             $io->error("User '{$username}' already exists.");
+
             return Command::FAILURE;
         }
 
@@ -65,6 +68,7 @@ final class UserCreateCommand extends Command
                 return Command::FAILURE;
             }
         } else {
+            /** @var QuestionHelper $helper */
             $helper = $this->getHelper('question');
 
             $q = new Question('Password: ');
@@ -77,6 +81,7 @@ final class UserCreateCommand extends Command
 
             if ($password !== $confirm) {
                 $io->error('Passwords do not match.');
+
                 return Command::FAILURE;
             }
         }
@@ -84,6 +89,7 @@ final class UserCreateCommand extends Command
         $error = $this->passwords->validate($password);
         if ($error !== null) {
             $io->error($error);
+
             return Command::FAILURE;
         }
 
@@ -98,26 +104,28 @@ final class UserCreateCommand extends Command
         $mode = strtolower((string) $input->getOption('mode'));
 
         if ($mode === 'random') {
-            $gen     = $this->random;
-            $label   = 'random';
+            $gen = $this->random;
+            $label = 'random';
         } else {
-            $gen   = $this->diceware;
+            $gen = $this->diceware;
             $label = 'diceware';
         }
 
         $password = $gen->generate();
-        $bits     = round($gen->entropyBits(), 1);
+        $bits = round($gen->entropyBits(), 1);
 
         $io->section("Generated password ({$label}, ~{$bits} bits entropy)");
         $io->writeln("  <info>{$password}</info>");
         $io->newLine();
 
         if ($input->isInteractive()) {
+            /** @var QuestionHelper $helper */
             $helper = $this->getHelper('question');
-            $q      = new ConfirmationQuestion('Use this password? [y/N] ', false);
+            $q = new ConfirmationQuestion('Use this password? [y/N] ', false);
 
             if (!$helper->ask($input, $io, $q)) {
                 $io->note('Aborted. Re-run without --generate to enter a password manually.');
+
                 return null;
             }
         }

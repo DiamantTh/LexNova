@@ -17,9 +17,10 @@ final readonly class RateLimitService
 {
     public function __construct(
         private readonly Connection $db,
-        private readonly int        $maxAttempts  = 5,
-        private readonly int        $blockSeconds = 300,  // 5 minutes
-    ) {}
+        private readonly int $maxAttempts = 5,
+        private readonly int $blockSeconds = 300,  // 5 minutes
+    ) {
+    }
 
     /**
      * Returns true if the IP is currently blocked for $endpoint.
@@ -44,32 +45,33 @@ final readonly class RateLimitService
      */
     public function recordFailure(string $ip, string $endpoint): void
     {
-        $now  = date('Y-m-d H:i:s');
-        $row  = $this->fetch($ip, $endpoint);
+        $now = date('Y-m-d H:i:s');
+        $row = $this->fetch($ip, $endpoint);
 
         if ($row === null) {
             $this->db->insert('login_attempts', [
-                'ip'            => $ip,
-                'endpoint'      => $endpoint,
-                'attempts'      => 1,
+                'ip' => $ip,
+                'endpoint' => $endpoint,
+                'attempts' => 1,
                 'blocked_until' => null,
-                'last_at'       => $now,
+                'last_at' => $now,
             ]);
+
             return;
         }
 
-        $attempts     = (int) $row['attempts'] + 1;
+        $attempts = (int) $row['attempts'] + 1;
         $blockedUntil = null;
 
         if ($attempts >= $this->maxAttempts) {
-            $until        = new \DateTimeImmutable("now +{$this->blockSeconds} seconds");
+            $until = new \DateTimeImmutable("now +{$this->blockSeconds} seconds");
             $blockedUntil = $until->format('Y-m-d H:i:s');
         }
 
         $this->db->update('login_attempts', [
-            'attempts'      => $attempts,
+            'attempts' => $attempts,
             'blocked_until' => $blockedUntil,
-            'last_at'       => $now,
+            'last_at' => $now,
         ], ['ip' => $ip, 'endpoint' => $endpoint]);
     }
 
@@ -93,7 +95,7 @@ final readonly class RateLimitService
         }
 
         $until = new \DateTimeImmutable($row['blocked_until']);
-        $diff  = $until->getTimestamp() - time();
+        $diff = $until->getTimestamp() - time();
 
         return max(0, $diff);
     }

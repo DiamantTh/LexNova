@@ -16,7 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Deletes a single TOTP key belonging to a specific user.
- * POST /admin/users/{userId:\d+}/totp-keys/{keyId:\d+}/delete
+ * POST /admin/users/{userId:\d+}/totp-keys/{keyId:\d+}/delete.
  *
  * Any admin may delete any user's key. UserService::deleteTotpKey() enforces
  * ownership by requiring both keyId and userId to match, so there is no risk
@@ -25,27 +25,30 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserService  $users,
+        private readonly UserService $users,
         private readonly AuditService $audit,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
-        $guard   = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body    = (array) ($request->getParsedBody() ?? []);
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
+
             return new RedirectResponse('/admin');
         }
 
         $userId = (int) $request->getAttribute('userId', 0);
-        $keyId  = (int) $request->getAttribute('keyId', 0);
+        $keyId = (int) $request->getAttribute('keyId', 0);
 
         if ($userId <= 0 || $keyId <= 0 || $this->users->findById($userId) === null) {
             $session->set('flash_errors', ['User or key not found.']);
+
             return new RedirectResponse('/admin');
         }
 

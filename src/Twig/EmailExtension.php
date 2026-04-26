@@ -35,12 +35,13 @@ final class EmailExtension extends AbstractExtension
     public function __construct(
         private readonly ClockInterface $clock,
         private readonly array $subjectConfig = [
-            'format'         => 'domain_datetime_tz',
-            'date_format'    => 'Y-n-j/H:i',
-            'strip_www'      => true,
+            'format' => 'domain_datetime_tz',
+            'date_format' => 'Y-n-j/H:i',
+            'strip_www' => true,
             'custom_pattern' => '',
         ],
-    ) {}
+    ) {
+    }
 
     #[\Override]
     public function getFilters(): array
@@ -68,7 +69,7 @@ final class EmailExtension extends AbstractExtension
         $out = '';
         $len = mb_strlen($email, 'UTF-8');
 
-        for ($i = 0; $i < $len; $i++) {
+        for ($i = 0; $i < $len; ++$i) {
             $char = mb_substr($email, $i, 1, 'UTF-8');
             $code = mb_ord($char, 'UTF-8');
 
@@ -110,7 +111,7 @@ final class EmailExtension extends AbstractExtension
         $href = 'mailto:' . rawurlencode($email)
             . '?subject=' . rawurlencode($subject);
 
-        $encodedHref  = $this->obfuscate($href);
+        $encodedHref = $this->obfuscate($href);
         $encodedLabel = $raw ? htmlspecialchars($email, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
                               : $this->obfuscate($email);
 
@@ -126,16 +127,16 @@ final class EmailExtension extends AbstractExtension
      */
     private function buildSubject(string $domain): string
     {
-        $now    = $this->clock->now();
+        $now = $this->clock->now();
         $format = (string) ($this->subjectConfig['format'] ?? 'domain_datetime_tz');
 
         return match ($format) {
-            'domain_date'   => "[{$domain}] " . $now->format('Y-m-d'),
-            'domain_only'   => "[{$domain}]",
-            'custom'        => $now->format((string) ($this->subjectConfig['custom_pattern'] ?? 'Y-m-d')),
-            default         => "[{$domain}]/" . $now->format(
-                                    (string) ($this->subjectConfig['date_format'] ?? 'Y-n-j/H:i')
-                               ) . ' ' . $now->format('T'),
+            'domain_date' => "[{$domain}] " . $now->format('Y-m-d'),
+            'domain_only' => "[{$domain}]",
+            'custom' => $now->format((string) ($this->subjectConfig['custom_pattern'] ?? 'Y-m-d')),
+            default => "[{$domain}]/" . $now->format(
+                (string) ($this->subjectConfig['date_format'] ?? 'Y-n-j/H:i'),
+            ) . ' ' . $now->format('T'),
         };
     }
 }
