@@ -161,23 +161,32 @@
     {% endif %}
 </div>
 
-{# ── Create entity ───────────────────────────────────────────────────────── #}
+{# ── Create / Edit entity ────────────────────────────────────────────────── #}
 <div class="card">
-    <h2>{{ trans('Create Legal Entity') }}</h2>
-    <form method="post" action="/admin/entities/create">
+    {% if editEntity %}
+        <h2>{{ trans('Edit Entity') }} #{{ editEntity.id }}</h2>
+        <form method="post" action="/admin/entities/{{ editEntity.id }}/edit">
+    {% else %}
+        <h2>{{ trans('Create Legal Entity') }}</h2>
+        <form method="post" action="/admin/entities/create">
+    {% endif %}
         <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <div class="grid">
             <div>
                 <label for="entity_name">Name</label>
-                <input type="text" id="entity_name" name="name" required>
+                <input type="text" id="entity_name" name="name"
+                       value="{{ editEntity ? editEntity.name : '' }}" required>
             </div>
             <div>
                 <label for="entity_contact">{{ trans('Contact Data') }}</label>
-                <textarea id="entity_contact" name="contact_data" style="min-height:80px;" required></textarea>
+                <textarea id="entity_contact" name="contact_data" style="min-height:80px;" required>{{ editEntity ? editEntity.contact_data : '' }}</textarea>
             </div>
         </div>
         <div class="actions">
-            <button type="submit">{{ trans('Create Entity') }}</button>
+            <button type="submit">{{ editEntity ? trans('Update Entity') : trans('Create Entity') }}</button>
+            {% if editEntity %}
+            <a href="/admin" style="align-self:center;font-size:14px;">{{ trans('Cancel') }}</a>
+            {% endif %}
         </div>
     </form>
 </div>
@@ -198,7 +207,8 @@
             <td>{{ entity.id }}</td>
             <td><code>{{ entity.hash }}</code></td>
             <td>{{ entity.name }}</td>
-            <td>
+            <td style="white-space:nowrap;">
+                <a href="/admin?entity_id={{ entity.id }}" style="font-size:13px;margin-right:8px;">{{ trans('Edit Entity') }}</a>
                 <form method="post" action="/admin/entities/{{ entity.id }}/delete" style="display:inline;"
                       onsubmit="return confirm('{{ trans('Delete entity and all its documents permanently?') }}')">
                     <input type="hidden" name="__csrf" value="{{ csrf_token }}">

@@ -62,6 +62,14 @@ final readonly class EntityService
         ];
     }
 
+    public function update(int $id, string $name, string $contactData): void
+    {
+        $this->db->update('legal_entities', [
+            'name'         => $name,
+            'contact_data' => $contactData,
+        ], ['id' => $id]);
+    }
+
     public function delete(int $id): void
     {
         $this->db->delete('legal_entities', ['id' => $id]);

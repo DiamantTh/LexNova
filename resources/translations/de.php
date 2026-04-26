@@ -41,6 +41,8 @@ return [
 
     // ── Rechtliche Einheiten ───────────────────────────────────────────────
     'Create Legal Entity'  => 'Rechtliche Einheit anlegen',
+    'Edit Entity'          => 'Einheit bearbeiten',
+    'Update Entity'        => 'Einheit aktualisieren',
     'Contact Data'         => 'Kontaktdaten',
     'Create Entity'        => 'Einheit anlegen',
     'Legal Entities'       => 'Rechtliche Einheiten',

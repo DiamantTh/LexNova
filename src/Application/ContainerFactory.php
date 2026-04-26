@@ -355,6 +355,12 @@ final class ContainerFactory
                     $c->get(AuditService::class),
                 ),
 
+            \LexNova\Handler\Admin\EntityUpdateHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\EntityUpdateHandler(
+                    $c->get(EntityService::class),
+                    $c->get(AuditService::class),
+                ),
+
             \LexNova\Handler\Admin\EntityCreateHandler::class => fn(ContainerInterface $c) =>
                 new \LexNova\Handler\Admin\EntityCreateHandler(
                     $c->get(EntityService::class),

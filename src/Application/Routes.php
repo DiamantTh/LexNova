@@ -10,6 +10,7 @@ use LexNova\Handler\Admin\DocumentDeleteHandler;
 use LexNova\Handler\Admin\DocumentUpdateHandler;
 use LexNova\Handler\Admin\EntityCreateHandler;
 use LexNova\Handler\Admin\EntityDeleteHandler;
+use LexNova\Handler\Admin\EntityUpdateHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
@@ -72,6 +73,11 @@ final class Routes
         $app->post('/admin/entities/create',
             [AdminAuthMiddleware::class, EntityCreateHandler::class],
             'admin.entities.create'
+        );
+        $app->route('/admin/entities/{id:\d+}/edit',
+            [AdminAuthMiddleware::class, EntityUpdateHandler::class],
+            ['GET', 'POST'],
+            'admin.entities.edit'
         );
         $app->post('/admin/entities/{id:\d+}/delete',
             [AdminAuthMiddleware::class, EntityDeleteHandler::class],

@@ -45,6 +45,11 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             : null;
         $editDoc = $editId !== null ? $this->documents->findById($editId) : null;
 
+        $editEntityId = isset($request->getQueryParams()['entity_id'])
+            ? (int) $request->getQueryParams()['entity_id']
+            : null;
+        $editEntity = $editEntityId !== null ? $this->entities->findById($editEntityId) : null;
+
         $users = $this->users->list();
 
         // Load all TOTP keys per user (N+1 is acceptable — admin tool, few users).
@@ -59,6 +64,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'entities'        => $this->entities->list(),
             'documents'       => $this->documents->list(),
             'editDoc'         => $editDoc,
+            'editEntity'      => $editEntity,
             'csrf_token'      => $guard->generateToken(),
             'pw_min'          => $this->passwords->getMinLength(),
             'pw_max'          => $this->passwords->getMaxLength(),
