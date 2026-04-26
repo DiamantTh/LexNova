@@ -6,12 +6,15 @@ namespace LexNova\Application;
 
 use LexNova\Handler\Admin\DashboardHandler;
 use LexNova\Handler\Admin\DocumentCreateHandler;
+use LexNova\Handler\Admin\DocumentDeleteHandler;
 use LexNova\Handler\Admin\DocumentUpdateHandler;
 use LexNova\Handler\Admin\EntityCreateHandler;
+use LexNova\Handler\Admin\EntityDeleteHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
+use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
@@ -56,10 +59,18 @@ final class Routes
             [AdminAuthMiddleware::class, UserUpdateHandler::class],
             'admin.users.update'
         );
+        $app->post('/admin/users/{id:\d+}/delete',
+            [AdminAuthMiddleware::class, UserDeleteHandler::class],
+            'admin.users.delete'
+        );
 
         $app->post('/admin/entities/create',
             [AdminAuthMiddleware::class, EntityCreateHandler::class],
             'admin.entities.create'
+        );
+        $app->post('/admin/entities/{id:\d+}/delete',
+            [AdminAuthMiddleware::class, EntityDeleteHandler::class],
+            'admin.entities.delete'
         );
 
         $app->post('/admin/documents/create',
@@ -70,6 +81,10 @@ final class Routes
             [AdminAuthMiddleware::class, DocumentUpdateHandler::class],
             ['GET', 'POST'],
             'admin.documents.edit'
+        );
+        $app->post('/admin/documents/{id:\d+}/delete',
+            [AdminAuthMiddleware::class, DocumentDeleteHandler::class],
+            'admin.documents.delete'
         );
 
         // ── Public document display ──────────────────────────────────────────────

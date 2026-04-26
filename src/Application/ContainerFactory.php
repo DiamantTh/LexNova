@@ -289,6 +289,21 @@ final class ContainerFactory
                     $c->get(UserService::class),
                 ),
 
+            \LexNova\Handler\Admin\UserDeleteHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\UserDeleteHandler(
+                    $c->get(UserService::class),
+                ),
+
+            \LexNova\Handler\Admin\EntityDeleteHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\EntityDeleteHandler(
+                    $c->get(EntityService::class),
+                ),
+
+            \LexNova\Handler\Admin\DocumentDeleteHandler::class => fn(ContainerInterface $c) =>
+                new \LexNova\Handler\Admin\DocumentDeleteHandler(
+                    $c->get(DocumentService::class),
+                ),
+
             // ── Middleware ───────────────────────────────────────────────────────────
             AdminAuthMiddleware::class => fn(ContainerInterface $c) =>
                 new AdminAuthMiddleware(

@@ -60,7 +60,11 @@ return [
     'No documents yet.'    => 'Noch keine Dokumente.',
     'Updated'              => 'Aktualisiert',
     '— select —'           => '— auswählen —',
-
+    // ── Löschen ────────────────────────────────────────────────────────────────
+    'Delete'                                           => 'Löschen',
+    'Delete user permanently?'                         => 'Benutzer dauerhaft löschen?',
+    'Delete entity and all its documents permanently?' => 'Einheit und alle zugehörigen Dokumente dauerhaft löschen?',
+    'Delete document permanently?'                     => 'Dokument dauerhaft löschen?',
     // ── TOTP / Zwei-Faktor-Authentifizierung ───────────────────────────────
     'Two-Factor Authentication'                    => 'Zwei-Faktor-Authentifizierung',
     'Two-Factor Authentication (TOTP)'             => 'Zwei-Faktor-Authentifizierung (TOTP)',

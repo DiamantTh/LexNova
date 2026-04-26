@@ -110,6 +110,13 @@
                 {% if user.id == current_user_id and not user.totp_enabled %}
                 <a href="/admin/totp/enroll" style="font-size:13px;">{{ trans('Enroll TOTP') }}</a>
                 {% endif %}
+                {% if user.id != current_user_id %}
+                <form method="post" action="/admin/users/{{ user.id }}/delete" style="display:inline;"
+                      onsubmit="return confirm('{{ trans('Delete user permanently?') }}')">
+                    <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                    <button type="submit" style="background:#b71c1c;padding:4px 10px;font-size:12px;">{{ trans('Delete') }}</button>
+                </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
@@ -147,7 +154,7 @@
     {% else %}
     <table>
         <thead>
-            <tr><th>ID</th><th>Hash</th><th>Name</th></tr>
+            <tr><th>ID</th><th>Hash</th><th>Name</th><th>{{ trans('Actions') }}</th></tr>
         </thead>
         <tbody>
         {% for entity in entities %}
@@ -155,6 +162,13 @@
             <td>{{ entity.id }}</td>
             <td><code>{{ entity.hash }}</code></td>
             <td>{{ entity.name }}</td>
+            <td>
+                <form method="post" action="/admin/entities/{{ entity.id }}/delete" style="display:inline;"
+                      onsubmit="return confirm('{{ trans('Delete entity and all its documents permanently?') }}')">
+                    <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                    <button type="submit" style="background:#b71c1c;padding:4px 10px;font-size:12px;">{{ trans('Delete') }}</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
@@ -235,7 +249,14 @@
             <td>{{ doc.language }}</td>
             <td>{{ doc.version }}</td>
             <td>{{ doc.updated_at }}</td>
-            <td><a href="/admin?doc_id={{ doc.id }}">{{ trans('Edit Document') }}</a></td>
+            <td style="white-space:nowrap;">
+                <a href="/admin?doc_id={{ doc.id }}" style="margin-right:8px;">{{ trans('Edit Document') }}</a>
+                <form method="post" action="/admin/documents/{{ doc.id }}/delete" style="display:inline;"
+                      onsubmit="return confirm('{{ trans('Delete document permanently?') }}')">
+                    <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                    <button type="submit" style="background:#b71c1c;padding:4px 10px;font-size:12px;">{{ trans('Delete') }}</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
