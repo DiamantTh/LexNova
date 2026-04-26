@@ -7,6 +7,7 @@ namespace LexNova\Handler\Install;
 use Laminas\Diactoros\Response\HtmlResponse;
 use LexNova\Handler\Install\Step\ConfigureStep;
 use LexNova\Handler\Install\Step\InitStep;
+use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Handler\Install\Step\UnlockStep;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
@@ -52,6 +53,9 @@ final readonly class InstallHandler implements RequestHandlerInterface
         $security = $this->config['security']['password'] ?? [];
         // dirname(__DIR__, 3): src/Handler/Install → src/Handler → src → project root
         $root     = dirname(__DIR__, 3);
+
+        // ── Prerequisites ─────────────────────────────────────────────────
+        $prereq = (new PrerequisiteCheck($root))->run();
 
         // ── Step: Init ────────────────────────────────────────────────────
         $init              = (new InitStep())->handle($this->install, $security);
@@ -124,6 +128,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
             'generatedPassword' => $generatedPassword,
             'installReady'      => $installReady,
             'formData'          => $formData,
+            'prereq'            => $prereq,
         ]));
     }
 }

@@ -149,14 +149,18 @@ final class ConfigureStep
     /**
      * Validates a BCP 47 language tag.
      *
-     * Uses PHP ext-intl's Locale::parseLocale() (required by laminas/laminas-i18n)
-     * to confirm the language subtag is recognised, combined with a structural
-     * regex to prevent degenerate inputs the ICU parser may silently accept.
+     * Uses PHP ext-intl's Locale::parseLocale() if available. If ext-intl is not
+     * loaded, falls back to a structural regex check only (install will still
+     * warn about the missing extension via PrerequisiteCheck).
      */
     private function isValidBcp47(string $tag): bool
     {
         if (!preg_match('/^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/', $tag)) {
             return false;
+        }
+
+        if (!extension_loaded('intl')) {
+            return true; // structural check passed, intl not available for deeper validation
         }
 
         $parsed = Locale::parseLocale($tag);
