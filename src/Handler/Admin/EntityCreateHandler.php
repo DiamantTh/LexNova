@@ -36,7 +36,7 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
         }
 
         $name = trim((string) ($body['name'] ?? ''));
-        $contactData = trim((string) ($body['contact_data'] ?? ''));
+        $contactData = trim(str_replace(["\r\n", "\r"], "\n", (string) ($body['contact_data'] ?? '')));
 
         if ($name === '' || $contactData === '') {
             $session->set('flash_errors', ['Name and contact data are required.']);

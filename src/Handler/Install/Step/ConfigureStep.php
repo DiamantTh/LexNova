@@ -69,10 +69,11 @@ final class ConfigureStep
 
             // ── Operator entity ───────────────────────────────────────────
             $operatorHash = bin2hex(random_bytes(16)); // 32 hex chars
+            $operatorContact = str_replace(["\r\n", "\r"], "\n", $formData['operatorContact']);
             $stmt = $pdo->prepare(
                 'INSERT INTO legal_entities (hash, name, contact_data) VALUES (?, ?, ?)',
             );
-            $stmt->execute([$operatorHash, $formData['operatorName'], $formData['operatorContact']]);
+            $stmt->execute([$operatorHash, $formData['operatorName'], $operatorContact]);
 
             $configContent = $this->buildConfigFile(
                 $dsn,

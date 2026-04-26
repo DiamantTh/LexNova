@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LexNova\InputFilter;
 
+use Laminas\Filter\Callback as CallbackFilter;
 use Laminas\Filter\StringTrim;
 use Laminas\InputFilter\Input;
 use Laminas\InputFilter\InputFilter;
@@ -85,6 +86,9 @@ final class DocumentInputFilter extends InputFilter
     {
         $input = new Input('content');
         $input->getFilterChain()
+            ->attach(new CallbackFilter(
+                static fn (string $v): string => str_replace(["\r\n", "\r"], "\n", $v),
+            ))
             ->attach(new StringTrim());
         $input->getValidatorChain()
             ->attach(new NotEmpty());

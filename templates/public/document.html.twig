@@ -62,7 +62,6 @@
         {% if error %}
             <div class="error" role="alert">{{ error }}</div>
         {% else %}
-            <div class="meta">Entity: {{ entity.name }} · <code>{{ entity.hash }}</code></div>
             <div class="section-title">{{ trans('Contact', locale) }}</div>
             <div class="content">{{ entity.contact_data | obfuscate }}</div>
             <div class="section-title">{{ trans('Document', locale) }}</div>

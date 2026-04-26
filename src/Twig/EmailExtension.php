@@ -66,6 +66,10 @@ final class EmailExtension extends AbstractExtension
      */
     public function obfuscate(string $email): string
     {
+        // Normalize line endings: \r\n and standalone \r → \n.
+        // Prevents double line-breaks when pre-wrap renders \r + \n separately.
+        $email = str_replace(["\r\n", "\r"], "\n", $email);
+
         $out = '';
         $len = mb_strlen($email, 'UTF-8');
 
