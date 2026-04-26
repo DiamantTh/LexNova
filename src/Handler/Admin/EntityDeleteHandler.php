@@ -49,19 +49,3 @@ final readonly class EntityDeleteHandler implements RequestHandlerInterface
     }
 }
 
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
-
-        if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
-            return new RedirectResponse('/admin');
-        }
-
-        $id = (int) ($request->getAttribute('id') ?? 0);
-        $this->entities->delete($id);
-
-        return new RedirectResponse('/admin');
-    }
-}

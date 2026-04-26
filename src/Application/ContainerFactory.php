@@ -36,7 +36,6 @@ use Mezzio\Container\ApplicationFactory;
 use Mezzio\Container\MiddlewareContainerFactory;
 use Mezzio\Container\MiddlewareFactoryFactory;
 use Mezzio\Container\RequestHandlerRunnerFactory;
-use Mezzio\Container\ServerRequestErrorResponseGeneratorFactory;
 use Mezzio\Csrf\CsrfGuardFactoryInterface;
 use Mezzio\Csrf\SessionCsrfGuardFactory;
 use Mezzio\MiddlewareContainer;
@@ -156,9 +155,6 @@ final class ContainerFactory
 
             ApplicationPipeline::class => fn() =>
                 new ApplicationPipeline(),
-
-            ServerRequestErrorResponseGenerator::class => fn(ContainerInterface $c) =>
-                (new ServerRequestErrorResponseGeneratorFactory())($c),
 
             RequestHandlerRunner::class => fn(ContainerInterface $c) =>
                 (new RequestHandlerRunnerFactory())($c),

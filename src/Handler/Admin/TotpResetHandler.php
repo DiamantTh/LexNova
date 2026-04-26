@@ -63,27 +63,3 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
     }
 }
 
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        /** @var SessionInterface $session */
-        $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
-        $guard   = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body    = (array) ($request->getParsedBody() ?? []);
-        $id      = (int) $request->getAttribute('id', 0);
-
-        if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
-            $session->set('flash_errors', ['Invalid session token.']);
-            return new RedirectResponse('/admin');
-        }
-
-        if ($id > 0 && $this->users->findById($id) !== null) {
-            $this->users->setTotpSecret($id, null, false);
-            $session->set('flash_messages', ['TOTP has been disabled and wiped for the selected user.']);
-        } else {
-            $session->set('flash_errors', ['User not found.']);
-        }
-
-        return new RedirectResponse('/admin');
-    }
-}
