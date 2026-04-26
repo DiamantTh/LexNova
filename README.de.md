@@ -161,7 +161,7 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `symfony/cache` | PSR-16-kompatible Cache-Implementierung (für Rate Limiting) |
 | `symfony/console` | CLI-Framework für `bin/lexnova`-Befehle |
 | `twig/twig` | Template-Engine |
-| `web-auth/webauthn-lib` | WebAuthn/FIDO2 — **noch nicht implementiert**, als zukünftige Passkey-Unterstützung vorgehalten |
+| `web-auth/webauthn-lib` | WebAuthn/FIDO2-Passkey-Authentifizierung — geplanter Standardanmeldeweg; Passwort-Login ist der versteckte Fallback |
 
 ### Entwicklung (`require-dev`)
 
