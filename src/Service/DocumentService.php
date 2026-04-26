@@ -127,6 +127,28 @@ final readonly class DocumentService
         $this->cache->delete("doc_latest_{$entityId}_{$type}");
     }
 
+    /**
+     * Returns all language codes that exist for a given entity + type,
+     * ordered alphabetically. Used to build hreflang and language-switcher links.
+     *
+     * @return list<string>
+     */
+    public function listLanguageVariants(int $entityId, string $type): array
+    {
+        $rows = $this->db->createQueryBuilder()
+            ->select('language')
+            ->from('legal_documents')
+            ->where('entity_id = :entity_id')
+            ->andWhere('type = :type')
+            ->setParameter('entity_id', $entityId)
+            ->setParameter('type', $type)
+            ->orderBy('language', 'ASC')
+            ->executeQuery()
+            ->fetchFirstColumn();
+
+        return array_values(array_unique($rows));
+    }
+
     public function delete(int $id): void
     {
         $row = $this->findById($id);

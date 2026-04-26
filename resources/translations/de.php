@@ -60,6 +60,7 @@ return [
     'Cancel'               => 'Abbrechen',
     'Documents'            => 'Dokumente',
     'No documents yet.'    => 'Noch keine Dokumente.',
+    'View'                 => 'Anzeigen',
     'Updated'              => 'Aktualisiert',
     '— select —'           => '— auswählen —',
     // ── Löschen ────────────────────────────────────────────────────────────────

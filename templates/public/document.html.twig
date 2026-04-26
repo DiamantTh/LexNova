@@ -3,6 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    {% if canonical_url is defined %}
+    <link rel="canonical" href="{{ canonical_url }}">
+    {% for lang, url in variants %}
+    <link rel="alternate" hreflang="{{ lang }}" href="{{ url }}">
+    {% endfor %}
+    {% endif %}
     <title>{% if error %}{{ trans('Error', locale) }}{% elseif type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %} · LexNova</title>
     <style>
         :root { color-scheme: light; }
@@ -39,6 +46,17 @@
     <header>
         <div class="meta">{{ trans('LexNova Legal Documents', locale) }}</div>
         <h1>{% if type == 'privacy' %}{{ trans('Privacy Policy', locale) }}{% else %}{{ trans('Imprint', locale) }}{% endif %}</h1>
+        {% if not error and variants is defined and variants|length > 1 %}
+        <nav aria-label="{{ trans('Language', locale) }}" style="margin-top:10px;font-size:14px;">
+            {% for lang, url in variants %}
+                {% if lang == doc.language %}
+                <strong aria-current="true" style="margin-right:12px;">{{ lang }}</strong>
+                {% else %}
+                <a href="{{ url }}" style="margin-right:12px;">{{ lang }}</a>
+                {% endif %}
+            {% endfor %}
+        </nav>
+        {% endif %}
     </header>
     <div class="card">
         {% if error %}

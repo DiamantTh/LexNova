@@ -31,6 +31,9 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $langAttr = $request->getAttribute('lang');
         $language = ($langAttr !== null && $langAttr !== '') ? (string) $langAttr : null;
 
+        $uri = $request->getUri();
+        $baseUrl = $uri->getScheme() . '://' . $uri->getAuthority();
+
         $entity = $this->entities->findByHash($hash);
 
         if ($entity === null) {
@@ -61,12 +64,25 @@ final readonly class DocumentHandler implements RequestHandlerInterface
             ))->withHeader('Cache-Control', 'no-store');
         }
 
+        // Build canonical URL and per-language hreflang variant map
+        $langVariants = $this->documents->listLanguageVariants((int) $entity['id'], $type);
+        $variants = [];
+        foreach ($langVariants as $lang) {
+            $variants[$lang] = $baseUrl . '/' . $hash . '/' . $type . '/' . $lang;
+        }
+
+        // Canonical always points to the language-specific URL to avoid
+        // duplicate content between /{hash}/{type} and /{hash}/{type}/{lang}
+        $canonicalUrl = $baseUrl . '/' . $hash . '/' . $type . '/' . $doc['language'];
+
         return (new HtmlResponse($this->renderer->render('public/document', [
             'error' => null,
             'entity' => $entity,
             'doc' => $doc,
             'type' => $type,
             'locale' => $language ?? $doc['language'],
+            'canonical_url' => $canonicalUrl,
+            'variants' => $variants,
         ])))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
     }
 }
