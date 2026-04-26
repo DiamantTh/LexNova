@@ -88,5 +88,17 @@ return [
     'App compatibility notice'                     => 'Hinweis zur App-Kompatibilität',
     'This application uses TOTP with SHA-256 and 8-digit codes. Google Authenticator is <strong>not supported</strong>. Recommended apps:' =>
         'Diese Anwendung verwendet TOTP mit SHA-256 und 8-stelligen Codes. Google Authenticator wird <strong>nicht unterstützt</strong>. Empfohlene Apps:',
+    'Key label (e.g. Phone, YubiKey)'              => 'Key-Bezeichnung (z. B. Handy, YubiKey)',
+    'A name to identify this key among multiple keys.' => 'Ein Name, um diesen Key unter mehreren zu unterscheiden.',
+    'Add another TOTP key'                         => 'Weiteren TOTP-Key hinzufügen',
+
+    // ── Audit-Log ──────────────────────────────────────────────────────────
+    'Audit log'   => 'Audit-Protokoll',
+    'When'        => 'Zeitpunkt',
+    'Actor'       => 'Akteur',
+    'Action'      => 'Aktion',
+    'Target'      => 'Ziel',
+    'Detail'      => 'Detail',
 
 ];
+
