@@ -86,6 +86,8 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'adminPassword' => (string) ($body['admin_password'] ?? ''),
                 'adminConfirm' => (string) ($body['admin_password_confirm'] ?? ''),
                 'appLocale' => trim((string) ($body['app_locale'] ?? 'de')),
+                'operatorName' => trim((string) ($body['operator_name'] ?? '')),
+                'operatorContact' => trim((string) ($body['operator_contact'] ?? '')),
             ];
 
             // ── Step: Unlock ──────────────────────────────────────────────
@@ -114,6 +116,8 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'generatedPassword' => null,
                         'installReady' => true,
                         'formData' => [],
+                        'operator_hash' => $configure['operator_hash'] ?? null,
+                        'operator_name' => $configure['operator_name'] ?? null,
                     ]));
                 }
 

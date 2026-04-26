@@ -18,9 +18,9 @@ use Locale;
 final class ConfigureStep
 {
     /**
-     * @param  array<string, string>                        $formData
-     * @param  array<string, mixed>                         $securityConfig
-     * @return array{errors: list<string>, completed: bool}
+     * @param  array<string, string>                                                                        $formData
+     * @param  array<string, mixed>                                                                         $securityConfig
+     * @return array{errors: list<string>, completed: bool, operator_hash?: string, operator_name?: string}
      */
     public function handle(
         InstallService $install,
@@ -67,6 +67,13 @@ final class ConfigureStep
             );
             $stmt->execute([$formData['adminUsername'], $hash, 'admin', date('Y-m-d H:i:s')]);
 
+            // ── Operator entity ───────────────────────────────────────────
+            $operatorHash = bin2hex(random_bytes(16)); // 32 hex chars
+            $stmt = $pdo->prepare(
+                'INSERT INTO legal_entities (hash, name, contact_data) VALUES (?, ?, ?)',
+            );
+            $stmt->execute([$operatorHash, $formData['operatorName'], $formData['operatorContact']]);
+
             $configContent = $this->buildConfigFile(
                 $dsn,
                 $pdoUser,
@@ -87,7 +94,12 @@ final class ConfigureStep
             return ['errors' => ['Installation failed: ' . $e->getMessage()], 'completed' => false];
         }
 
-        return ['errors' => [], 'completed' => true];
+        return [
+            'errors' => [],
+            'completed' => true,
+            'operator_hash' => $operatorHash,
+            'operator_name' => $formData['operatorName'],
+        ];
     }
 
     /**
@@ -139,6 +151,18 @@ final class ConfigureStep
             $errors[] = 'Application locale is required (e.g. de, en-US).';
         } elseif (!$this->isValidBcp47($appLocale)) {
             $errors[] = 'Application locale must be a valid BCP 47 tag (e.g. de, en-US, fr-CH).';
+        }
+
+        // ── Operator entity ────────────────────────────────────────────────
+        $operatorName = $formData['operatorName'] ?? '';
+        $operatorContact = $formData['operatorContact'] ?? '';
+
+        if ($operatorName === '') {
+            $errors[] = 'Operator name is required (for your own imprint / privacy page).';
+        }
+
+        if ($operatorContact === '') {
+            $errors[] = 'Operator contact data is required (address, e-mail, etc.).';
         }
 
         return $errors;

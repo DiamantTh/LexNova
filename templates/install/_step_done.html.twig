@@ -2,4 +2,20 @@
     <h2>Installation abgeschlossen</h2>
     <p>Der Installer ist jetzt gesperrt. Du kannst dich unter <a href="/admin">/admin</a> einloggen.</p>
     <p><small>Entferne <code>install/install.pw</code> nachdem du den Zugang verifiziert hast.</small></p>
+
+    {% if operator_hash is defined and operator_hash %}
+    <div style="margin-top:24px;padding:18px 20px;background:#fff8e1;border:1px solid #f9a825;border-radius:10px;line-height:1.6;">
+        <strong>Nächster Schritt: Impressum &amp; Datenschutz anlegen</strong><br>
+        Für <em>{{ operator_name }}</em> wurde eine Rechtsentität angelegt.
+        Die öffentlichen Seiten existieren unter diesen URLs — sie sind aber noch leer.<br>
+        Lege die Dokumente jetzt unter <a href="/admin">/admin</a> an und verlinke die URLs dann im Footer deiner Seite:
+        <ul style="margin:12px 0 0 0;padding-left:20px;font-family:monospace;font-size:14px;">
+            <li><code>/{{ operator_hash }}/imprint</code> &nbsp;– Impressum</li>
+            <li><code>/{{ operator_hash }}/privacy</code> &nbsp;– Datenschutzerklärung</li>
+        </ul>
+        <p style="margin:12px 0 0;font-size:13px;color:#555;">
+            Tipp: Im Admin-Dashboard → Dokumente → „Anzeigen" kannst du die fertige URL direkt kopieren.
+        </p>
+    </div>
+    {% endif %}
 </div>
