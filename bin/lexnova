@@ -15,6 +15,7 @@ require $root . '/vendor/autoload.php';
 date_default_timezone_set('UTC');
 
 use LexNova\Console\UserCreateCommand;
+use LexNova\Console\UserDeleteCommand;
 use LexNova\Console\UserListCommand;
 use LexNova\Console\UserSetPasswordCommand;
 use LexNova\Console\UserTotpResetCommand;
@@ -46,6 +47,7 @@ $output->writeln('');
 // ── Application ──────────────────────────────────────────────────────────────
 $application = new Application('LexNova', '1.0.0');
 $application->add($container->get(UserCreateCommand::class));
+$application->add($container->get(UserDeleteCommand::class));
 $application->add($container->get(UserListCommand::class));
 $application->add($container->get(UserSetPasswordCommand::class));
 $application->add($container->get(UserTotpResetCommand::class));

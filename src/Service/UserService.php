@@ -99,4 +99,9 @@ final readonly class UserService
             'totp_enabled' => $enabled ? 1 : 0,
         ], ['id' => $id]);
     }
+
+    public function delete(int $id): void
+    {
+        $this->db->delete('users', ['id' => $id]);
+    }
 }

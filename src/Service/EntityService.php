@@ -62,6 +62,11 @@ final readonly class EntityService
         ];
     }
 
+    public function delete(int $id): void
+    {
+        $this->db->delete('legal_entities', ['id' => $id]);
+    }
+
     private function generateUniqueHash(): string
     {
         do {

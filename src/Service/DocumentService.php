@@ -121,4 +121,13 @@ final readonly class DocumentService
 
         $this->cache->delete("doc_latest_{$entityId}_{$type}");
     }
+
+    public function delete(int $id): void
+    {
+        $row = $this->findById($id);
+        $this->db->delete('legal_documents', ['id' => $id]);
+        if ($row !== null) {
+            $this->cache->delete("doc_latest_{$row['entity_id']}_{$row['type']}");
+        }
+    }
 }

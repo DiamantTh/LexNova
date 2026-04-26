@@ -322,6 +322,11 @@ final class ContainerFactory
                     $c->get(UserService::class),
                 ),
 
+            \LexNova\Console\UserDeleteCommand::class => fn(ContainerInterface $c) =>
+                new \LexNova\Console\UserDeleteCommand(
+                    $c->get(UserService::class),
+                ),
+
         ]);
 
         return $builder->build();
