@@ -19,6 +19,23 @@ max_length = 256
 ascii_only = true
 min_score  = 2
 
+# ── HaveIBeenPwned breach check (Pwned Passwords v3, k-anonymity) ─────────────
+# enabled    : opt-in network call to https://api.pwnedpasswords.com (false by default)
+# min_count  : reject passwords seen in >= N breaches (1 = any match)
+# timeout_ms : connect + transfer timeout in milliseconds
+# fail_open  : true → API errors are ignored (login flows keep working)
+#              false → API errors block password changes (high-assurance setups)
+# endpoint   : override for self-hosted/mirror; keep default unless you run one
+#
+# Privacy: only the first 5 chars of the SHA-1 password hash are sent. The plain
+# password and full hash never leave the server.
+[password_policy.hibp]
+enabled    = false
+min_count  = 1
+timeout_ms = 1500
+fail_open  = true
+endpoint   = "https://api.pwnedpasswords.com/range/"
+
 # ── E-Mail-Subject-Format im mailto-Filter ────────────────────────────────────
 # format         : "domain_datetime_tz" | "domain_date" | "domain_only" | "custom"
 # date_format    : PHP date() format for the timestamp part

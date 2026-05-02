@@ -22,7 +22,10 @@ use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\InstallService;
+use LexNova\Service\Password\BreachedPasswordCheckerInterface;
 use LexNova\Service\Password\DicewareGenerator;
+use LexNova\Service\Password\HibpRangePasswordChecker;
+use LexNova\Service\Password\NullBreachedPasswordChecker;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\RateLimitService;
@@ -202,12 +205,34 @@ final class ContainerFactory
             ),
 
             // ── Application services ────────────────────────────────────────────────
-            PasswordService::class => fn (ContainerInterface $c) => new PasswordService($c->get('config')),
+            PasswordService::class => fn (ContainerInterface $c) => new PasswordService(
+                $c->get('config'),
+                $c->get(BreachedPasswordCheckerInterface::class),
+            ),
 
             // ── Cache ────────────────────────────────────────────────────────────────
             // PSR-16 filesystem cache (symfony/cache) – used by DocumentService
             // to cache public document lookups for 1 hour; invalidated on write.
             CacheInterface::class => fn () => new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/cache/app')),
+
+            // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
+            'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/cache/hibp')),
+
+            // ── Breached-password checker (HIBP, optional) ──────────────────────────
+            BreachedPasswordCheckerInterface::class => function (ContainerInterface $c): BreachedPasswordCheckerInterface {
+                $hibp = $c->get('config')['security']['password_policy']['hibp'] ?? [];
+                if (!(bool) ($hibp['enabled'] ?? false)) {
+                    return new NullBreachedPasswordChecker();
+                }
+
+                return new HibpRangePasswordChecker(
+                    cache: $c->get('cache.hibp'),
+                    logger: $c->get(LoggerInterface::class),
+                    failOpen: (bool) ($hibp['fail_open'] ?? true),
+                    timeoutMs: max(100, (int) ($hibp['timeout_ms'] ?? 1500)),
+                    endpoint: (string) ($hibp['endpoint'] ?? HibpRangePasswordChecker::DEFAULT_ENDPOINT),
+                );
+            },
 
             // ── Password generators ─────────────────────────────────────────────────
             DicewareGenerator::class => fn (ContainerInterface $c) => new DicewareGenerator(
@@ -270,6 +295,7 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
+                (array) ($c->get('config')['security']['generator'] ?? []),
             ),
 
             // ── Handlers: Auth (TOTP) ────────────────────────────────────────────────

@@ -20,6 +20,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class DashboardHandler implements RequestHandlerInterface
 {
+    /** @param array<string, mixed> $generatorConfig */
     public function __construct(
         private readonly UserService $users,
         private readonly EntityService $entities,
@@ -27,6 +28,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private readonly PasswordService $passwords,
         private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
+        private readonly array $generatorConfig = [],
     ) {
     }
 
@@ -69,6 +71,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'csrf_token' => $guard->generateToken(),
             'pw_min' => $this->passwords->getMinLength(),
             'pw_max' => $this->passwords->getMaxLength(),
+            'pw_generator' => $this->generatorConfig,
             'errors' => $errors,
             'messages' => $messages,
             'current_user_id' => (int) $session->get('user_id'),

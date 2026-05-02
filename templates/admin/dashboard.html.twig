@@ -336,6 +336,20 @@
 
     const ASCII_RE = /^[\x20-\x7E]+$/;
 
+    // ── Generator config (mirrors configs/security.toml [generator.*]) ────────
+    const GEN = {
+        random: {
+            length:         {{ (pw_generator.random.length         ?? 20)   |json_encode|raw }},
+            requireUpper:   {{ (pw_generator.random.require_upper   ?? true) |json_encode|raw }},
+            requireDigits:  {{ (pw_generator.random.require_digits  ?? true) |json_encode|raw }},
+            requireSymbols: {{ (pw_generator.random.require_symbols ?? true) |json_encode|raw }},
+        },
+        diceware: {
+            wordCount: {{ (pw_generator.diceware.word_count ?? 6)   |json_encode|raw }},
+            separator: {{ (pw_generator.diceware.separator  ?? '-') |json_encode|raw }},
+        },
+    };
+
     // ── EFF Large Wordlist (lazy-loaded on first passphrase request) ──────────
     let effWords = null;
 
@@ -347,33 +361,35 @@
     }
 
     /** Diceware: pick wordCount words from the EFF Large Wordlist via CSPRNG. */
-    async function generatePassphrase(wordCount = 6) {
+    async function generatePassphrase(wordCount, separator) {
         const words = await loadEffWordlist();
         const buf   = new Uint32Array(wordCount);
         crypto.getRandomValues(buf);
         // Each word drawn from 7776 entries → ~12.9 bits/word
-        return Array.from(buf, v => words[v % words.length]).join('-');
+        return Array.from(buf, v => words[v % words.length]).join(separator);
     }
 
     /**
      * Random password generator following the Dropbox/zxcvbn standard.
      *
-     * pools: lower(26) + upper(26) + digits(10) + symbols(32) = 94 chars
-     * 20 chars → log2(94^20) ≈ 131 bits — always zxcvbn score 4.
+     * pools: lower(26) + upper(26) + digits(10) + symbols(32) = up to 94 chars
      *
      * Algorithm mirrors the PHP RandomPasswordGenerator:
      *  1. Guarantee ≥1 char from each required pool.
      *  2. Fill the rest from the full charset.
      *  3. Cryptographically secure Fisher-Yates shuffle.
      */
-    function generateRandom(length = 20) {
+    function generateRandom(length, requireUpper, requireDigits, requireSymbols) {
         const lower   = 'abcdefghijklmnopqrstuvwxyz';
         const upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         const digits  = '0123456789';
         const symbols = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
-        const charset = lower + upper + digits + symbols;  // 94 chars
 
-        const required = [lower, upper, digits, symbols];
+        let charset = lower;
+        const required = [];
+        if (requireUpper)   { charset += upper;   required.push(upper); }
+        if (requireDigits)  { charset += digits;  required.push(digits); }
+        if (requireSymbols) { charset += symbols; required.push(symbols); }
 
         // Rejection-sampling helper: draw one unbiased index in [0, len)
         function randomIndex(len) {
@@ -405,6 +421,18 @@
         return chars.join('');
     }
 
+    // Entropy estimate for the configured random generator.
+    function randomEntropyBits() {
+        let size = 26;
+        if (GEN.random.requireUpper)   size += 26;
+        if (GEN.random.requireDigits)  size += 10;
+        if (GEN.random.requireSymbols) size += 32;
+        return Math.round(GEN.random.length * Math.log2(size));
+    }
+    function dicewareEntropyBits() {
+        return Math.round(GEN.diceware.wordCount * Math.log2(7776));
+    }
+
     // ── Password strength widget ─────────────────────────────────────────────
 
     function initPasswordField(input) {
@@ -429,24 +457,31 @@
         // Random button
         const btnRnd = document.createElement('button');
         btnRnd.type  = 'button';
-        btnRnd.textContent = '⚡ Random (131 bit)';
-        btnRnd.setAttribute('aria-label', 'Random password (131 bit entropy, CSPRNG, 20 chars)');
-        btnRnd.title = 'CSPRNG, 94 printable ASCII chars, 20 chars → ~131 bits';
+        const rndBits = randomEntropyBits();
+        btnRnd.textContent = '⚡ Random (' + rndBits + ' bit)';
+        btnRnd.setAttribute('aria-label', 'Random password (' + rndBits + ' bit entropy, CSPRNG, ' + GEN.random.length + ' chars)');
+        btnRnd.title = 'CSPRNG, configurable charset, ' + GEN.random.length + ' chars → ~' + rndBits + ' bits';
         btnRnd.addEventListener('click', () => {
-            input.value = generateRandom(20);
+            input.value = generateRandom(
+                GEN.random.length,
+                GEN.random.requireUpper,
+                GEN.random.requireDigits,
+                GEN.random.requireSymbols,
+            );
             input.dispatchEvent(new Event('input'));
         });
 
         // Passphrase button
         const btnPass = document.createElement('button');
         btnPass.type  = 'button';
-        btnPass.textContent = '📖 Diceware (78 bit)';
-        btnPass.setAttribute('aria-label', 'Diceware passphrase (78 bit entropy, EFF Large Wordlist, 6 words)');
-        btnPass.title = 'EFF Large Wordlist, 6 words → ~77.5 bits';
+        const dwBits = dicewareEntropyBits();
+        btnPass.textContent = '📖 Diceware (' + dwBits + ' bit)';
+        btnPass.setAttribute('aria-label', 'Diceware passphrase (' + dwBits + ' bit entropy, EFF Large Wordlist, ' + GEN.diceware.wordCount + ' words)');
+        btnPass.title = 'EFF Large Wordlist, ' + GEN.diceware.wordCount + ' words → ~' + dwBits + ' bits';
         btnPass.addEventListener('click', async () => {
             btnPass.disabled = true;
             try {
-                input.value = await generatePassphrase(6);
+                input.value = await generatePassphrase(GEN.diceware.wordCount, GEN.diceware.separator);
                 input.dispatchEvent(new Event('input'));
             } finally {
                 btnPass.disabled = false;

@@ -56,7 +56,7 @@ final readonly class InstallService
             return null;
         }
 
-        $plain = bin2hex(random_bytes(8));
+        $plain = bin2hex(random_bytes(16));
         $hash = password_hash(
             $plain,
             $securityConfig['algo'] ?? PASSWORD_ARGON2ID,
