@@ -6,8 +6,11 @@ namespace LexNova\Application;
 
 use DI\ContainerBuilder;
 use Doctrine\DBAL\Connection;
+use Laminas\HttpHandlerRunner\Emitter\EmitterInterface;
 use Laminas\HttpHandlerRunner\RequestHandlerRunner;
+use Laminas\HttpHandlerRunner\RequestHandlerRunnerInterface;
 use Laminas\I18n\Translator\Translator;
+use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Clock\SystemClock;
 use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
@@ -37,34 +40,53 @@ use LexNova\Service\UserService;
 use LexNova\Twig\EmailExtension;
 use LexNova\Twig\TranslationExtension;
 use Mezzio\Application;
-use Mezzio\ApplicationPipeline;
 use Mezzio\Container\ApplicationFactory;
+use Mezzio\Container\ApplicationPipelineFactory;
+use Mezzio\Container\EmitterFactory;
+use Mezzio\Container\ErrorHandlerFactory;
+use Mezzio\Container\ErrorResponseGeneratorFactory;
 use Mezzio\Container\MiddlewareContainerFactory;
 use Mezzio\Container\MiddlewareFactoryFactory;
 use Mezzio\Container\RequestHandlerRunnerFactory;
+use Mezzio\Container\ServerRequestFactoryFactory;
 use Mezzio\Csrf\CsrfGuardFactoryInterface;
+use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Csrf\CsrfMiddlewareFactory;
 use Mezzio\Csrf\SessionCsrfGuardFactory;
+use Mezzio\Middleware\ErrorResponseGenerator;
 use Mezzio\MiddlewareContainer;
 use Mezzio\MiddlewareFactory;
+use Mezzio\MiddlewareFactoryInterface;
 use Mezzio\Response\ServerRequestErrorResponseGenerator;
-use Mezzio\Router\FastRoute\FastRouteRouter;
+use Mezzio\Router\FastRouteRouter;
+use Mezzio\Router\Middleware\DispatchMiddleware;
+use Mezzio\Router\Middleware\DispatchMiddlewareFactory;
+use Mezzio\Router\Middleware\RouteMiddleware;
+use Mezzio\Router\Middleware\RouteMiddlewareFactory;
 use Mezzio\Router\RouteCollector;
+use Mezzio\Router\RouteCollectorInterface;
 use Mezzio\Router\RouterInterface;
 use Mezzio\Session\Ext\PhpSessionPersistence;
+use Mezzio\Session\SessionMiddleware;
+use Mezzio\Session\SessionMiddlewareFactory;
 use Mezzio\Session\SessionPersistenceInterface;
 use Mezzio\Template\TemplateRendererInterface;
-use Mezzio\Twig\TwigEnvironment;
 use Mezzio\Twig\TwigEnvironmentFactory;
+use Mezzio\Twig\TwigExtension;
+use Mezzio\Twig\TwigExtensionFactory;
 use Mezzio\Twig\TwigRenderer;
 use Mezzio\Twig\TwigRendererFactory;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Component\Cache\Psr16Cache;
+use Twig\Environment;
 
 final class ContainerFactory
 {
@@ -146,24 +168,39 @@ final class ContainerFactory
 
             // ── PSR-7 factory ───────────────────────────────────────────────────────
             ResponseFactoryInterface::class => fn () => new \Laminas\Diactoros\ResponseFactory(),
+            ResponseInterface::class => fn () => static fn (): ResponseInterface => new \Laminas\Diactoros\Response(),
 
             // ── Mezzio plumbing ─────────────────────────────────────────────────────
             RouterInterface::class => fn () => new FastRouteRouter(),
 
             RouteCollector::class => fn (ContainerInterface $c) => new RouteCollector($c->get(RouterInterface::class)),
 
+            RouteCollectorInterface::class => fn (ContainerInterface $c) => $c->get(RouteCollector::class),
+
             MiddlewareContainer::class => fn (ContainerInterface $c) => (new MiddlewareContainerFactory())($c),
 
             MiddlewareFactory::class => fn (ContainerInterface $c) => (new MiddlewareFactoryFactory())($c),
 
-            ApplicationPipeline::class => fn () => new ApplicationPipeline(),
+            MiddlewareFactoryInterface::class => fn (ContainerInterface $c) => $c->get(MiddlewareFactory::class),
+
+            // Mezzio intentionally uses this string as a pseudo-service name;
+            // there is no Mezzio\ApplicationPipeline class to instantiate.
+            'Mezzio\ApplicationPipeline' => fn (ContainerInterface $c) => (new ApplicationPipelineFactory())($c),
+
+            EmitterInterface::class => fn (ContainerInterface $c) => (new EmitterFactory())($c),
+
+            ServerRequestInterface::class => fn (ContainerInterface $c) => (new ServerRequestFactoryFactory())($c),
 
             RequestHandlerRunner::class => fn (ContainerInterface $c) => (new RequestHandlerRunnerFactory())($c),
+
+            RequestHandlerRunnerInterface::class => fn (ContainerInterface $c) => $c->get(RequestHandlerRunner::class),
 
             Application::class => fn (ContainerInterface $c) => (new ApplicationFactory())($c),
 
             // ── Twig ────────────────────────────────────────────────────────────────
-            TwigEnvironment::class => fn (ContainerInterface $c) => (new TwigEnvironmentFactory())($c),
+            Environment::class => fn (ContainerInterface $c) => (new TwigEnvironmentFactory())($c),
+
+            TwigExtension::class => fn (ContainerInterface $c) => (new TwigExtensionFactory())($c),
 
             TwigRenderer::class => fn (ContainerInterface $c) => (new TwigRendererFactory())($c),
 
@@ -181,6 +218,18 @@ final class ContainerFactory
             ]),
 
             CsrfGuardFactoryInterface::class => fn () => new SessionCsrfGuardFactory(),
+
+            SessionMiddleware::class => fn (ContainerInterface $c) => (new SessionMiddlewareFactory())($c),
+
+            CsrfMiddleware::class => fn (ContainerInterface $c) => (new CsrfMiddlewareFactory())($c),
+
+            RouteMiddleware::class => fn (ContainerInterface $c) => (new RouteMiddlewareFactory())($c),
+
+            DispatchMiddleware::class => fn (ContainerInterface $c) => (new DispatchMiddlewareFactory())($c),
+
+            ErrorResponseGenerator::class => fn (ContainerInterface $c) => (new ErrorResponseGeneratorFactory())($c),
+
+            ErrorHandler::class => fn (ContainerInterface $c) => (new ErrorHandlerFactory())($c),
 
             // ── Infrastructure ──────────────────────────────────────────────────────
             // PHP 8.4 native lazy proxy: Connection is only established on first use.
