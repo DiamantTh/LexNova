@@ -1,34 +1,72 @@
 # LexNova Core
 
+## Betrieb auf Shared Hosting
+
+LexNova ist für klassischen PHP-Betrieb ohne Container und ohne Release-System
+geeignet. Das **einzige** öffentliche Verzeichnis ist `httpdocs/`; der gesamte
+Projektordner darf nicht als DocumentRoot konfiguriert werden. Dadurch bleiben
+`configs/`, `data/`, `src/`, `templates/`, `vendor/`, `cache/` und `logs/`
+außerhalb des Webzugriffs.
+
+- Apache 2.4: Beispiel unter `deploy/apache-vhost.conf.example`; bei Shared
+  Hosting ohne eigenen vHost greift `httpdocs/.htaccess`.
+- Nginx + PHP-FPM: Beispiel unter `deploy/nginx.conf.example`.
+- TLS wird vom Hoster eingerichtet. `app.base_url` muss genau der öffentlichen
+  HTTPS-URL entsprechen, weil Session-Cookies und Passkeys an diese Origin
+  gebunden sind.
+
 ## Voraussetzungen
 
 **Pflicht:**
 - PHP 8.4+
-- PHP-Extensions: `sodium`, `pdo`, `json`, `mbstring`, `openssl`
+- PHP-Extensions: `sodium`, `pdo`, `json`, `mbstring`, `openssl`, `intl`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
 - Relationale SQL-Datenbank (SQLite, MariaDB, PostgreSQL)
 - libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten)
 
 **Empfohlen:**
-- PHP-Extension `intl` (für striktere BCP 47-Sprachcode-Validierung)
 - Schreibzugriff auf `cache/` und `logs/` (für Twig-Cache und Logging)
+
+`configs/config.toml` und `data/install.pw` werden vom Installer mit Modus
+`0600` angelegt. Nach erfolgreicher Installation genügt Schreibzugriff für PHP
+auf `data/` (bei SQLite), `cache/` und `logs/`; `configs/` kann anschließend
+wieder schreibgeschützt werden.
 
 Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschritt bei fehlenden Pflicht-Extensions.
 
 ## Installation
 
-1. Installer aufrufen: `/install`
-2. Im ersten Schritt zeigt der Installer eine **Systemvoraussetzungen**-Prüfung:
+1. Projektordner oberhalb des Webroots ablegen und den DocumentRoot auf
+   `httpdocs/` setzen.
+2. Abhängigkeiten installieren (oder das auf derselben PHP-Version erzeugte
+   `vendor/` hochladen):
+
+   ```
+   composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+   ```
+
+3. Installer-Passwort vorbereiten. Mit Shell-Zugang:
+
+   ```
+   bin/lexnova install:prepare
+   ```
+
+   Ohne Shell `LEXNOVA_INSTALL_PASSWORD` im Hosting-Panel als geheime
+   Umgebungsvariable setzen; der Installer übernimmt sie beim ersten Aufruf.
+   Das Passwort wird absichtlich nie mehr über die Weboberfläche erzeugt oder
+   angezeigt.
+4. Installer aufrufen: `/install`
+5. Im ersten Schritt zeigt der Installer eine **Systemvoraussetzungen**-Prüfung:
    - Grün ✓ — Voraussetzung erfüllt
    - Rot ✗ — Pflichtvoraussetzung fehlt (Installation blockiert)
    - Orange ⚠ — Empfehlung fehlt (Installation möglich)
-3. Formular ausfüllen:
+6. Formular ausfüllen:
    - Install-Passwort (wird in `data/install.pw` einmalig hinterlegt)
    - Datenbankverbindung (SQLite-Pfad oder Host/Name/User/Passwort)
    - Admin-Benutzername + Passwort
    - Standard-Sprache (BCP 47, z. B. `de`, `en-US`)
    - **Betreiber-Entity**: Name und Kontaktdaten der betreibenden Organisation
-4. Nach erfolgreicher Installation:
+7. Nach erfolgreicher Installation:
    - `data/install.lock` wird erstellt — Installer ist danach gesperrt
    - `configs/config.toml` enthält die Konfiguration inkl. `totp_app_key`
    - Die öffentlichen URLs für Impressum und Datenschutzerklärung der Betreiber-Entity
@@ -37,6 +75,28 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschr
 
 > **Hinweis für frische Klone:** Fehlt `vendor/`, antwortet die Anwendung mit HTTP 503
 > und einem Hinweis, dass zuerst `composer install` ausgeführt werden muss.
+
+## Update ohne Releases
+
+Ein einzelner Shared-Host kann LexNova direkt im Arbeitsverzeichnis aktualisieren;
+ein separates Release-Verzeichnis ist nicht erforderlich. Vor jedem Update eine
+Sicherung von Datenbank und `configs/config.toml` erstellen. Dann:
+
+1. Passende SQL-Migrationen aus `sql/migrations/` in numerischer Reihenfolge
+   auf der produktiven Datenbank ausführen (vor der Code-Aktualisierung).
+2. Code aktualisieren, beispielsweise `git pull --ff-only`.
+3. Abhängigkeiten exakt aus dem Lockfile installieren:
+
+   ```
+   composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+   ```
+
+4. PHP-FPM neu laden oder den Apache-PHP-Prozess neu starten, falls der Hoster
+   OPcache ohne Zeitstempelprüfung betreibt.
+
+Nie `composer update` auf dem Produktivsystem ausführen. Für Updates mit mehreren
+gleichzeitigen Webprozessen oder ohne kurze Inkonsistenz während `git pull` ist ein
+Release-Verzeichnis sinnvoll, aber für einen einzelnen Shared Host nicht nötig.
 
 ## Konfiguration
 
@@ -48,15 +108,36 @@ Wichtige Abschnitte in `config.example.toml`:
 
 | Abschnitt | Inhalt |
 |---|---|
-| `[database]` | Datenbankverbindung (DSN, User, Passwort) |
+| `[db]` | Datenbankverbindung (DSN, User, Passwort) |
 | `[security]` | `totp_app_key` (32 Byte hex, beim Install generiert) |
-| `[rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
+| `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
 | `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
+| `[cache]` | Dokument-Cache: standardmäßig Dateisystem; optional Valkey per Redis-DSN |
+
+`[app].base_url` muss die öffentliche HTTPS-URL der Instanz enthalten. Sie ist
+für sichere Session-Cookies und Passkeys erforderlich. Nur für lokale Entwicklung
+ist `http://localhost` zulässig.
+
+### Valkey
+
+Valkey kann als verteilter Dokument-Cache genutzt werden, weil es zum Redis-Protokoll
+kompatibel ist. In `configs/config.toml`:
+
+```
+[cache]
+adapter = "valkey"
+dsn = "redis://127.0.0.1:6379/0"
+namespace = "lexnova"
+```
+
+Ist Valkey nicht erreichbar, fällt LexNova kontrolliert auf den Dateisystem-Cache
+zurück. Geänderte Dokumente invalidieren alle Sprachvarianten sofort.
 
 ## CLI
 
 ```
 bin/lexnova entity:list                         Alle Entities auflisten
+bin/lexnova install:prepare                     Einmaliges Installer-Passwort erzeugen
 bin/lexnova user:create <username>              Neuen Admin-User anlegen
 bin/lexnova user:delete <username> [-y]         Admin-User löschen
 bin/lexnova user:list                           Alle User auflisten (inkl. TOTP-Status)
@@ -76,6 +157,8 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
   - Empfohlene Apps: Aegis, andOTP, Authy, Raivo (kein Google Authenticator)
 - Rate Limiting: Login und TOTP-Versuche werden nach konfigurierbarer Anzahl
   für eine konfigurierbare Zeitspanne gesperrt (IP-basiert)
+- Passkeys/WebAuthn: passwortloser Login über Plattform-Authenticator oder
+  Sicherheitsschlüssel; Passkeys werden im Adminbereich registriert
 
 ### Entities (Rechtliche Einheiten)
 
@@ -124,10 +207,15 @@ Beispiel: `/abc123def456.../imprint/de` oder `/abc123def456.../privacy/en`
 
 ## Datenbankmigrationen
 
-Bestehende Installationen von der alten Single-TOTP-Architektur migrieren:
+Frische Installationen verwenden automatisch das passende aktuelle Schema für
+SQLite, MySQL/MariaDB oder PostgreSQL. Die folgenden Migrationen sind nur für
+ältere Installationen nötig:
 
 ```
-sql/migrations/001_multi_totp_keys.sql
+sql/migrations/001_multi_totp_keys.sql                # nur SQLite, altes Single-TOTP-Schema
+sql/migrations/002_webauthn_credentials.sql          # SQLite
+sql/migrations/002_webauthn_credentials.mysql.sql    # MySQL/MariaDB
+sql/migrations/002_webauthn_credentials.pgsql.sql    # PostgreSQL
 ```
 
 Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
@@ -158,10 +246,10 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `psr/clock` | PSR-20 Clock-Interface (für testbare Zeitstempel) |
 | `psr/simple-cache` | PSR-16 Simple Cache Interface |
 | `spomky-labs/otphp` | TOTP/HOTP-Implementierung (RFC 6238) |
-| `symfony/cache` | PSR-16-kompatible Cache-Implementierung (für Rate Limiting) |
+| `symfony/cache` | PSR-16-kompatibler Dateisystem- oder optionaler Valkey-Cache für öffentliche Dokumente |
 | `symfony/console` | CLI-Framework für `bin/lexnova`-Befehle |
 | `twig/twig` | Template-Engine |
-| `web-auth/webauthn-lib` | WebAuthn/FIDO2-Passkey-Authentifizierung — geplanter Standardanmeldeweg; Passwort-Login ist der versteckte Fallback |
+| `web-auth/webauthn-lib` | WebAuthn/FIDO2-Passkeys: Registrierung im Adminbereich und passwortloser Login |
 
 ### Entwicklung (`require-dev`)
 
@@ -179,8 +267,6 @@ composer cs-fix        PHP-CS-Fixer mit automatischer Korrektur
 composer qa            analyse + cs-check
 ```
 
-Für PHP 8.5-dev: `PHP_CS_FIXER_IGNORE_ENV=1 composer cs-fix`
-
 ## Hinweise
 
 - Dokumente werden als Freitext gespeichert (kein erzwungenes Format).
@@ -189,4 +275,3 @@ Für PHP 8.5-dev: `PHP_CS_FIXER_IGNORE_ENV=1 composer cs-fix`
 - Admin-Zugang ist vor der Installation vollständig gesperrt (`InstalledCheckMiddleware`).
 - CSRF-Schutz ist auf allen Formularen aktiv.
 - Zeilenenden in Kontaktdaten und Dokumentinhalten werden serverseitig auf LF normalisiert (Windows-`\r\n` → `\n`).
-
