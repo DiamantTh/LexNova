@@ -55,7 +55,10 @@
         "cs-check": "php-cs-fixer check --diff",
         "cs-fix": "php-cs-fixer fix",
         "test:integration": "@php tests/Integration/DocumentEndpointTest.php",
-        "test:security": "@php tests/Security/EmailExtensionTest.php",
+        "test:security": [
+            "@php tests/Security/EmailExtensionTest.php",
+            "@php tests/Security/RateLimitServiceTest.php"
+        ],
         "test": ["@test:integration", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]
     },

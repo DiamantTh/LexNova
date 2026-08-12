@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace LexNova\Service;
 
 use Doctrine\DBAL\Connection;
+use Psr\Clock\ClockInterface;
 
 /**
  * Simple DB-backed rate limiter for the login and TOTP-verify endpoints.
  *
- * Strategy: sliding window per (IP, endpoint).
+ * Strategy: failure window per (IP, endpoint).
  * After $maxAttempts failures the IP is blocked for $blockSeconds seconds.
  * A successful login/verification clears the counter for that IP.
  */
@@ -17,6 +18,7 @@ final readonly class RateLimitService
 {
     public function __construct(
         private readonly Connection $db,
+        private readonly ClockInterface $clock,
         private readonly int $maxAttempts = 5,
         private readonly int $blockSeconds = 300,  // 5 minutes
     ) {
@@ -37,7 +39,7 @@ final readonly class RateLimitService
             return false;
         }
 
-        return new \DateTimeImmutable($row['blocked_until']) > new \DateTimeImmutable('now');
+        return new \DateTimeImmutable($row['blocked_until']) > $this->clock->now();
     }
 
     /**
@@ -45,7 +47,8 @@ final readonly class RateLimitService
      */
     public function recordFailure(string $ip, string $endpoint): void
     {
-        $now = date('Y-m-d H:i:s');
+        $now = $this->clock->now();
+        $nowString = $now->format('Y-m-d H:i:s');
         $row = $this->fetch($ip, $endpoint);
 
         if ($row === null) {
@@ -54,24 +57,28 @@ final readonly class RateLimitService
                 'endpoint' => $endpoint,
                 'attempts' => 1,
                 'blocked_until' => null,
-                'last_at' => $now,
+                'last_at' => $nowString,
             ]);
 
             return;
         }
 
-        $attempts = (int) $row['attempts'] + 1;
+        $lastAttempt = new \DateTimeImmutable((string) $row['last_at']);
+        $blockExpired = $row['blocked_until'] !== null
+            && new \DateTimeImmutable((string) $row['blocked_until']) <= $now;
+        $windowExpired = $lastAttempt <= $now->modify("-{$this->blockSeconds} seconds");
+        $attempts = ($blockExpired || $windowExpired) ? 1 : (int) $row['attempts'] + 1;
         $blockedUntil = null;
 
         if ($attempts >= $this->maxAttempts) {
-            $until = new \DateTimeImmutable("now +{$this->blockSeconds} seconds");
+            $until = $now->modify("+{$this->blockSeconds} seconds");
             $blockedUntil = $until->format('Y-m-d H:i:s');
         }
 
         $this->db->update('login_attempts', [
             'attempts' => $attempts,
             'blocked_until' => $blockedUntil,
-            'last_at' => $now,
+            'last_at' => $nowString,
         ], ['ip' => $ip, 'endpoint' => $endpoint]);
     }
 
@@ -95,7 +102,7 @@ final readonly class RateLimitService
         }
 
         $until = new \DateTimeImmutable($row['blocked_until']);
-        $diff = $until->getTimestamp() - time();
+        $diff = $until->getTimestamp() - $this->clock->now()->getTimestamp();
 
         return max(0, $diff);
     }

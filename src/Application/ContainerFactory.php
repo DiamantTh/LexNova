@@ -353,6 +353,7 @@ final class ContainerFactory
 
             RateLimitService::class => fn (ContainerInterface $c) => new RateLimitService(
                 $c->get(Connection::class),
+                $c->get(ClockInterface::class),
                 maxAttempts: (int) ($c->get('config')['security']['rate_limit']['max_attempts'] ?? 5),
                 blockSeconds: (int) ($c->get('config')['security']['rate_limit']['block_seconds'] ?? 300),
             ),
