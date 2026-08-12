@@ -74,7 +74,7 @@ final class ContainerFactory
         $root = dirname(__FILE__, 3);
 
         // ── Config loading: config.toml when installed, empty array before ───────
-        $configToml = $root . '/configs/config.toml';
+        $configToml = $root . '/config/config.toml';
         $config = is_file($configToml)
             ? toml_decode((string) file_get_contents($configToml), asArray: true)
             : [];
@@ -82,7 +82,7 @@ final class ContainerFactory
         // Security config ships in the repository and is always loaded separately.
         // Merge: config.toml [security] (user settings like totp_app_key) wins first,
         // then security.toml values are overlaid (repo-managed policy takes precedence).
-        $securityToml = $root . '/configs/security.toml';
+        $securityToml = $root . '/config/security.toml';
         if (is_file($securityToml)) {
             $repoSecurity = toml_decode((string) file_get_contents($securityToml), asArray: true);
             $config['security'] = array_replace_recursive(
@@ -97,8 +97,8 @@ final class ContainerFactory
         // only take effect during the installation wizard itself.
         $config['install']['lock'] ??= $root . '/data/install.lock';
         $config['install']['password_file'] ??= $root . '/data/install.pw';
-        $config['install']['config_file'] ??= $root . '/configs/config.toml';
-        $config['log']['path'] ??= $root . '/logs/lexnova.log';
+        $config['install']['config_file'] ??= $root . '/config/config.toml';
+        $config['log']['path'] ??= $root . '/var/log/lexnova.log';
         $config['log']['level'] ??= 'warning';
         $config['session']['name'] ??= 'lexnova_session';
         $config['session']['secure'] ??= str_starts_with((string) ($config['app']['base_url'] ?? ''), 'https://');
@@ -109,7 +109,7 @@ final class ContainerFactory
         $config['app']['locale'] ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
-        foreach ([$root . '/cache/twig', $root . '/cache/app', $root . '/logs'] as $dir) {
+        foreach ([$root . '/var/cache/twig', $root . '/var/cache/app', $root . '/var/log'] as $dir) {
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -127,7 +127,7 @@ final class ContainerFactory
             ],
         ];
         $config['twig'] = [
-            'cache_dir' => $twigCache ? $root . '/cache/twig' : false,
+            'cache_dir' => $twigCache ? $root . '/var/cache/twig' : false,
             'debug' => false,
             'auto_reload' => true,
             'timezone' => 'UTC',
@@ -244,11 +244,11 @@ final class ContainerFactory
                     }
                 }
 
-                return new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/cache/app'));
+                return new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/var/cache/app'));
             },
 
             // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
-            'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/cache/hibp')),
+            'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/var/cache/hibp')),
 
             // ── Breached-password checker (HIBP, optional) ──────────────────────────
             BreachedPasswordCheckerInterface::class => function (ContainerInterface $c): BreachedPasswordCheckerInterface {

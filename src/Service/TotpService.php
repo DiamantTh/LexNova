@@ -14,7 +14,7 @@ use OTPHP\TOTP;
  * Recommended apps: Aegis, 2FAS, Raivo, KeePassXC, Ente Auth, Bitwarden Auth.
  *
  * TOTP secrets are encrypted at rest using libsodium (XSalsa20-Poly1305)
- * with an application key generated at install time and stored in configs/config.toml.
+ * with an application key generated at install time and stored in config/config.toml.
  */
 final readonly class TotpService
 {

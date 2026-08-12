@@ -5,12 +5,32 @@
 LexNova ist für klassischen PHP-Betrieb ohne Container und ohne Release-System
 geeignet. Das **einzige** öffentliche Verzeichnis ist `httpdocs/`; der gesamte
 Projektordner darf nicht als DocumentRoot konfiguriert werden. Dadurch bleiben
-`configs/`, `data/`, `src/`, `templates/`, `vendor/`, `cache/` und `logs/`
+`config/`, `data/`, `src/`, `templates/`, `vendor/` und `var/`
 außerhalb des Webzugriffs.
 
-- Apache 2.4: Beispiel unter `deploy/apache-vhost.conf.example`; bei Shared
-  Hosting ohne eigenen vHost greift `httpdocs/.htaccess`.
-- Nginx + PHP-FPM: Beispiel unter `deploy/nginx.conf.example`.
+- Apache 2.4: Bei Shared Hosting ohne eigenen vHost greift
+  `httpdocs/.htaccess`; bei eigener Serverkonfiguration muss `httpdocs/` der
+  DocumentRoot sein.
+- Nginx + PHP-FPM: Der Serveradmin benötigt folgende wesentliche Regeln:
+
+  ```nginx
+  root /var/www/lexnova/httpdocs;
+
+  location / {
+      try_files $uri $uri/ /index.php?$query_string;
+  }
+
+  location ~ \.php$ {
+      try_files $uri =404;
+      include fastcgi_params;
+      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+      fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+  }
+
+  location ~ /\. { deny all; }
+  ```
+
+  Pfad und PHP-FPM-Socket sind hostabhängig.
 - TLS wird vom Hoster eingerichtet. `app.base_url` muss genau der öffentlichen
   HTTPS-URL entsprechen, weil Session-Cookies und Passkeys an diese Origin
   gebunden sind.
@@ -24,12 +44,14 @@ außerhalb des Webzugriffs.
 - Relationale SQL-Datenbank (SQLite, MariaDB, PostgreSQL)
 - libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten)
 
-**Empfohlen:**
-- Schreibzugriff auf `cache/` und `logs/` (für Twig-Cache und Logging)
+**Zur Laufzeit:**
+- Schreibzugriff auf `data/` (bei SQLite) und `var/` (Cache und Logging).
+  Beide Verzeichnisse werden bei Bedarf automatisch angelegt und sind nicht
+  Teil des Repositorys.
 
-`configs/config.toml` und `data/install.pw` werden vom Installer mit Modus
+`config/config.toml` und `data/install.pw` werden vom Installer mit Modus
 `0600` angelegt. Nach erfolgreicher Installation genügt Schreibzugriff für PHP
-auf `data/` (bei SQLite), `cache/` und `logs/`; `configs/` kann anschließend
+auf `data/` (bei SQLite) und `var/`; `config/` kann anschließend
 wieder schreibgeschützt werden.
 
 Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschritt bei fehlenden Pflicht-Extensions.
@@ -68,7 +90,7 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschr
    - **Betreiber-Entity**: Name und Kontaktdaten der betreibenden Organisation
 7. Nach erfolgreicher Installation:
    - `data/install.lock` wird erstellt — Installer ist danach gesperrt
-   - `configs/config.toml` enthält die Konfiguration inkl. `totp_app_key`
+   - `config/config.toml` enthält die Konfiguration inkl. `totp_app_key`
    - Die öffentlichen URLs für Impressum und Datenschutzerklärung der Betreiber-Entity
      werden direkt angezeigt (z. B. `/{hash}/imprint`, `/{hash}/privacy`)
    - `data/install.pw` kann nach der Installation entfernt werden
@@ -80,7 +102,7 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschr
 
 Ein einzelner Shared-Host kann LexNova direkt im Arbeitsverzeichnis aktualisieren;
 ein separates Release-Verzeichnis ist nicht erforderlich. Vor jedem Update eine
-Sicherung von Datenbank und `configs/config.toml` erstellen. Dann:
+Sicherung von Datenbank und `config/config.toml` erstellen. Dann:
 
 1. Passende SQL-Migrationen aus `sql/migrations/` in numerischer Reihenfolge
    auf der produktiven Datenbank ausführen (vor der Code-Aktualisierung).
@@ -100,11 +122,11 @@ Release-Verzeichnis sinnvoll, aber für einen einzelnen Shared Host nicht nötig
 
 ## Konfiguration
 
-- Vorlage: `config.example.toml`
-- Installiert: `configs/config.toml` (wird vom Installer erstellt)
-- Sicherheitseinstellungen: `configs/security.toml` (im Repository enthalten)
+- Vorlage: `config/config.example.toml`
+- Installiert: `config/config.toml` (wird vom Installer erstellt)
+- Sicherheitseinstellungen: `config/security.toml` (im Repository enthalten)
 
-Wichtige Abschnitte in `config.example.toml`:
+Wichtige Abschnitte in `config/config.example.toml`:
 
 | Abschnitt | Inhalt |
 |---|---|
@@ -121,7 +143,7 @@ ist `http://localhost` zulässig.
 ### Valkey
 
 Valkey kann als verteilter Dokument-Cache genutzt werden, weil es zum Redis-Protokoll
-kompatibel ist. In `configs/config.toml`:
+kompatibel ist. In `config/config.toml`:
 
 ```
 [cache]
@@ -270,7 +292,7 @@ composer qa            analyse + cs-check
 ## Hinweise
 
 - Dokumente werden als Freitext gespeichert (kein erzwungenes Format).
-- Passwörter werden mit Argon2id gehasht (Parameter in `configs/security.toml`).
+- Passwörter werden mit Argon2id gehasht (Parameter in `config/security.toml`).
 - TOTP-Secrets werden mit XSalsa20-Poly1305 (libsodium) verschlüsselt gespeichert.
 - Admin-Zugang ist vor der Installation vollständig gesperrt (`InstalledCheckMiddleware`).
 - CSRF-Schutz ist auf allen Formularen aktiv.

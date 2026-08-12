@@ -1,16 +1,10 @@
-# Runtime data (created at install time by InstallService)
-/data/*
-!/data/.gitkeep
+# Runtime state (created by the installer or application as required)
+/data/
+/var/
 
-# Cache and logs (created at runtime by bootstrap)
-/cache/*
-!/cache/.gitkeep
-/logs/*
-!/logs/.gitkeep
-
-# Config (generated at install time)
-/configs/config.toml
-/configs/config.php
+# Instance configuration (created at install time)
+/config/config.toml
+/config/config.php
 
 # Composer
 /vendor/

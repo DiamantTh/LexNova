@@ -19,7 +19,7 @@
 <div class="notice success" role="status">{{ msg }}</div>
 {% endfor %}
 {% if not twig_cache_enabled %}
-<div class="notice warning" role="status">Twig-Template-Cache ist deaktiviert. In <code>configs/config.toml</code> aktivieren: <code>[twig]</code> <code>cache = true</code></div>
+<div class="notice warning" role="status">Twig-Template-Cache ist deaktiviert. In <code>config/config.toml</code> aktivieren: <code>[twig]</code> <code>cache = true</code></div>
 {% endif %}
 
 <div class="card">
@@ -365,7 +365,7 @@
 
     const ASCII_RE = /^[\x20-\x7E]+$/;
 
-    // ── Generator config (mirrors configs/security.toml [generator.*]) ────────
+    // ── Generator config (mirrors config/security.toml [generator.*]) ────────
     const GEN = {
         random: {
             length:         {{ (pw_generator.random.length         ?? 20)   |json_encode|raw }},

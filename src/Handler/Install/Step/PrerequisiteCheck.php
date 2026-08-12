@@ -68,14 +68,18 @@ final class PrerequisiteCheck
         // ── Directory writability ─────────────────────────────────────────
         $dirs = [
             'data' => true,
-            'configs' => true,
-            'cache' => false,
-            'logs' => false,
+            'config' => true,
         ];
 
         foreach ($dirs as $dir => $required) {
             $path = $this->rootDir . '/' . $dir;
-            $ok = is_dir($path) && is_writable($path);
+            // data/ is deliberately not versioned: create it only when an
+            // installation actually starts. config/ ships with security.toml
+            // and must already be writable so the generated instance config
+            // can be placed beside it.
+            $ok = is_dir($path)
+                ? is_writable($path)
+                : $dir === 'data' && mkdir($path, 0755, true) && is_writable($path);
             $checks[] = [
                 'label' => $dir . '/ schreibbar',
                 'ok' => $ok,
