@@ -57,12 +57,12 @@ final class PrerequisiteCheck
             'required' => true,
         ];
 
-        // ── Recommended extensions ────────────────────────────────────────
+        // ── Required extensions (directly required by laminas-i18n) ───────
         $checks[] = [
-            'label' => 'ext-intl (empfohlen)',
+            'label' => 'ext-intl',
             'ok' => extension_loaded('intl'),
             'value' => null,
-            'required' => false,
+            'required' => true,
         ];
 
         // ── Directory writability ─────────────────────────────────────────

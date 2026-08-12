@@ -32,6 +32,7 @@ final readonly class InstallService
     public function lock(): void
     {
         file_put_contents($this->lockPath, date('Y-m-d H:i:s') . "\n", LOCK_EX);
+        chmod($this->lockPath, 0640);
     }
 
     public function readPasswordHash(): ?string
@@ -49,14 +50,17 @@ final readonly class InstallService
      * to the password file, and returns the plain-text password for one-time display.
      */
     /** @param array<string, mixed> $securityConfig */
-    public function initializePassword(array $securityConfig): ?string
+    public function initializePassword(array $securityConfig, ?string $plain = null): ?string
     {
         $dir = dirname($this->passwordPath);
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             return null;
         }
 
-        $plain = bin2hex(random_bytes(16));
+        $plain ??= bin2hex(random_bytes(16));
+        if (strlen($plain) < 16) {
+            return null;
+        }
         $hash = password_hash(
             $plain,
             $securityConfig['algo'] ?? PASSWORD_ARGON2ID,
@@ -70,6 +74,7 @@ final readonly class InstallService
         if (file_put_contents($this->passwordPath, $hash . "\n", LOCK_EX) === false) {
             return null;
         }
+        chmod($this->passwordPath, 0600);
 
         return $plain;
     }
@@ -93,7 +98,13 @@ final readonly class InstallService
             return false;
         }
 
-        return file_put_contents($this->configPath, $content, LOCK_EX) !== false;
+        if (file_put_contents($this->configPath, $content, LOCK_EX) === false) {
+            return false;
+        }
+
+        chmod($this->configPath, 0600);
+
+        return true;
     }
 
     public function configExists(): bool

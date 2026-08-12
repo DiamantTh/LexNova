@@ -7,7 +7,8 @@ namespace LexNova\Handler\Install\Step;
 use LexNova\Service\InstallService;
 
 /**
- * Generates the one-time install password on first visit if it does not exist yet.
+ * Loads a pre-generated installer password or securely initializes one from a
+ * server environment variable. It never reveals a password in a web response.
  */
 final class InitStep
 {
@@ -23,12 +24,16 @@ final class InitStep
         $messages = [];
 
         if (!$installReady) {
-            $generatedPassword = $install->initializePassword($securityConfig);
-            if ($generatedPassword === null) {
-                $errors[] = 'Failed to generate install password. Check data/ directory permissions.';
+            $environmentPassword = getenv('LEXNOVA_INSTALL_PASSWORD');
+            if (is_string($environmentPassword) && $environmentPassword !== '') {
+                if ($install->initializePassword($securityConfig, $environmentPassword) === null) {
+                    $errors[] = 'Failed to initialize the install password from LEXNOVA_INSTALL_PASSWORD.';
+                } else {
+                    $installReady = true;
+                    $messages[] = 'Installer password prepared from server configuration.';
+                }
             } else {
-                $installReady = true;
-                $messages[] = 'Install password generated — copy it now, it will not be shown again.';
+                $errors[] = 'Installer password is not prepared. Run bin/lexnova install:prepare or configure LEXNOVA_INSTALL_PASSWORD on the server.';
             }
         }
 
