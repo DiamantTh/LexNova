@@ -30,7 +30,8 @@ CREATE TABLE legal_entities (
 
 CREATE TABLE legal_documents (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    entity_id BIGINT UNSIGNED NOT NULL, type VARCHAR(20) NOT NULL, language VARCHAR(20) NOT NULL,
+    entity_id BIGINT UNSIGNED NOT NULL, public_hash VARCHAR(32) NOT NULL UNIQUE,
+    type VARCHAR(20) NOT NULL, language VARCHAR(20) NOT NULL,
     content LONGTEXT NOT NULL, version VARCHAR(50) NOT NULL, updated_at DATETIME NOT NULL,
     CONSTRAINT fk_document_entity FOREIGN KEY (entity_id) REFERENCES legal_entities(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

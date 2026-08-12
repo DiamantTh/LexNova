@@ -311,13 +311,13 @@
         {% for doc in documents %}
         <tr>
             <td>{{ doc.id }}</td>
-            <td>{{ doc.entity_name }} <small>({{ doc.entity_hash|slice(0,8) }}…)</small></td>
+            <td>{{ doc.entity_name }}</td>
             <td>{{ doc.type }}</td>
             <td>{{ doc.language }}</td>
             <td>{{ doc.version }}</td>
             <td>{{ doc.updated_at }}</td>
             <td style="white-space:nowrap;">
-                <a href="/{{ doc.entity_hash }}/{{ doc.type }}/{{ doc.language }}" target="_blank" rel="noopener" style="margin-right:8px;">{{ trans('View') }}</a>
+                <a href="/out.php?type={{ doc.type }}&amp;hash={{ doc.public_hash }}" target="_blank" rel="noopener" style="margin-right:8px;">{{ trans('View') }}</a>
                 <a href="/admin?doc_id={{ doc.id }}" style="margin-right:8px;">{{ trans('Edit Document') }}</a>
                 <form method="post" action="/admin/documents/{{ doc.id }}/delete" style="display:inline;"
                       onsubmit="return confirm('{{ trans('Delete document permanently?') }}')">

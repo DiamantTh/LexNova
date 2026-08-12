@@ -45,6 +45,7 @@ CREATE TABLE legal_entities (
 CREATE TABLE legal_documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entity_id INTEGER NOT NULL,
+    public_hash VARCHAR(32) NOT NULL UNIQUE,
     type VARCHAR(20) NOT NULL,
     language VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,

@@ -18,9 +18,9 @@ use Locale;
 final class ConfigureStep
 {
     /**
-     * @param  array<string, string>                                                                        $formData
-     * @param  array<string, mixed>                                                                         $securityConfig
-     * @return array{errors: list<string>, completed: bool, operator_hash?: string, operator_name?: string}
+     * @param  array<string, string>                                                $formData
+     * @param  array<string, mixed>                                                 $securityConfig
+     * @return array{errors: list<string>, completed: bool, operator_name?: string}
      */
     public function handle(
         InstallService $install,
@@ -99,7 +99,6 @@ final class ConfigureStep
         return [
             'errors' => [],
             'completed' => true,
-            'operator_hash' => $operatorHash,
             'operator_name' => $formData['operatorName'],
         ];
     }

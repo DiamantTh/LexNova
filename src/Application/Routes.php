@@ -106,9 +106,8 @@ final class Routes
         );
 
         // ── Public document display ──────────────────────────────────────────────
-        $app->get('/{hash:[0-9a-f]{32}}/{type:imprint|privacy}[/{lang:[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*}]',
-            DocumentHandler::class,
-            'document.view',
-        );
+        // out.php is a virtual compatibility-style URL. Apache/Nginx route it
+        // to index.php; no second executable PHP file is needed.
+        $app->get('/out.php', DocumentHandler::class, 'document.view');
     }
 }

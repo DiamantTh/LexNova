@@ -22,7 +22,8 @@ CREATE TABLE legal_entities (
 
 CREATE TABLE legal_documents (
     id BIGSERIAL PRIMARY KEY, entity_id BIGINT NOT NULL REFERENCES legal_entities(id) ON DELETE CASCADE,
-    type VARCHAR(20) NOT NULL, language VARCHAR(20) NOT NULL, content TEXT NOT NULL,
+    public_hash VARCHAR(32) NOT NULL UNIQUE, type VARCHAR(20) NOT NULL,
+    language VARCHAR(20) NOT NULL, content TEXT NOT NULL,
     version VARCHAR(50) NOT NULL, updated_at TIMESTAMP NOT NULL
 );
 

@@ -117,7 +117,6 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'generatedPassword' => null,
                         'installReady' => true,
                         'formData' => [],
-                        'operator_hash' => $configure['operator_hash'] ?? null,
                         'operator_name' => $configure['operator_name'] ?? null,
                     ]));
                 }

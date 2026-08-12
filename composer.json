@@ -54,6 +54,7 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "cs-check": "php-cs-fixer check --diff",
         "cs-fix": "php-cs-fixer fix",
+        "test:integration": "@php tests/Integration/DocumentEndpointTest.php",
         "qa": ["@analyse", "@cs-check"]
     },
     "config": {

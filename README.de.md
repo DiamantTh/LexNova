@@ -10,23 +10,33 @@ außerhalb des Webzugriffs.
 
 - Apache 2.4: Bei Shared Hosting ohne eigenen vHost greift
   `httpdocs/.htaccess`; bei eigener Serverkonfiguration muss `httpdocs/` der
-  DocumentRoot sein.
+  DocumentRoot sein und `mod_rewrite`/`AllowOverride FileInfo` aktiv sein.
+  Die öffentliche URL `/out.php` ist absichtlich nur virtuell und wird durch
+  die Rewrite-Regel an `index.php` übergeben.
 - Nginx + PHP-FPM: Der Serveradmin benötigt folgende wesentliche Regeln:
 
   ```nginx
   root /var/www/lexnova/httpdocs;
 
+  # Virtuelle öffentliche PHP-URL; es gibt keine Datei httpdocs/out.php.
+  location = /out.php {
+      include fastcgi_params;
+      fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+      fastcgi_param SCRIPT_NAME /index.php;
+      fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+  }
+
+  location = /index.php {
+      include fastcgi_params;
+      fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+      fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+  }
+
   location / {
       try_files $uri $uri/ /index.php?$query_string;
   }
 
-  location ~ \.php$ {
-      try_files $uri =404;
-      include fastcgi_params;
-      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-      fastcgi_pass unix:/run/php/php8.4-fpm.sock;
-  }
-
+  location ~ \.php$ { return 404; }
   location ~ /\. { deny all; }
   ```
 
@@ -41,7 +51,7 @@ außerhalb des Webzugriffs.
 - PHP 8.4+
 - PHP-Extensions: `sodium`, `pdo`, `json`, `mbstring`, `openssl`, `intl`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
-- Relationale SQL-Datenbank (SQLite, MariaDB, PostgreSQL)
+- Relationale SQL-Datenbank (SQLite 3.35+, MySQL 8+, MariaDB 10.10+ oder PostgreSQL 13+)
 - libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten)
 
 **Zur Laufzeit:**
@@ -91,8 +101,8 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschr
 7. Nach erfolgreicher Installation:
    - `data/install.lock` wird erstellt — Installer ist danach gesperrt
    - `config/config.toml` enthält die Konfiguration inkl. `totp_app_key`
-   - Die öffentlichen URLs für Impressum und Datenschutzerklärung der Betreiber-Entity
-     werden direkt angezeigt (z. B. `/{hash}/imprint`, `/{hash}/privacy`)
+   - Öffentliche URLs entstehen beim Anlegen eines Dokuments und können danach
+     im Adminbereich über „Anzeigen“ geöffnet werden
    - `data/install.pw` kann nach der Installation entfernt werden
 
 > **Hinweis für frische Klone:** Fehlt `vendor/`, antwortet die Anwendung mit HTTP 503
@@ -186,7 +196,6 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 
 - Anlegen, Bearbeiten, Löschen
 - Kontaktdaten als Freitext (mehrzeilig, je Zeile ein Adressbestandteil)
-- Jede Entity erhält einen zufälligen 32-Zeichen-Hex-Hash für die öffentlichen URLs
 - Die Betreiber-Entity wird automatisch beim Install angelegt
 
 ### Dokumente
@@ -195,6 +204,7 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 - Typen: `imprint` (Impressum), `privacy` (Datenschutzerklärung)
 - Mehrsprachig: pro Dokument ein BCP 47-Sprachcode (z. B. `de`, `en`, `fr-CH`)
 - Versionierung (freies Versionsfeld, z. B. `2024-01`, `v3`)
+- Jedes Dokument erhält einen eigenen zufälligen 32-Zeichen-Hex-Hash
 - Direkt-Link „Anzeigen" öffnet die öffentliche URL im neuen Tab
 
 ### Benutzer
@@ -210,16 +220,24 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 ## Öffentliche URLs
 
 ```
-/{hash}/{imprint|privacy}           Neueste Version (automatische Sprachauswahl)
-/{hash}/{imprint|privacy}/{lang}    Neueste Version in der angegebenen Sprache
+/out.php?type=imprint&hash={document-hash}
+/out.php?type=privacy&hash={document-hash}
 ```
 
-Beispiel: `/abc123def456.../imprint/de` oder `/abc123def456.../privacy/en`
+`out.php` ist keine zweite PHP-Datei. Apache leitet diese virtuelle URL über
+`httpdocs/.htaccess` an `index.php`; bei Nginx übernimmt die oben gezeigte
+`location`-Regel dieselbe Aufgabe. Andere Webserver müssen `/out.php` ebenfalls
+unter Beibehaltung von Pfad und Query-String an `httpdocs/index.php` übergeben.
+
+Hash und Typ werden gemeinsam gegen dieselbe Dokumentzeile geprüft. Der Hash ist
+zusätzlich datenbankweit eindeutig; ein Impressum-Hash kann daher nicht als
+Datenschutzerklärung ausgegeben werden. Sprachvarianten sind eigenständige
+Dokumente mit jeweils eigener URL.
 
 ### SEO und Caching
 
 - Jede öffentliche Seite enthält:
-  - `<link rel="canonical">` auf die sprachspezifische URL
+  - `<link rel="canonical">` auf ihre Dokument-URL
   - `<link rel="alternate" hreflang="...">` für jede verfügbare Sprachversion
   - Sprachumschalter-Navigation (nur bei mehreren Sprachversionen sichtbar)
 - HTTP-Header auf öffentlichen Dokumenten:
@@ -238,6 +256,9 @@ sql/migrations/001_multi_totp_keys.sql                # nur SQLite, altes Single
 sql/migrations/002_webauthn_credentials.sql          # SQLite
 sql/migrations/002_webauthn_credentials.mysql.sql    # MySQL/MariaDB
 sql/migrations/002_webauthn_credentials.pgsql.sql    # PostgreSQL
+sql/migrations/003_document_public_hash.sql          # SQLite
+sql/migrations/003_document_public_hash.mysql.sql    # MySQL 8 / MariaDB 10.10+
+sql/migrations/003_document_public_hash.pgsql.sql    # PostgreSQL 13+
 ```
 
 Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).

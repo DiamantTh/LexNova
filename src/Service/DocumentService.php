@@ -19,8 +19,8 @@ final readonly class DocumentService
     public function list(): array
     {
         return $this->db->createQueryBuilder()
-            ->select('d.id', 'd.entity_id', 'd.type', 'd.language', 'd.version',
-                'd.updated_at', 'e.name AS entity_name', 'e.hash AS entity_hash')
+            ->select('d.id', 'd.entity_id', 'd.public_hash', 'd.type', 'd.language', 'd.version',
+                'd.updated_at', 'e.name AS entity_name')
             ->from('legal_documents', 'd')
             ->join('d', 'legal_entities', 'e', 'd.entity_id = e.id')
             ->orderBy('d.updated_at', 'DESC')
@@ -32,7 +32,7 @@ final readonly class DocumentService
     public function findById(int $id): ?array
     {
         $row = $this->db->createQueryBuilder()
-            ->select('id', 'entity_id', 'type', 'language', 'content', 'version', 'updated_at')
+            ->select('id', 'entity_id', 'public_hash', 'type', 'language', 'content', 'version', 'updated_at')
             ->from('legal_documents')
             ->where('id = :id')
             ->setParameter('id', $id)
@@ -42,23 +42,10 @@ final readonly class DocumentService
         return $row ?: null;
     }
 
-    /**
-     * Returns the latest document for a given entity + type.
-     *
-     * If $language is provided, tries an exact BCP 47 match first, then falls
-     * back to the newest document of that type regardless of language.
-     * The cache key includes the requested language so each variant is cached
-     * independently. Every generated key is indexed per entity/type and is
-     * invalidated on any write, including a document being moved to a different
-     * entity or type.
-     */
     /** @return array<string, mixed>|null */
-    public function findLatest(int $entityId, string $type, ?string $language = null): ?array
+    public function findByPublicHashAndType(string $publicHash, string $type): ?array
     {
-        $lang = $language !== null ? strtolower(trim($language)) : null;
-        $cacheKey = $lang !== null
-            ? "doc_latest_{$entityId}_{$type}_{$lang}"
-            : "doc_latest_{$entityId}_{$type}";
+        $cacheKey = "doc_public_{$type}_{$publicHash}";
 
         if ($this->cache->has($cacheKey)) {
             /** @var array{found: bool, document: array<string, mixed>|null} $cached */
@@ -67,44 +54,30 @@ final readonly class DocumentService
             return $cached['document'];
         }
 
-        $base = $this->db->createQueryBuilder()
-            ->select('id', 'entity_id', 'type', 'language', 'content', 'version', 'updated_at')
+        $row = $this->db->createQueryBuilder()
+            ->select('id', 'entity_id', 'public_hash', 'type', 'language', 'content', 'version', 'updated_at')
             ->from('legal_documents')
-            ->where('entity_id = :entity_id')
+            ->where('public_hash = :public_hash')
             ->andWhere('type = :type')
-            ->setParameter('entity_id', $entityId)
+            ->setParameter('public_hash', $publicHash)
             ->setParameter('type', $type)
-            ->orderBy('updated_at', 'DESC')
-            ->addOrderBy('id', 'DESC');
-
-        // Try exact language match first
-        if ($lang !== null) {
-            $row = (clone $base)
-                ->andWhere('LOWER(language) = :lang')
-                ->setParameter('lang', $lang)
-                ->setMaxResults(1)
-                ->executeQuery()
-                ->fetchAssociative();
-
-            if ($row !== false) {
-                $this->storeCachedResult($entityId, $type, $cacheKey, $row);
-
-                return $row;
-            }
-        }
-
-        // No language requested or no exact match → newest of any language
-        $row = $base->setMaxResults(1)->executeQuery()->fetchAssociative();
+            ->executeQuery()
+            ->fetchAssociative();
         $result = $row ?: null;
-        $this->storeCachedResult($entityId, $type, $cacheKey, $result);
+        if ($result !== null) {
+            $this->storeCachedResult((int) $result['entity_id'], $type, $cacheKey, $result);
+        }
 
         return $result;
     }
 
     public function create(int $entityId, string $type, string $language, string $content, string $version): int
     {
+        $publicHash = bin2hex(random_bytes(16));
+
         $this->db->insert('legal_documents', [
             'entity_id' => $entityId,
+            'public_hash' => $publicHash,
             'type' => $type,
             'language' => $language,
             'content' => $content,
@@ -138,25 +111,32 @@ final readonly class DocumentService
     }
 
     /**
-     * Returns all language codes that exist for a given entity + type,
-     * ordered alphabetically. Used to build hreflang and language-switcher links.
+     * Returns the newest public document per language for an entity and type.
      *
-     * @return list<string>
+     * @return array<string, string> language => public hash
      */
-    public function listLanguageVariants(int $entityId, string $type): array
+    public function listPublicVariants(int $entityId, string $type): array
     {
         $rows = $this->db->createQueryBuilder()
-            ->select('language')
+            ->select('language', 'public_hash')
             ->from('legal_documents')
             ->where('entity_id = :entity_id')
             ->andWhere('type = :type')
             ->setParameter('entity_id', $entityId)
             ->setParameter('type', $type)
             ->orderBy('language', 'ASC')
+            ->addOrderBy('updated_at', 'DESC')
+            ->addOrderBy('id', 'DESC')
             ->executeQuery()
-            ->fetchFirstColumn();
+            ->fetchAllAssociative();
 
-        return array_values(array_unique($rows));
+        $variants = [];
+        foreach ($rows as $row) {
+            $language = (string) $row['language'];
+            $variants[$language] ??= (string) $row['public_hash'];
+        }
+
+        return $variants;
     }
 
     public function delete(int $id): void
@@ -187,7 +167,6 @@ final readonly class DocumentService
         $indexKey = $this->indexKey($entityId, $type);
         /** @var list<string> $keys */
         $keys = $this->cache->get($indexKey, []);
-        $keys[] = "doc_latest_{$entityId}_{$type}";
         $this->cache->deleteMultiple(array_unique($keys));
         $this->cache->delete($indexKey);
     }
