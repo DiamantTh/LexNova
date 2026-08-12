@@ -18,6 +18,8 @@ use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
+use LexNova\Handler\Auth\PasskeyLoginHandler;
+use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Install\InstallHandler;
@@ -41,6 +43,11 @@ final class Routes
 
         // ── TOTP: verification during login (no AdminAuthMiddleware — user not yet logged in)
         $app->route('/admin/totp/verify', TotpVerifyHandler::class, ['GET', 'POST'], 'admin.totp.verify');
+
+        $app->post('/admin/passkeys/login/options', PasskeyLoginHandler::class, 'admin.passkeys.login.options');
+        $app->post('/admin/passkeys/login/finish', PasskeyLoginHandler::class, 'admin.passkeys.login.finish');
+        $app->post('/admin/passkeys/register/options', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.options');
+        $app->post('/admin/passkeys/register/finish', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.finish');
 
         // ── TOTP: enrollment + reset (requires admin session)
         $app->route('/admin/totp/enroll',

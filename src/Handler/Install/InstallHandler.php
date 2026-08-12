@@ -85,6 +85,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'adminUsername' => trim((string) ($body['admin_username'] ?? '')),
                 'adminPassword' => (string) ($body['admin_password'] ?? ''),
                 'adminConfirm' => (string) ($body['admin_password_confirm'] ?? ''),
+                'appBaseUrl' => trim((string) ($body['app_base_url'] ?? '')),
                 'appLocale' => trim((string) ($body['app_locale'] ?? 'de')),
                 'operatorName' => trim((string) ($body['operator_name'] ?? '')),
                 'operatorContact' => trim((string) ($body['operator_contact'] ?? '')),
@@ -111,7 +112,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'errors' => [],
                         'messages' => [
                             'Installation complete. You can now log in at /admin.',
-                            'Remove install/install.pw after verifying access.',
+                            'Remove data/install.pw after verifying access.',
                         ],
                         'generatedPassword' => null,
                         'installReady' => true,

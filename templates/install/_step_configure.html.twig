@@ -13,6 +13,15 @@
         <h2>Datenbank</h2>
         <div class="grid" style="margin-bottom:14px;">
             <div>
+                <label for="app_base_url">
+                    Öffentliche Basis-URL
+                    <small>(HTTPS erforderlich; nur lokal ist <code>http://localhost</code> erlaubt)</small>
+                </label>
+                <input type="url" id="app_base_url" name="app_base_url"
+                       value="{{ formData.appBaseUrl ?? '' }}" required
+                       placeholder="https://legal.example.com" autocomplete="url">
+            </div>
+            <div>
                 <label for="db_type">Typ</label>
                 <select id="db_type" name="db_type">
                     <option value="sqlite"{{ formData.dbType == 'sqlite' ? ' selected' : '' }}>SQLite</option>

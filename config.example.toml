@@ -1,5 +1,7 @@
 [app]
-base_url = ""
+# Mandatory for passkeys: the public HTTPS URL, without a path.
+# Use http://localhost:8080 only for local development.
+base_url = "https://legal.example.com"
 locale   = "de"
 
 # Generated during installation — do NOT change after TOTP secrets are enrolled.
@@ -23,9 +25,21 @@ config_file   = "/path/to/lexnova/configs/config.toml"
 
 [session]
 name     = "lexnova_session"
-secure   = false
+secure   = true
 httponly = true
-samesite = "Lax"
+samesite = "Strict"
+cookie_lifetime = 0
+cookie_path = "/"
+
+# Public document cache. "filesystem" needs no external service. Valkey is
+# Redis-protocol compatible; with adapter = "valkey" the PHP redis extension
+# (or a compatible Redis client) and a reachable server are required.
+# On connection failure LexNova falls back to filesystem caching.
+[cache]
+adapter     = "filesystem" # "filesystem" | "valkey"
+dsn         = "redis://127.0.0.1:6379/0"
+namespace   = "lexnova"
+default_ttl = 3600
 
 [log]
 path  = "/path/to/lexnova/logs/lexnova.log"
@@ -37,9 +51,9 @@ level = "info"
 cache = true
 
 # ── Brute-force rate limiting ─────────────────────────────────────────────────
-# Applies to /admin/login and /admin/totp/verify.
+# Applies to password, TOTP and Passkey login attempts.
 # max_attempts  : failed login/TOTP attempts before the IP is temporarily blocked
 # block_seconds : block duration in seconds (default: 5 minutes)
-[rate_limit]
+[security.rate_limit]
 max_attempts  = 5
 block_seconds = 300

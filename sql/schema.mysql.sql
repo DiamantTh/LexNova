@@ -1,0 +1,48 @@
+CREATE TABLE users (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_totp_keys (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    label VARCHAR(100) NOT NULL DEFAULT 'Default', secret_enc TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at DATETIME NOT NULL, last_used_at DATETIME NULL,
+    CONSTRAINT fk_totp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_webauthn_credentials (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL, credential_id VARCHAR(1024) NOT NULL UNIQUE,
+    credential_data LONGTEXT NOT NULL, label VARCHAR(100) NOT NULL DEFAULT 'Passkey',
+    created_at DATETIME NOT NULL, last_used_at DATETIME NULL,
+    CONSTRAINT fk_webauthn_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX user_webauthn_credentials_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE legal_entities (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    hash VARCHAR(64) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, contact_data TEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE legal_documents (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    entity_id BIGINT UNSIGNED NOT NULL, type VARCHAR(20) NOT NULL, language VARCHAR(20) NOT NULL,
+    content LONGTEXT NOT NULL, version VARCHAR(50) NOT NULL, updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_document_entity FOREIGN KEY (entity_id) REFERENCES legal_entities(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE login_attempts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, ip VARCHAR(45) NOT NULL,
+    endpoint VARCHAR(50) NOT NULL, attempts INT NOT NULL DEFAULT 1, blocked_until DATETIME NULL, last_at DATETIME NOT NULL,
+    UNIQUE KEY login_attempts_ip_endpoint (ip, endpoint)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE audit_log (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, actor_id BIGINT UNSIGNED NULL,
+    actor_name VARCHAR(255) NULL, action VARCHAR(100) NOT NULL, target VARCHAR(255) NULL,
+    detail TEXT NULL, ip VARCHAR(45) NULL, created_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

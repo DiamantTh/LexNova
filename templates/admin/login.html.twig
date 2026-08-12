@@ -27,5 +27,36 @@
             <button type="submit">{{ trans('Sign in') }}</button>
         </div>
     </form>
+    <hr style="margin:22px 0;border:0;border-top:1px solid #ddd;">
+    <button type="button" id="passkey-login">Mit Passkey anmelden</button>
+    <p id="passkey-status" role="status" style="font-size:14px;margin-bottom:0;"></p>
 </div>
+<script>
+(() => {
+    const csrf = {{ csrf_token|json_encode|raw }};
+    const b64 = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')), c => c.charCodeAt(0));
+    const b64url = value => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const post = async (url, data) => {
+        const body = new URLSearchParams({__csrf: csrf, ...data});
+        const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body, credentials: 'same-origin'});
+        return response.json();
+    };
+    document.getElementById('passkey-login').addEventListener('click', async () => {
+        const status = document.getElementById('passkey-status'); status.textContent = 'Passkey wird angefordert …';
+        try {
+            const options = await post('/admin/passkeys/login/options', {});
+            if (options.error) throw new Error(options.error);
+            options.challenge = b64(options.challenge);
+            if (options.allowCredentials) options.allowCredentials.forEach(c => c.id = b64(c.id));
+            const credential = await navigator.credentials.get({publicKey: options});
+            const payload = {id: credential.id, rawId: b64url(credential.rawId), type: credential.type, response: {
+                authenticatorData: b64url(credential.response.authenticatorData), clientDataJSON: b64url(credential.response.clientDataJSON),
+                signature: b64url(credential.response.signature), userHandle: credential.response.userHandle ? b64url(credential.response.userHandle) : null
+            }};
+            const result = await post('/admin/passkeys/login/finish', {credential: JSON.stringify(payload)});
+            if (result.error) throw new Error(result.error); window.location.assign(result.redirect);
+        } catch (error) { status.textContent = error.message || 'Passkey-Anmeldung fehlgeschlagen.'; }
+    });
+})();
+</script>
 {% endblock %}

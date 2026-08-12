@@ -25,7 +25,12 @@ final readonly class DoctrineConnectionFactory
 
         $params = self::parseDsn($dsn, $user, $password);
 
-        return DriverManager::getConnection($params);
+        $connection = DriverManager::getConnection($params);
+        if (($params['driver'] ?? null) === 'pdo_sqlite') {
+            $connection->executeStatement('PRAGMA foreign_keys = ON');
+        }
+
+        return $connection;
     }
 
     /**

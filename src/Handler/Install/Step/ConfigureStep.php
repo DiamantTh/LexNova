@@ -50,7 +50,7 @@ final class ConfigureStep
                 \PDO::ATTR_EMULATE_PREPARES => false,
             ]);
 
-            $this->runSchema($pdo, $root . '/sql/schema.sql');
+            $this->runSchema($pdo, $root . '/sql/schema.' . $formData['dbType'] . '.sql');
 
             $hash = password_hash(
                 $formData['adminPassword'],
@@ -79,6 +79,7 @@ final class ConfigureStep
                 $dsn,
                 $pdoUser,
                 $pdoPass,
+                $formData['appBaseUrl'],
                 $formData['appLocale'],
                 sodium_bin2hex(random_bytes(32)),
                 $root,
@@ -146,6 +147,11 @@ final class ConfigureStep
         }
 
         // ── App locale — BCP 47 via ext-intl (laminas/laminas-i18n dep) ───
+        $appBaseUrl = $formData['appBaseUrl'] ?? '';
+        if (!$this->isValidBaseUrl($appBaseUrl)) {
+            $errors[] = 'A public HTTPS base URL is required for secure sessions and passkeys (http://localhost is allowed for local development).';
+        }
+
         $appLocale = $formData['appLocale'] ?? '';
 
         if ($appLocale === '') {
@@ -191,6 +197,20 @@ final class ConfigureStep
         return isset($parsed['language']);
     }
 
+    private function isValidBaseUrl(string $url): bool
+    {
+        $parsed = parse_url($url);
+        if (!is_array($parsed) || !isset($parsed['scheme'], $parsed['host']) || isset($parsed['query'], $parsed['fragment'])) {
+            return false;
+        }
+
+        if ($parsed['scheme'] === 'https') {
+            return true;
+        }
+
+        return $parsed['scheme'] === 'http' && in_array($parsed['host'], ['localhost', '127.0.0.1', '::1'], true);
+    }
+
     /** @param array<string, mixed> $formData */
     private function buildDsn(array $formData): string
     {
@@ -229,13 +249,14 @@ final class ConfigureStep
         string $dsn,
         ?string $user,
         ?string $password,
+        string $appBaseUrl,
         string $appLocale,
         string $totpAppKey,
         string $root,
     ): string {
         return toml_encode([
             'app' => [
-                'base_url' => '',
+                'base_url' => rtrim($appBaseUrl, '/'),
                 'locale' => $appLocale,
             ],
             'security' => [
@@ -259,9 +280,16 @@ final class ConfigureStep
             ],
             'session' => [
                 'name' => 'lexnova_session',
-                'secure' => false,
+                'secure' => str_starts_with($appBaseUrl, 'https://'),
                 'httponly' => true,
-                'samesite' => 'Lax',
+                'samesite' => 'Strict',
+                'cookie_lifetime' => 0,
+                'cookie_path' => '/',
+            ],
+            'cache' => [
+                'adapter' => 'filesystem',
+                'namespace' => 'lexnova',
+                'default_ttl' => 3600,
             ],
         ]);
     }

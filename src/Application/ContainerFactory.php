@@ -14,6 +14,8 @@ use LexNova\Factory\LoggerFactory;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
+use LexNova\Handler\Auth\PasskeyLoginHandler;
+use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Middleware\AdminAuthMiddleware;
@@ -22,6 +24,7 @@ use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\InstallService;
+use LexNova\Service\PasskeyService;
 use LexNova\Service\Password\BreachedPasswordCheckerInterface;
 use LexNova\Service\Password\DicewareGenerator;
 use LexNova\Service\Password\HibpRangePasswordChecker;
@@ -60,6 +63,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 
 final class ContainerFactory
@@ -97,9 +101,11 @@ final class ContainerFactory
         $config['log']['path'] ??= $root . '/logs/lexnova.log';
         $config['log']['level'] ??= 'warning';
         $config['session']['name'] ??= 'lexnova_session';
-        $config['session']['secure'] ??= false;
+        $config['session']['secure'] ??= str_starts_with((string) ($config['app']['base_url'] ?? ''), 'https://');
         $config['session']['httponly'] ??= true;
-        $config['session']['samesite'] ??= 'Lax';
+        $config['session']['samesite'] ??= 'Strict';
+        $config['session']['cookie_lifetime'] ??= 0;
+        $config['session']['cookie_path'] ??= '/';
         $config['app']['locale'] ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
@@ -164,7 +170,15 @@ final class ContainerFactory
             TemplateRendererInterface::class => fn (ContainerInterface $c) => $c->get(TwigRenderer::class),
 
             // ── Session & CSRF ───────────────────────────────────────────────────────
-            SessionPersistenceInterface::class => fn () => new PhpSessionPersistence(),
+            SessionPersistenceInterface::class => fn (ContainerInterface $c) => PhpSessionPersistence::fromConfigArray([
+                'name' => (string) ($c->get('config')['session']['name'] ?? 'lexnova_session'),
+                'cookie_lifetime' => (int) ($c->get('config')['session']['cookie_lifetime'] ?? 0),
+                'cookie_path' => (string) ($c->get('config')['session']['cookie_path'] ?? '/'),
+                'cookie_domain' => (string) ($c->get('config')['session']['cookie_domain'] ?? ''),
+                'cookie_secure' => (bool) ($c->get('config')['session']['secure'] ?? true),
+                'cookie_httponly' => (bool) ($c->get('config')['session']['httponly'] ?? true),
+                'cookie_samesite' => (string) ($c->get('config')['session']['samesite'] ?? 'Strict'),
+            ]),
 
             CsrfGuardFactoryInterface::class => fn () => new SessionCsrfGuardFactory(),
 
@@ -211,9 +225,27 @@ final class ContainerFactory
             ),
 
             // ── Cache ────────────────────────────────────────────────────────────────
-            // PSR-16 filesystem cache (symfony/cache) – used by DocumentService
-            // to cache public document lookups for 1 hour; invalidated on write.
-            CacheInterface::class => fn () => new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/cache/app')),
+            // PSR-16 cache for public documents. Valkey speaks the Redis protocol;
+            // when it is not configured or unavailable, the local filesystem cache
+            // remains a safe, dependency-free fallback.
+            CacheInterface::class => function (ContainerInterface $c) use ($root): CacheInterface {
+                $cache = (array) ($c->get('config')['cache'] ?? []);
+                if (($cache['adapter'] ?? 'filesystem') === 'valkey' && isset($cache['dsn']) && $cache['dsn'] !== '') {
+                    try {
+                        $connection = RedisAdapter::createConnection((string) $cache['dsn']);
+
+                        return new Psr16Cache(new RedisAdapter(
+                            $connection,
+                            (string) ($cache['namespace'] ?? 'lexnova'),
+                            (int) ($cache['default_ttl'] ?? 3600),
+                        ));
+                    } catch (\Throwable) {
+                        // Keep legal documents available if the optional cache backend is down.
+                    }
+                }
+
+                return new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/cache/app'));
+            },
 
             // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
             'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/cache/hibp')),
@@ -249,6 +281,11 @@ final class ContainerFactory
             ),
 
             UserService::class => fn (ContainerInterface $c) => new UserService($c->get(Connection::class), $c->get(PasswordService::class)),
+
+            PasskeyService::class => fn (ContainerInterface $c) => new PasskeyService(
+                $c->get(Connection::class),
+                (string) ($c->get('config')['app']['base_url'] ?? ''),
+            ),
 
             EntityService::class => fn (ContainerInterface $c) => new EntityService($c->get(Connection::class)),
 
@@ -305,6 +342,14 @@ final class ContainerFactory
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
+            ),
+
+            PasskeyLoginHandler::class => fn (ContainerInterface $c) => new PasskeyLoginHandler(
+                $c->get(PasskeyService::class), $c->get(RateLimitService::class), $c->get(AuditService::class),
+            ),
+
+            PasskeyRegisterHandler::class => fn (ContainerInterface $c) => new PasskeyRegisterHandler(
+                $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
             ),
 
             TotpEnrollHandler::class => fn (ContainerInterface $c) => new TotpEnrollHandler(
@@ -402,6 +447,10 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(DicewareGenerator::class),
                 $c->get(RandomPasswordGenerator::class),
+            ),
+
+            \LexNova\Console\InstallPrepareCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\InstallPrepareCommand(
+                $c->get(InstallService::class),
             ),
 
             \LexNova\Console\UserSetPasswordCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\UserSetPasswordCommand(

@@ -22,6 +22,12 @@
 <div class="notice warning" role="status">Twig-Template-Cache ist deaktiviert. In <code>configs/config.toml</code> aktivieren: <code>[twig]</code> <code>cache = true</code></div>
 {% endif %}
 
+<div class="card">
+    <h2>Passkeys</h2>
+    <p>Passkeys ermöglichen eine passwortlose Anmeldung mit dem Geräte- oder Sicherheitsschlüssel.</p>
+    <button type="button" onclick="lexnovaRegisterPasskey()">Passkey hinzufügen</button>
+</div>
+
 {# ── Create user ────────────────────────────────────────────────────────── #}
 <div class="card">
     <h2>{{ trans('Create User') }}</h2>
@@ -329,6 +335,29 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+(() => {
+    const csrf = {{ csrf_token|json_encode|raw }};
+    const b64 = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')), c => c.charCodeAt(0));
+    const b64url = value => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const post = async (url, data) => (await fetch(url, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({__csrf:csrf,...data}), credentials:'same-origin'})).json();
+    window.lexnovaRegisterPasskey = async () => {
+        try {
+            const label = window.prompt('Name für diesen Passkey', 'Passkey'); if (label === null) return;
+            const options = await post('/admin/passkeys/register/options', {}); if (options.error) throw new Error(options.error);
+            options.challenge = b64(options.challenge); options.user.id = b64(options.user.id);
+            if (options.excludeCredentials) options.excludeCredentials.forEach(c => c.id = b64(c.id));
+            const credential = await navigator.credentials.create({publicKey: options});
+            const payload = {id:credential.id, rawId:b64url(credential.rawId), type:credential.type, response:{
+                clientDataJSON:b64url(credential.response.clientDataJSON), attestationObject:b64url(credential.response.attestationObject),
+                transports: credential.response.getTransports ? credential.response.getTransports() : []
+            }};
+            const result = await post('/admin/passkeys/register/finish', {label, credential:JSON.stringify(payload)});
+            if (result.error) throw new Error(result.error); window.location.assign(result.redirect);
+        } catch (error) { window.alert(error.message || 'Passkey-Registrierung fehlgeschlagen.'); }
+    };
+})();
+</script>
 <script src="/assets/zxcvbn.js"></script>
 <script>
 (function () {
@@ -558,4 +587,3 @@
 </details>
 {% endif %}
 {% endblock %}
-

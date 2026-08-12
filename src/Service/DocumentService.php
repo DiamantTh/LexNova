@@ -48,7 +48,9 @@ final readonly class DocumentService
      * If $language is provided, tries an exact BCP 47 match first, then falls
      * back to the newest document of that type regardless of language.
      * The cache key includes the requested language so each variant is cached
-     * independently; the fallback result is stored under the original key only.
+     * independently. Every generated key is indexed per entity/type and is
+     * invalidated on any write, including a document being moved to a different
+     * entity or type.
      */
     /** @return array<string, mixed>|null */
     public function findLatest(int $entityId, string $type, ?string $language = null): ?array
@@ -59,7 +61,10 @@ final readonly class DocumentService
             : "doc_latest_{$entityId}_{$type}";
 
         if ($this->cache->has($cacheKey)) {
-            return $this->cache->get($cacheKey);
+            /** @var array{found: bool, document: array<string, mixed>|null} $cached */
+            $cached = $this->cache->get($cacheKey);
+
+            return $cached['document'];
         }
 
         $base = $this->db->createQueryBuilder()
@@ -82,7 +87,7 @@ final readonly class DocumentService
                 ->fetchAssociative();
 
             if ($row !== false) {
-                $this->cache->set($cacheKey, $row, 3600);
+                $this->storeCachedResult($entityId, $type, $cacheKey, $row);
 
                 return $row;
             }
@@ -91,7 +96,7 @@ final readonly class DocumentService
         // No language requested or no exact match → newest of any language
         $row = $base->setMaxResults(1)->executeQuery()->fetchAssociative();
         $result = $row ?: null;
-        $this->cache->set($cacheKey, $result, 3600);
+        $this->storeCachedResult($entityId, $type, $cacheKey, $result);
 
         return $result;
     }
@@ -108,13 +113,15 @@ final readonly class DocumentService
         ]);
 
         $id = (int) $this->db->lastInsertId();
-        $this->cache->delete("doc_latest_{$entityId}_{$type}");
+        $this->invalidate($entityId, $type);
 
         return $id;
     }
 
     public function update(int $id, int $entityId, string $type, string $language, string $content, string $version): void
     {
+        $previous = $this->findById($id);
+
         $this->db->update('legal_documents', [
             'entity_id' => $entityId,
             'type' => $type,
@@ -124,7 +131,10 @@ final readonly class DocumentService
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $id]);
 
-        $this->cache->delete("doc_latest_{$entityId}_{$type}");
+        if ($previous !== null) {
+            $this->invalidate((int) $previous['entity_id'], (string) $previous['type']);
+        }
+        $this->invalidate($entityId, $type);
     }
 
     /**
@@ -154,7 +164,36 @@ final readonly class DocumentService
         $row = $this->findById($id);
         $this->db->delete('legal_documents', ['id' => $id]);
         if ($row !== null) {
-            $this->cache->delete("doc_latest_{$row['entity_id']}_{$row['type']}");
+            $this->invalidate((int) $row['entity_id'], (string) $row['type']);
         }
+    }
+
+    /** @param array<string, mixed>|null $document */
+    private function storeCachedResult(int $entityId, string $type, string $key, ?array $document): void
+    {
+        $this->cache->set($key, ['found' => $document !== null, 'document' => $document], 3600);
+
+        $indexKey = $this->indexKey($entityId, $type);
+        /** @var list<string> $keys */
+        $keys = $this->cache->get($indexKey, []);
+        if (!in_array($key, $keys, true)) {
+            $keys[] = $key;
+            $this->cache->set($indexKey, $keys, 3600);
+        }
+    }
+
+    private function invalidate(int $entityId, string $type): void
+    {
+        $indexKey = $this->indexKey($entityId, $type);
+        /** @var list<string> $keys */
+        $keys = $this->cache->get($indexKey, []);
+        $keys[] = "doc_latest_{$entityId}_{$type}";
+        $this->cache->deleteMultiple(array_unique($keys));
+        $this->cache->delete($indexKey);
+    }
+
+    private function indexKey(int $entityId, string $type): string
+    {
+        return "doc_cache_index_{$entityId}_{$type}";
     }
 }
