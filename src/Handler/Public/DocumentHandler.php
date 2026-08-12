@@ -20,6 +20,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         private readonly DocumentService $documents,
         private readonly TemplateRendererInterface $renderer,
         private readonly NotFoundHandler $notFound,
+        private readonly string $baseUrl,
     ) {
     }
 
@@ -48,18 +49,17 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         }
 
         $variants = [];
-        $publicUri = $request->getUri()->withQuery('')->withFragment('');
         foreach ($this->documents->listPublicVariants((int) $entity['id'], $type) as $language => $variantHash) {
-            $variants[$language] = (string) $publicUri->withQuery(http_build_query([
+            $variants[$language] = $this->publicUrl([
                 'typ' => $type,
                 'hash' => $variantHash,
-            ]));
+            ]);
         }
 
-        $canonicalUrl = (string) $publicUri->withQuery(http_build_query([
+        $canonicalUrl = $this->publicUrl([
             'typ' => $type,
             'hash' => $hash,
-        ]));
+        ]);
 
         return (new HtmlResponse($this->renderer->render('public/document', [
             'error' => null,
@@ -70,5 +70,11 @@ final readonly class DocumentHandler implements RequestHandlerInterface
             'canonical_url' => $canonicalUrl,
             'variants' => $variants,
         ])))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    }
+
+    /** @param array{typ: string, hash: string} $query */
+    private function publicUrl(array $query): string
+    {
+        return rtrim($this->baseUrl, '/') . '/out.php?' . http_build_query($query);
     }
 }

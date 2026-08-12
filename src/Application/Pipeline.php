@@ -7,6 +7,7 @@ namespace LexNova\Application;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Middleware\InstalledCheckMiddleware;
+use LexNova\Middleware\SecurityHeadersMiddleware;
 use Mezzio\Application;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\MiddlewareFactory;
@@ -19,6 +20,7 @@ final class Pipeline
 {
     public static function configure(Application $app, MiddlewareFactory $factory, ContainerInterface $container): void
     {
+        $app->pipe(SecurityHeadersMiddleware::class);
         $app->pipe(ErrorHandler::class);
         $app->pipe(InstalledCheckMiddleware::class);
         $app->pipe(RouteMiddleware::class);

@@ -24,6 +24,7 @@ use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
+use LexNova\Middleware\SecurityHeadersMiddleware;
 use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
@@ -340,6 +341,14 @@ final class ContainerFactory
 
             DocumentService::class => fn (ContainerInterface $c) => new DocumentService($c->get(Connection::class), $c->get(CacheInterface::class)),
 
+            \LexNova\Handler\Public\DocumentHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Public\DocumentHandler(
+                $c->get(EntityService::class),
+                $c->get(DocumentService::class),
+                $c->get(TemplateRendererInterface::class),
+                $c->get(NotFoundHandler::class),
+                (string) ($c->get('config')['app']['base_url'] ?? ''),
+            ),
+
             TotpService::class => fn (ContainerInterface $c) => new TotpService(
                 appKey: (string) ($c->get('config')['security']['totp_app_key'] ?? ''),
                 digits: (int) ($c->get('config')['security']['totp']['digits'] ?? 8),
@@ -475,6 +484,8 @@ final class ContainerFactory
             InstalledCheckMiddleware::class => fn (ContainerInterface $c) => new InstalledCheckMiddleware(
                 $c->get(InstallService::class),
             ),
+
+            SecurityHeadersMiddleware::class => fn () => new SecurityHeadersMiddleware(),
 
             // ── Error handling ───────────────────────────────────────────────────────
             // Replace Mezzio's default plain-text 404/500 responses with styled templates.

@@ -80,8 +80,14 @@ $renderer = new class implements TemplateRendererInterface {
 };
 
 $notFound = new NotFoundHandler($renderer);
-$handler = new DocumentHandler(new EntityService($db), $documents, $renderer, $notFound);
-$uri = new Uri('https://example.test/out.php');
+$handler = new DocumentHandler(
+    new EntityService($db),
+    $documents,
+    $renderer,
+    $notFound,
+    'https://legal.example.test',
+);
+$uri = new Uri('https://attacker-controlled.example/out.php');
 $validRequest = (new ServerRequest([], [], $uri, 'GET'))->withQueryParams([
     'typ' => 'imprint',
     'hash' => $publicHash,
@@ -90,8 +96,8 @@ $validResponse = $handler->handle($validRequest);
 $check($validResponse->getStatusCode() === 200, 'Valid type/hash pair was not rendered.');
 $check($renderer->lastParams['doc']['id'] === $documentId, 'Wrong document was rendered.');
 $check(
-    str_contains((string) $renderer->lastParams['canonical_url'], '/out.php?typ=imprint&hash='),
-    'Canonical URL does not use out.php.',
+    str_starts_with((string) $renderer->lastParams['canonical_url'], 'https://legal.example.test/out.php?typ=imprint&hash='),
+    'Canonical URL does not use the configured base URL.',
 );
 
 $wrongTypeRequest = $validRequest->withQueryParams([

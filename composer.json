@@ -58,7 +58,8 @@
         "test:security": [
             "@php tests/Security/EmailExtensionTest.php",
             "@php tests/Security/RateLimitServiceTest.php",
-            "@php tests/Security/TotpEncryptionTest.php"
+            "@php tests/Security/TotpEncryptionTest.php",
+            "@php tests/Security/SecurityHeadersMiddlewareTest.php"
         ],
         "test": ["@test:integration", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]
