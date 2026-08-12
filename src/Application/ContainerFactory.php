@@ -28,6 +28,7 @@ use LexNova\Middleware\SecurityHeadersMiddleware;
 use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
+use LexNova\Service\InstallRateLimitService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasskeyService;
 use LexNova\Service\Password\BreachedPasswordCheckerInterface;
@@ -359,6 +360,13 @@ final class ContainerFactory
 
             InstallService::class => fn (ContainerInterface $c) => new InstallService($c->get('config')),
 
+            InstallRateLimitService::class => fn (ContainerInterface $c) => new InstallRateLimitService(
+                $root . '/var/cache/install-rate-limit',
+                $c->get(ClockInterface::class),
+                maxAttempts: (int) ($c->get('config')['security']['rate_limit']['max_attempts'] ?? 5),
+                blockSeconds: (int) ($c->get('config')['security']['rate_limit']['block_seconds'] ?? 300),
+            ),
+
             RateLimitService::class => fn (ContainerInterface $c) => new RateLimitService(
                 $c->get(Connection::class),
                 $c->get(ClockInterface::class),
@@ -371,6 +379,7 @@ final class ContainerFactory
             // ── Handlers: Install ───────────────────────────────────────────────────
             \LexNova\Handler\Install\InstallHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Install\InstallHandler(
                 $c->get(InstallService::class),
+                $c->get(InstallRateLimitService::class),
                 $c->get(PasswordService::class),
                 $c->get(TemplateRendererInterface::class),
                 $c->get('config'),

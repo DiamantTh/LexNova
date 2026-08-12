@@ -1,5 +1,6 @@
 <div class="card" style="max-width:640px;margin:0 auto;">
     <form method="post" action="/install">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <input type="hidden" name="action" value="install">
 
         {# ── Install-Passwort (muss bei jedem Absenden mitgesendet werden) ── #}

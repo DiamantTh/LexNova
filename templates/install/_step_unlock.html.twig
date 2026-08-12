@@ -45,6 +45,7 @@
         <p>Install-Passwort wird initialisiert — bitte Seite neu laden.</p>
     {% else %}
     <form method="post" action="/install">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
         <div style="margin-bottom:16px;">
             <label for="install_pw">Install-Passwort</label>
             <input type="password" id="install_pw" name="install_pw" required autocomplete="off"

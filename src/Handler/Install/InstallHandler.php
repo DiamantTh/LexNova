@@ -9,8 +9,10 @@ use LexNova\Handler\Install\Step\ConfigureStep;
 use LexNova\Handler\Install\Step\InitStep;
 use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Handler\Install\Step\UnlockStep;
+use LexNova\Service\InstallRateLimitService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -30,6 +32,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly InstallService $install,
+        private readonly InstallRateLimitService $rateLimit,
         private readonly PasswordService $passwords,
         private readonly TemplateRendererInterface $renderer,
         /** @var array<string, mixed> */
@@ -39,6 +42,8 @@ final readonly class InstallHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+
         // Already installed — render the "done" step so the user gets a helpful
         // message instead of a hard 404.
         if ($this->install->isLocked()) {
@@ -49,6 +54,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'generatedPassword' => null,
                 'installReady' => true,
                 'formData' => [],
+                'csrf_token' => $guard->generateToken(),
             ]));
         }
 
@@ -68,9 +74,19 @@ final readonly class InstallHandler implements RequestHandlerInterface
         $installerUnlocked = false;
         $formData = [];
 
-        if ($request->getMethod() === 'POST' && $installReady) {
+        $csrfValid = true;
+        if ($request->getMethod() === 'POST') {
+            $submittedBody = (array) ($request->getParsedBody() ?? []);
+            $csrfValid = $guard->validateToken((string) ($submittedBody['__csrf'] ?? ''));
+            if (!$csrfValid) {
+                $errors[] = 'Invalid session token.';
+            }
+        }
+
+        if ($request->getMethod() === 'POST' && $installReady && $csrfValid) {
             $body = (array) ($request->getParsedBody() ?? []);
             $action = trim((string) ($body['action'] ?? ''));
+            $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
             $defaultDbPath = $root . '/data/lexnova.sqlite';
 
@@ -92,9 +108,19 @@ final readonly class InstallHandler implements RequestHandlerInterface
             ];
 
             // ── Step: Unlock ──────────────────────────────────────────────
-            $unlock = (new UnlockStep())->handle($this->install, (string) ($body['install_pw'] ?? ''));
-            $errors = array_merge($errors, $unlock['errors']);
-            $installerUnlocked = $unlock['installerUnlocked'];
+            if ($this->rateLimit->isBlocked($ip)) {
+                $seconds = $this->rateLimit->secondsRemaining($ip);
+                $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
+            } else {
+                $unlock = (new UnlockStep())->handle($this->install, (string) ($body['install_pw'] ?? ''));
+                $errors = array_merge($errors, $unlock['errors']);
+                $installerUnlocked = $unlock['installerUnlocked'];
+                if ($installerUnlocked) {
+                    $this->rateLimit->recordSuccess($ip);
+                } else {
+                    $this->rateLimit->recordFailure($ip);
+                }
+            }
 
             // ── Step: Configure ───────────────────────────────────────────
             if ($action === 'install' && $installerUnlocked) {
@@ -118,6 +144,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'installReady' => true,
                         'formData' => [],
                         'operator_name' => $configure['operator_name'] ?? null,
+                        'csrf_token' => $guard->generateToken(),
                     ]));
                 }
 
@@ -135,6 +162,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
             'installReady' => $installReady,
             'formData' => $formData,
             'prereq' => $prereq,
+            'csrf_token' => $guard->generateToken(),
         ]));
     }
 }
