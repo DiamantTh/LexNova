@@ -220,8 +220,8 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 ## Öffentliche URLs
 
 ```
-/out.php?type=imprint&hash={document-hash}
-/out.php?type=privacy&hash={document-hash}
+/out.php?typ=imprint&hash={document-hash}
+/out.php?typ=privacy&hash={document-hash}
 ```
 
 `out.php` ist keine zweite PHP-Datei. Apache leitet diese virtuelle URL über

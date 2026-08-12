@@ -25,7 +25,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
     {
         $query = $request->getQueryParams();
         $hash = is_string($query['hash'] ?? null) ? strtolower($query['hash']) : '';
-        $type = is_string($query['type'] ?? null) ? strtolower($query['type']) : '';
+        $type = is_string($query['typ'] ?? null) ? strtolower($query['typ']) : '';
 
         if (!in_array($type, ['imprint', 'privacy'], true) || preg_match('/^[0-9a-f]{32}$/D', $hash) !== 1) {
             return $this->errorResponse('Invalid document type or hash.', $type, 400);
@@ -49,13 +49,13 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $publicUri = $request->getUri()->withQuery('')->withFragment('');
         foreach ($this->documents->listPublicVariants((int) $entity['id'], $type) as $language => $variantHash) {
             $variants[$language] = (string) $publicUri->withQuery(http_build_query([
-                'type' => $type,
+                'typ' => $type,
                 'hash' => $variantHash,
             ]));
         }
 
         $canonicalUrl = (string) $publicUri->withQuery(http_build_query([
-            'type' => $type,
+            'typ' => $type,
             'hash' => $hash,
         ]));
 

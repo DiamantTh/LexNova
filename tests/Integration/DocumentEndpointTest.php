@@ -77,25 +77,25 @@ $renderer = new class implements TemplateRendererInterface {
 $handler = new DocumentHandler(new EntityService($db), $documents, $renderer);
 $uri = new Uri('https://example.test/out.php');
 $validRequest = (new ServerRequest([], [], $uri, 'GET'))->withQueryParams([
-    'type' => 'imprint',
+    'typ' => 'imprint',
     'hash' => $publicHash,
 ]);
 $validResponse = $handler->handle($validRequest);
 $check($validResponse->getStatusCode() === 200, 'Valid type/hash pair was not rendered.');
 $check($renderer->lastParams['doc']['id'] === $documentId, 'Wrong document was rendered.');
 $check(
-    str_contains((string) $renderer->lastParams['canonical_url'], '/out.php?type=imprint&hash='),
+    str_contains((string) $renderer->lastParams['canonical_url'], '/out.php?typ=imprint&hash='),
     'Canonical URL does not use out.php.',
 );
 
 $wrongTypeRequest = $validRequest->withQueryParams([
-    'type' => 'privacy',
+    'typ' => 'privacy',
     'hash' => $publicHash,
 ]);
 $check($handler->handle($wrongTypeRequest)->getStatusCode() === 404, 'Hash was accepted for the wrong type.');
 
 $invalidHashRequest = $validRequest->withQueryParams([
-    'type' => 'imprint',
+    'typ' => 'imprint',
     'hash' => '../config',
 ]);
 $check($handler->handle($invalidHashRequest)->getStatusCode() === 400, 'Malformed hash was accepted.');
