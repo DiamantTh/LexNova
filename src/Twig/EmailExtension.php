@@ -61,8 +61,13 @@ final class EmailExtension extends AbstractExtension
     }
 
     /**
-     * Kodiert jeden Buchstaben/jede Ziffer zufällig als &#dd; oder &#xhh;,
-     * Sonderzeichen (@, .) als &#dd; – identisch zu WP antispambot().
+     * Kodiert jedes Zeichen als numerische HTML-Entity.
+     *
+     * Der Filter wird auch auf mehrzeiligen Freitext angewandt und als HTML-safe
+     * registriert. Deshalb darf er niemals ein Originalzeichen durchreichen:
+     * andernfalls könnten gespeicherte Tags oder Event-Attribute ausführbar
+     * werden. Numerische Entities werden vom HTML-Parser als Textzeichen
+     * ausgegeben und nicht erneut als Markup interpretiert.
      */
     public function obfuscate(string $email): string
     {
@@ -77,12 +82,7 @@ final class EmailExtension extends AbstractExtension
             $char = mb_substr($email, $i, 1, 'UTF-8');
             $code = mb_ord($char, 'UTF-8');
 
-            // @ immer als Entity, Rest 50/50 dezimal/hex vs. plain
-            if ($char === '@') {
-                $out .= '&#' . $code . ';';
-            } elseif (random_int(0, 2) === 0) {
-                $out .= $char; // gelegentlich plain lassen (erschwert Regex-Harvesting)
-            } elseif (random_int(0, 1) === 0) {
+            if (random_int(0, 1) === 0) {
                 $out .= '&#' . $code . ';';
             } else {
                 $out .= '&#x' . dechex($code) . ';';

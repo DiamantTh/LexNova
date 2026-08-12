@@ -55,7 +55,9 @@
         "cs-check": "php-cs-fixer check --diff",
         "cs-fix": "php-cs-fixer fix",
         "test:integration": "@php tests/Integration/DocumentEndpointTest.php",
-        "qa": ["@analyse", "@cs-check"]
+        "test:security": "@php tests/Security/EmailExtensionTest.php",
+        "test": ["@test:integration", "@test:security"],
+        "qa": ["@analyse", "@cs-check", "@test"]
     },
     "config": {
         "sort-packages": true,
