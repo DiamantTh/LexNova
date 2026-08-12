@@ -382,6 +382,7 @@ final class ContainerFactory
                 $c->get(InstallRateLimitService::class),
                 $c->get(PasswordService::class),
                 $c->get(TemplateRendererInterface::class),
+                $c->get(LoggerInterface::class),
                 $c->get('config'),
             ),
 

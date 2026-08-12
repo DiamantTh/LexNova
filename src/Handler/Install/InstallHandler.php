@@ -17,6 +17,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * Routes all /install requests through a three-step flow:
@@ -35,6 +36,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         private readonly InstallRateLimitService $rateLimit,
         private readonly PasswordService $passwords,
         private readonly TemplateRendererInterface $renderer,
+        private readonly LoggerInterface $logger,
         /** @var array<string, mixed> */
         private readonly array $config,
     ) {
@@ -130,6 +132,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                     $formData,
                     $security,
                     $root,
+                    $this->logger,
                 );
 
                 if ($configure['completed']) {

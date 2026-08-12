@@ -7,6 +7,7 @@ namespace LexNova\Handler\Install\Step;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
 use Locale;
+use Psr\Log\LoggerInterface;
 
 /**
  * Validates all installation inputs, creates the database schema, inserts the
@@ -28,6 +29,7 @@ final class ConfigureStep
         array $formData,
         array $securityConfig,
         string $root,
+        LoggerInterface $logger,
     ): array {
         $errors = $this->validate($formData, $passwords);
 
@@ -39,7 +41,20 @@ final class ConfigureStep
             return ['errors' => $errors, 'completed' => false];
         }
 
+        $lockHandle = fopen($root . '/data/install.run.lock', 'c+');
+        if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            if (is_resource($lockHandle)) {
+                fclose($lockHandle);
+            }
+
+            return ['errors' => ['Another installation process is already running.'], 'completed' => false];
+        }
+
         try {
+            if ($install->configExists()) {
+                return ['errors' => ['Configuration already exists. Remove config/config.toml to reinstall.'], 'completed' => false];
+            }
+
             $dsn = $this->buildDsn($formData);
             $pdoUser = $formData['dbUser'] !== '' ? $formData['dbUser'] : null;
             $pdoPass = $formData['dbPassword'] !== '' ? $formData['dbPassword'] : null;
@@ -91,9 +106,16 @@ final class ConfigureStep
 
             $install->lock();
         } catch (\PDOException $e) {
-            return ['errors' => ['Database error: ' . $e->getMessage()], 'completed' => false];
+            $logger->error('LexNova installation database setup failed.', ['exception' => $e]);
+
+            return ['errors' => ['Database setup failed. Check the connection details and server log.'], 'completed' => false];
         } catch (\Throwable $e) {
-            return ['errors' => ['Installation failed: ' . $e->getMessage()], 'completed' => false];
+            $logger->error('LexNova installation failed.', ['exception' => $e]);
+
+            return ['errors' => ['Installation failed. Check the server log for details.'], 'completed' => false];
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
         }
 
         return [
@@ -116,6 +138,7 @@ final class ConfigureStep
         $dbHost = $formData['dbHost'] ?? '';
         $dbName = $formData['dbName'] ?? '';
         $dbPath = $formData['dbPath'] ?? '';
+        $dbPort = $formData['dbPort'] ?? '';
 
         if (!in_array($dbType, ['sqlite', 'mysql', 'pgsql'], true)) {
             $errors[] = 'Unsupported database type.';
@@ -123,6 +146,18 @@ final class ConfigureStep
             $errors[] = 'SQLite file path is required.';
         } elseif (in_array($dbType, ['mysql', 'pgsql'], true) && ($dbHost === '' || $dbName === '')) {
             $errors[] = 'Database host and name are required.';
+        } elseif (in_array($dbType, ['mysql', 'pgsql'], true)
+            && preg_match('/^[a-zA-Z0-9_.:-]{1,255}$/D', $dbHost) !== 1
+        ) {
+            $errors[] = 'Database host contains unsupported characters.';
+        } elseif (in_array($dbType, ['mysql', 'pgsql'], true)
+            && preg_match('/^[a-zA-Z0-9_.-]{1,128}$/D', $dbName) !== 1
+        ) {
+            $errors[] = 'Database name contains unsupported characters.';
+        } elseif ($dbPort !== '' && (filter_var($dbPort, FILTER_VALIDATE_INT) === false
+            || (int) $dbPort < 1 || (int) $dbPort > 65535)
+        ) {
+            $errors[] = 'Database port must be between 1 and 65535.';
         }
 
         // ── Admin account ──────────────────────────────────────────────────
@@ -130,8 +165,8 @@ final class ConfigureStep
         $adminPassword = $formData['adminPassword'] ?? '';
         $adminConfirm = $formData['adminConfirm'] ?? '';
 
-        if ($adminUsername === '') {
-            $errors[] = 'Admin username is required.';
+        if (preg_match('/^[a-zA-Z0-9_.@+-]{3,100}$/D', $adminUsername) !== 1) {
+            $errors[] = 'Admin username must be 3–100 characters and may contain letters, digits, ., _, @, + and -.';
         }
 
         if ($adminPassword === '') {
@@ -165,10 +200,14 @@ final class ConfigureStep
 
         if ($operatorName === '') {
             $errors[] = 'Operator name is required (for your own imprint / privacy page).';
+        } elseif (mb_strlen($operatorName, 'UTF-8') > 255) {
+            $errors[] = 'Operator name must not exceed 255 characters.';
         }
 
         if ($operatorContact === '') {
             $errors[] = 'Operator contact data is required (address, e-mail, etc.).';
+        } elseif (strlen($operatorContact) > 65535) {
+            $errors[] = 'Operator contact data must not exceed 65535 bytes.';
         }
 
         return $errors;
@@ -199,7 +238,11 @@ final class ConfigureStep
     private function isValidBaseUrl(string $url): bool
     {
         $parsed = parse_url($url);
-        if (!is_array($parsed) || !isset($parsed['scheme'], $parsed['host']) || isset($parsed['query'], $parsed['fragment'])) {
+        if (!is_array($parsed)
+            || !isset($parsed['scheme'], $parsed['host'])
+            || isset($parsed['query'], $parsed['fragment'], $parsed['user'], $parsed['pass'])
+            || (isset($parsed['path']) && $parsed['path'] !== '' && $parsed['path'] !== '/')
+        ) {
             return false;
         }
 

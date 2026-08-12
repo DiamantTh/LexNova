@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\EntityInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\EntityService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -48,15 +49,22 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
-        $name = trim((string) ($body['name'] ?? ''));
-        $contactData = trim(str_replace(["\r\n", "\r"], "\n", (string) ($body['contact_data'] ?? '')));
+        $filter = new EntityInputFilter();
+        $filter->setData($body);
 
-        if ($name === '' || $contactData === '') {
-            $session->set('flash_errors', ['Name and contact data are required.']);
+        if (!$filter->isValid()) {
+            $messages = [];
+            foreach ($filter->getMessages() as $fieldMessages) {
+                $messages = array_merge($messages, array_values($fieldMessages));
+            }
+            $session->set('flash_errors', $messages);
 
             return new RedirectResponse('/admin?entity_id=' . $id);
         }
 
+        $values = $filter->getValues();
+        $name = $values['name'];
+        $contactData = $values['contact_data'];
         $this->entities->update($id, $name, $contactData);
 
         $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');

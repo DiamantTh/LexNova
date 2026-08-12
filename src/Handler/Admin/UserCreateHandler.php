@@ -45,8 +45,10 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         $role = (string) ($body['role'] ?? 'admin');
         $errors = [];
 
-        if ($username === '' || $password === '') {
-            $errors[] = 'Username and password are required.';
+        if (preg_match('/^[a-zA-Z0-9_.@+-]{3,100}$/D', $username) !== 1) {
+            $errors[] = 'Username must be 3–100 characters and may contain letters, digits, ., _, @, + and -.';
+        } elseif ($password === '') {
+            $errors[] = 'Password is required.';
         } elseif ($password !== $passwordConfirm) {
             $errors[] = 'Passwords do not match.';
         } elseif (($pwErr = $this->passwords->validate($password)) !== null) {

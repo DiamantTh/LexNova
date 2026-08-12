@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\EntityInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\EntityService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -35,12 +36,15 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
-        $name = trim((string) ($body['name'] ?? ''));
-        $contactData = trim(str_replace(["\r\n", "\r"], "\n", (string) ($body['contact_data'] ?? '')));
+        $filter = new EntityInputFilter();
+        $filter->setData($body);
 
-        if ($name === '' || $contactData === '') {
-            $session->set('flash_errors', ['Name and contact data are required.']);
+        if (!$filter->isValid()) {
+            $session->set('flash_errors', $this->messages($filter->getMessages()));
         } else {
+            $values = $filter->getValues();
+            $name = $values['name'];
+            $contactData = $values['contact_data'];
             $entity = $this->entities->create($name, $contactData);
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->audit->log(
@@ -55,5 +59,14 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
         }
 
         return new RedirectResponse('/admin');
+    }
+
+    /**
+     * @param  array<string, array<string, string>> $messages
+     * @return list<string>
+     */
+    private function messages(array $messages): array
+    {
+        return array_merge(...array_map('array_values', array_values($messages)));
     }
 }

@@ -52,7 +52,9 @@ final readonly class LoginHandler implements RequestHandlerInterface
             } else {
                 $username = trim((string) ($body['username'] ?? ''));
                 $password = (string) ($body['password'] ?? '');
-                $user = $this->users->verifyCredentials($username, $password);
+                $inputWithinLimits = strlen($username) <= 100
+                    && strlen($password) <= 256;
+                $user = $inputWithinLimits ? $this->users->verifyCredentials($username, $password) : null;
 
                 if ($user !== null) {
                     $this->rateLimit->recordSuccess($ip, 'login');

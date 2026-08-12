@@ -9,6 +9,7 @@ use Laminas\Filter\StringTrim;
 use Laminas\InputFilter\Input;
 use Laminas\InputFilter\InputFilter;
 use Laminas\Validator\Callback;
+use Laminas\Validator\Digits;
 use Laminas\Validator\InArray;
 use Laminas\Validator\NotEmpty;
 use Laminas\Validator\StringLength;
@@ -37,7 +38,8 @@ final class DocumentInputFilter extends InputFilter
         $input->getFilterChain()
             ->attach(new StringTrim());
         $input->getValidatorChain()
-            ->attach(new NotEmpty());
+            ->attach(new NotEmpty())
+            ->attach(new Digits());
 
         return $input;
     }
@@ -91,7 +93,8 @@ final class DocumentInputFilter extends InputFilter
             ))
             ->attach(new StringTrim());
         $input->getValidatorChain()
-            ->attach(new NotEmpty());
+            ->attach(new NotEmpty())
+            ->attach(new StringLength(['max' => 1000000]));
 
         return $input;
     }
