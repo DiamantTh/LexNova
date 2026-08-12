@@ -69,6 +69,7 @@ final class PrerequisiteCheck
         $dirs = [
             'data' => true,
             'config' => true,
+            'var' => false,
         ];
 
         foreach ($dirs as $dir => $required) {
