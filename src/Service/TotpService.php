@@ -114,12 +114,11 @@ final readonly class TotpService
 
     /**
      * Encrypts a Base32 TOTP secret using XSalsa20-Poly1305 (libsodium).
-     * Falls back to plain text when no app key is available (pre-install).
      */
     public function encrypt(string $secret): string
     {
         if (!$this->hasKey()) {
-            return $secret;
+            throw new \RuntimeException('TOTP encryption key is missing or invalid.');
         }
 
         $key = sodium_hex2bin($this->appKey);
@@ -136,7 +135,7 @@ final readonly class TotpService
     public function decrypt(string $stored): ?string
     {
         if (!$this->hasKey()) {
-            return $stored; // no-op encryption fallback
+            return null;
         }
 
         try {

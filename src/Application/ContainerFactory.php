@@ -98,21 +98,20 @@ final class ContainerFactory
 
         // ── Config loading: config.toml when installed, empty array before ───────
         $configToml = $root . '/config/config.toml';
-        $config = is_file($configToml)
+        $instanceConfig = is_file($configToml)
             ? toml_decode((string) file_get_contents($configToml), asArray: true)
             : [];
+        $config = [];
 
-        // Security config ships in the repository and is always loaded separately.
-        // Merge: config.toml [security] (user settings like totp_app_key) wins first,
-        // then security.toml values are overlaid (repo-managed policy takes precedence).
+        // Repository settings are defaults. Instance-specific config.toml values
+        // are applied afterwards so documented options such as HIBP and rate-limit
+        // tuning actually take effect on the installed system.
         $securityToml = $root . '/config/security.toml';
         if (is_file($securityToml)) {
             $repoSecurity = toml_decode((string) file_get_contents($securityToml), asArray: true);
-            $config['security'] = array_replace_recursive(
-                $config['security'] ?? [],
-                $repoSecurity,
-            );
+            $config['security'] = $repoSecurity;
         }
+        $config = array_replace_recursive($config, $instanceConfig);
 
         // ── Runtime path defaults ─────────────────────────────────────────────────
         // Applied when no config.toml exists yet (pre-install) or when a value is absent.

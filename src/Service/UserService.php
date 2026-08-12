@@ -8,6 +8,12 @@ use Doctrine\DBAL\Connection;
 
 final readonly class UserService
 {
+    /**
+     * Valid Argon2id hash used to keep failed login timing comparable when a
+     * username does not exist. Authentication still always fails for this row.
+     */
+    private const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=131072,t=4,p=2$dER4OE9RUVNVSWk4ODdhSA$UoC4SfZrDYxzxi7i7AJvhTmYV+NUqu0u+ZQFxkecLfY';
+
     public function __construct(
         private readonly Connection $db,
         private readonly PasswordService $passwords,
@@ -66,12 +72,16 @@ final readonly class UserService
     public function verifyCredentials(string $username, string $password): ?array
     {
         $user = $this->findByUsername($username);
-        if ($user === null) {
+        $hash = $user !== null ? (string) $user['password_hash'] : self::DUMMY_PASSWORD_HASH;
+
+        if (!$this->passwords->verify($password, $hash) || $user === null) {
             return null;
         }
 
-        if (!$this->passwords->verify($password, (string) $user['password_hash'])) {
-            return null;
+        if ($this->passwords->needsRehash($hash)) {
+            $newHash = $this->passwords->hash($password);
+            $this->db->update('users', ['password_hash' => $newHash], ['id' => (int) $user['id']]);
+            $user['password_hash'] = $newHash;
         }
 
         return $user;
