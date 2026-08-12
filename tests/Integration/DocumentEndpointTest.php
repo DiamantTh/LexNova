@@ -7,10 +7,13 @@ use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Uri;
 use LexNova\Application\ContainerFactory;
 use LexNova\Application\Routes;
+use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Handler\Public\DocumentHandler;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use Mezzio\Application;
+use Mezzio\Router\Middleware\DispatchMiddleware;
+use Mezzio\Router\Middleware\RouteMiddleware;
 use Mezzio\Router\RouterInterface;
 use Mezzio\Template\TemplatePath;
 use Mezzio\Template\TemplateRendererInterface;
@@ -51,9 +54,11 @@ $check(preg_match('/^[0-9a-f]{32}$/D', $publicHash) === 1, 'Document hash has th
 $renderer = new class implements TemplateRendererInterface {
     /** @var array<string, mixed> */
     public array $lastParams = [];
+    public string $lastTemplate = '';
 
     public function render(string $name, $params = []): string
     {
+        $this->lastTemplate = $name;
         $this->lastParams = (array) $params;
 
         return $name;
@@ -74,7 +79,8 @@ $renderer = new class implements TemplateRendererInterface {
     }
 };
 
-$handler = new DocumentHandler(new EntityService($db), $documents, $renderer);
+$notFound = new NotFoundHandler($renderer);
+$handler = new DocumentHandler(new EntityService($db), $documents, $renderer, $notFound);
 $uri = new Uri('https://example.test/out.php');
 $validRequest = (new ServerRequest([], [], $uri, 'GET'))->withQueryParams([
     'typ' => 'imprint',
@@ -93,12 +99,15 @@ $wrongTypeRequest = $validRequest->withQueryParams([
     'hash' => $publicHash,
 ]);
 $check($handler->handle($wrongTypeRequest)->getStatusCode() === 404, 'Hash was accepted for the wrong type.');
+$check($renderer->lastTemplate === 'error::404', 'Wrong document type did not use the central 404 template.');
 
 $invalidHashRequest = $validRequest->withQueryParams([
     'typ' => 'imprint',
     'hash' => '../config',
 ]);
-$check($handler->handle($invalidHashRequest)->getStatusCode() === 400, 'Malformed hash was accepted.');
+$invalidHashResponse = $handler->handle($invalidHashRequest);
+$check($invalidHashResponse->getStatusCode() === 404, 'Malformed hash did not return 404.');
+$check($invalidHashResponse->getHeaderLine('Cache-Control') === 'no-store', '404 response is cacheable.');
 
 $container = ContainerFactory::create();
 /** @var Application $app */
@@ -107,5 +116,19 @@ Routes::configure($app);
 $routeResult = $container->get(RouterInterface::class)->match(new ServerRequest([], [], $uri, 'GET'));
 $check($routeResult->isSuccess(), 'The virtual /out.php route does not match.');
 $check($routeResult->getMatchedRouteName() === 'document.view', 'The wrong route matched /out.php.');
+
+$missingUri = new Uri('https://example.test/nothing-here');
+$missingRequest = new ServerRequest([], [], $missingUri, 'GET');
+$missingRoute = $container->get(RouterInterface::class)->match($missingRequest);
+$check($missingRoute->isFailure(), 'An unknown URL unexpectedly matched a route.');
+$app->pipe(RouteMiddleware::class);
+$app->pipe(DispatchMiddleware::class);
+$app->pipe(NotFoundHandler::class);
+$renderedNotFound = $app->handle($missingRequest);
+$check($renderedNotFound->getStatusCode() === 404, 'Unknown URL did not return HTTP 404.');
+$check(
+    str_contains((string) $renderedNotFound->getBody(), 'Hier gibt es nichts zu finden.'),
+    'The styled Twig 404 template was not rendered.',
+);
 
 fwrite(STDOUT, "Document endpoint integration test: OK\n");

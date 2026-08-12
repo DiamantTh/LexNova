@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Public;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use Mezzio\Template\TemplateRendererInterface;
@@ -18,6 +19,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         private readonly EntityService $entities,
         private readonly DocumentService $documents,
         private readonly TemplateRendererInterface $renderer,
+        private readonly NotFoundHandler $notFound,
     ) {
     }
 
@@ -28,7 +30,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $type = is_string($query['typ'] ?? null) ? strtolower($query['typ']) : '';
 
         if (!in_array($type, ['imprint', 'privacy'], true) || preg_match('/^[0-9a-f]{32}$/D', $hash) !== 1) {
-            return $this->errorResponse('Invalid document type or hash.', $type, 400);
+            return $this->notFound->handle($request);
         }
 
         // Both values are matched against the same database row. A valid hash
@@ -36,13 +38,13 @@ final readonly class DocumentHandler implements RequestHandlerInterface
         $doc = $this->documents->findByPublicHashAndType($hash, $type);
 
         if ($doc === null) {
-            return $this->errorResponse('Document not found.', $type, 404);
+            return $this->notFound->handle($request);
         }
 
         $entity = $this->entities->findById((int) $doc['entity_id']);
 
         if ($entity === null) {
-            return $this->errorResponse('Document not found.', $type, 404);
+            return $this->notFound->handle($request);
         }
 
         $variants = [];
@@ -68,20 +70,5 @@ final readonly class DocumentHandler implements RequestHandlerInterface
             'canonical_url' => $canonicalUrl,
             'variants' => $variants,
         ])))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-    }
-
-    private function errorResponse(string $message, string $type, int $status): ResponseInterface
-    {
-        return (new HtmlResponse(
-            $this->renderer->render('public/document', [
-                'error' => $message,
-                'entity' => null,
-                'doc' => null,
-                'type' => in_array($type, ['imprint', 'privacy'], true) ? $type : 'imprint',
-                'locale' => 'de',
-                'variants' => [],
-            ]),
-            $status,
-        ))->withHeader('Cache-Control', 'no-store');
     }
 }

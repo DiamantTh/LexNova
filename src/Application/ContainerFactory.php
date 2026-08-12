@@ -21,6 +21,7 @@ use LexNova\Handler\Auth\PasskeyLoginHandler;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
+use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
 use LexNova\Service\AuditService;
@@ -477,10 +478,8 @@ final class ContainerFactory
 
             // ── Error handling ───────────────────────────────────────────────────────
             // Replace Mezzio's default plain-text 404/500 responses with styled templates.
-            \Mezzio\Handler\NotFoundHandler::class => fn (ContainerInterface $c) => new \Mezzio\Handler\NotFoundHandler(
-                $c->get(ResponseFactoryInterface::class),
+            NotFoundHandler::class => fn (ContainerInterface $c) => new NotFoundHandler(
                 $c->get(TemplateRendererInterface::class),
-                'error::404',
             ),
 
             ServerRequestErrorResponseGenerator::class => fn (ContainerInterface $c) => new ServerRequestErrorResponseGenerator(

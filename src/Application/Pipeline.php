@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace LexNova\Application;
 
 use Laminas\Stratigility\Middleware\ErrorHandler;
+use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Middleware\InstalledCheckMiddleware;
 use Mezzio\Application;
 use Mezzio\Csrf\CsrfMiddleware;
-use Mezzio\Handler\NotFoundHandler;
 use Mezzio\MiddlewareFactory;
 use Mezzio\Router\Middleware\DispatchMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;

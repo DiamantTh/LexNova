@@ -1,0 +1,49 @@
+{% extends 'layout.html.twig' %}
+
+{% block extra_styles %}
+    .error-shell { max-width: 760px; margin: clamp(36px, 9vh, 96px) auto 0; }
+    .error-brand {
+        display: flex; align-items: center; gap: 10px;
+        margin: 0 0 18px; color: #2f3a2f; font-weight: 700;
+        letter-spacing: .02em;
+    }
+    .error-brand-mark {
+        display: inline-grid; place-items: center; width: 34px; height: 34px;
+        border-radius: 10px; background: #2f3a2f; color: #fff;
+    }
+    .error-card { padding: clamp(24px, 5vw, 48px); }
+    .error-code {
+        display: inline-block; margin-bottom: 18px; padding: 5px 10px;
+        border-radius: 999px; background: #ece8df; color: #514a40;
+        font: 700 13px/1 "Trebuchet MS", sans-serif; letter-spacing: .12em;
+    }
+    .error-card h1 { font-size: clamp(30px, 6vw, 48px); line-height: 1.08; }
+    .error-message { max-width: 570px; margin: 18px 0 0; color: #5f574d; line-height: 1.65; }
+    .error-request {
+        margin: 22px 0 0; padding: 11px 13px; overflow-wrap: anywhere;
+        border: 1px solid #e1dacd; border-radius: 8px; background: #faf9f6;
+        color: #625a50; font-family: ui-monospace, monospace; font-size: 13px;
+    }
+    .error-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    .error-action {
+        display: inline-block; padding: 10px 18px; border-radius: 8px;
+        background: #2f3a2f; color: #fff; text-decoration: none; font-size: 14px;
+    }
+    .error-action.secondary { background: #ece8df; color: #302c27; }
+    .error-action:hover { opacity: .88; }
+{% endblock %}
+
+{% block body %}
+<div class="error-shell">
+    <div class="error-brand"><span class="error-brand-mark" aria-hidden="true">L</span> LexNova</div>
+    <section class="card error-card" aria-labelledby="error-heading">
+        <span class="error-code">HTTP {% block error_code %}{% endblock %}</span>
+        <h1 id="error-heading">{% block error_heading %}{% endblock %}</h1>
+        <div class="error-message">{% block error_message %}{% endblock %}</div>
+        {% block error_request %}{% endblock %}
+        <nav class="error-actions" aria-label="Weitere Möglichkeiten">
+            {% block error_actions %}{% endblock %}
+        </nav>
+    </section>
+</div>
+{% endblock %}

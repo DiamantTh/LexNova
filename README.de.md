@@ -234,6 +234,19 @@ zusätzlich datenbankweit eindeutig; ein Impressum-Hash kann daher nicht als
 Datenschutzerklärung ausgegeben werden. Sprachvarianten sind eigenständige
 Dokumente mit jeweils eigener URL.
 
+### Fehlerseiten
+
+Auch alle anderen nicht vorhandenen Pfade werden vom Webserver intern an
+`httpdocs/index.php` übergeben. LexNova rendert sie über den zentralen
+`NotFoundHandler` und `templates/error/404.html.twig`; die ursprünglich
+aufgerufene URL bleibt im Browser erhalten und die Antwort hat den echten
+HTTP-Status 404. Es gibt deshalb keine sichtbare Umleitung auf eine technische
+URL wie `index.php?mode=404`.
+
+Die Fehlerseiten 404 und 500 verwenden das gemeinsame Twig-Grundtemplate
+`templates/error/layout.html.twig`. Weitere Fehlerseiten können dieses Template
+erweitern, ohne Gestaltung und Struktur erneut anzulegen.
+
 ### SEO und Caching
 
 - Jede öffentliche Seite enthält:
