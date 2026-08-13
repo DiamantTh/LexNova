@@ -38,3 +38,9 @@ CREATE TABLE audit_log (
     action VARCHAR(100) NOT NULL, target VARCHAR(255) NULL, detail TEXT NULL,
     ip VARCHAR(45) NULL, created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);

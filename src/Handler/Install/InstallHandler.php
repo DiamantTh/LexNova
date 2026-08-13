@@ -9,6 +9,7 @@ use LexNova\Handler\Install\Step\ConfigureStep;
 use LexNova\Handler\Install\Step\InitStep;
 use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Handler\Install\Step\UnlockStep;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\InstallRateLimitService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
@@ -37,6 +38,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         private readonly PasswordService $passwords,
         private readonly TemplateRendererInterface $renderer,
         private readonly LoggerInterface $logger,
+        private readonly Fail2BanLogService $fail2ban,
         /** @var array<string, mixed> */
         private readonly array $config,
     ) {
@@ -111,6 +113,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
 
             // ── Step: Unlock ──────────────────────────────────────────────
             if ($this->rateLimit->isBlocked($ip)) {
+                $this->fail2ban->record($ip);
                 $seconds = $this->rateLimit->secondsRemaining($ip);
                 $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
             } else {
@@ -121,6 +124,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                     $this->rateLimit->recordSuccess($ip);
                 } else {
                     $this->rateLimit->recordFailure($ip);
+                    $this->fail2ban->record($ip);
                 }
             }
 

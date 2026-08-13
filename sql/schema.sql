@@ -77,3 +77,9 @@ CREATE TABLE audit_log (
     ip         VARCHAR(45) DEFAULT NULL,
     created_at DATETIME NOT NULL
 );
+
+CREATE TABLE system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    updated_at DATETIME NOT NULL
+);

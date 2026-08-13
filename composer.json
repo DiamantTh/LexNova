@@ -60,7 +60,8 @@
             "@php tests/Security/RateLimitServiceTest.php",
             "@php tests/Security/TotpEncryptionTest.php",
             "@php tests/Security/SecurityHeadersMiddlewareTest.php",
-            "@php tests/Security/InstallRateLimitServiceTest.php"
+            "@php tests/Security/InstallRateLimitServiceTest.php",
+            "@php tests/Security/Fail2BanLogServiceTest.php"
         ],
         "test": ["@test:integration", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]

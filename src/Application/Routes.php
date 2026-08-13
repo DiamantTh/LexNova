@@ -11,6 +11,7 @@ use LexNova\Handler\Admin\DocumentUpdateHandler;
 use LexNova\Handler\Admin\EntityCreateHandler;
 use LexNova\Handler\Admin\EntityDeleteHandler;
 use LexNova\Handler\Admin\EntityUpdateHandler;
+use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
@@ -75,6 +76,11 @@ final class Routes
         $app->post('/admin/users/{id:\d+}/delete',
             [AdminAuthMiddleware::class, UserDeleteHandler::class],
             'admin.users.delete',
+        );
+
+        $app->post('/admin/security/fail2ban',
+            [AdminAuthMiddleware::class, Fail2BanSettingHandler::class],
+            'admin.security.fail2ban',
         );
 
         $app->post('/admin/entities/create',

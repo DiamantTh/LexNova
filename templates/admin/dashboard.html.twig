@@ -23,6 +23,41 @@
 {% endif %}
 
 <div class="card">
+    <h2>Fail2ban-Signallog</h2>
+    <p>
+        Status:
+        <strong>{{ fail2ban.enabled ? 'aktiv' : 'inaktiv' }}</strong>
+        · Quelle: {{ fail2ban.source == 'database' ? 'Datenbank' : 'config.toml' }}
+        · Pfad: <strong>{{ fail2ban.writable ? 'schreibbar' : 'nicht schreibbar' }}</strong>
+    </p>
+    <p class="hint">
+        LexNova schreibt nur fehlgeschlagene oder bereits limitierte
+        Sicherheitsversuche im einfachen Format
+        <code>Zeitstempel LEXNOVA_FAIL2BAN IP</code> nach
+        <code>{{ fail2ban.path }}</code>. Benutzernamen und Credentials werden
+        nicht in dieses Signallog geschrieben.
+    </p>
+    <form method="post" action="/admin/security/fail2ban">
+        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+        <label for="fail2ban_mode">Aktivierung</label>
+        <select id="fail2ban_mode" name="mode">
+            <option value="config"{{ fail2ban.source == 'config' ? ' selected' : '' }}>
+                config.toml verwenden ({{ fail2ban.config_enabled ? 'aktiv' : 'inaktiv' }})
+            </option>
+            <option value="enabled"{{ fail2ban.source == 'database' and fail2ban.enabled ? ' selected' : '' }}>
+                In Datenbank aktivieren
+            </option>
+            <option value="disabled"{{ fail2ban.source == 'database' and not fail2ban.enabled ? ' selected' : '' }}>
+                In Datenbank deaktivieren
+            </option>
+        </select>
+        <div class="actions">
+            <button type="submit" class="secondary">Einstellung speichern</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
     <h2>Passkeys</h2>
     <p>Passkeys ermöglichen eine passwortlose Anmeldung mit dem Geräte- oder Sicherheitsschlüssel.</p>
     <button type="button" onclick="lexnovaRegisterPasskey()">Passkey hinzufügen</button>

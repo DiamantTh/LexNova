@@ -14,6 +14,7 @@ use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Clock\SystemClock;
 use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
+use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
@@ -28,6 +29,7 @@ use LexNova\Middleware\SecurityHeadersMiddleware;
 use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\InstallRateLimitService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasskeyService;
@@ -38,6 +40,7 @@ use LexNova\Service\Password\NullBreachedPasswordChecker;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\RateLimitService;
+use LexNova\Service\SystemSettingService;
 use LexNova\Service\TotpService;
 use LexNova\Service\UserService;
 use LexNova\Twig\EmailExtension;
@@ -301,6 +304,9 @@ final class ContainerFactory
             // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
             'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/var/cache/hibp')),
 
+            // Cached system settings avoid a database query on every security event.
+            'cache.settings' => fn () => new Psr16Cache(new FilesystemAdapter('settings', 0, $root . '/var/cache/settings')),
+
             // ── Breached-password checker (HIBP, optional) ──────────────────────────
             BreachedPasswordCheckerInterface::class => function (ContainerInterface $c): BreachedPasswordCheckerInterface {
                 $hibp = $c->get('config')['security']['password_policy']['hibp'] ?? [];
@@ -360,6 +366,26 @@ final class ContainerFactory
 
             InstallService::class => fn (ContainerInterface $c) => new InstallService($c->get('config')),
 
+            SystemSettingService::class => fn (ContainerInterface $c) => new SystemSettingService(
+                $c->get(Connection::class),
+                $c->get('cache.settings'),
+                max(5, (int) ($c->get('config')['security']['fail2ban']['settings_cache_ttl'] ?? 60)),
+            ),
+
+            Fail2BanLogService::class => function (ContainerInterface $c) use ($root): Fail2BanLogService {
+                $settings = (array) ($c->get('config')['security']['fail2ban'] ?? []);
+                $path = (string) ($settings['path'] ?? 'var/log/fail2ban.log');
+                if (!str_starts_with($path, DIRECTORY_SEPARATOR)) {
+                    $path = $root . DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR);
+                }
+
+                return new Fail2BanLogService(
+                    $c->get(SystemSettingService::class),
+                    (bool) ($settings['enabled'] ?? false),
+                    $path,
+                );
+            },
+
             InstallRateLimitService::class => fn (ContainerInterface $c) => new InstallRateLimitService(
                 $root . '/var/cache/install-rate-limit',
                 $c->get(ClockInterface::class),
@@ -383,6 +409,7 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(TemplateRendererInterface::class),
                 $c->get(LoggerInterface::class),
+                $c->get(Fail2BanLogService::class),
                 $c->get('config'),
             ),
 
@@ -392,6 +419,7 @@ final class ContainerFactory
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
+                $c->get(Fail2BanLogService::class),
             ),
 
             \LexNova\Handler\Admin\DashboardHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\DashboardHandler(
@@ -401,6 +429,7 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
+                $c->get(Fail2BanLogService::class),
                 (array) ($c->get('config')['security']['generator'] ?? []),
             ),
 
@@ -411,14 +440,21 @@ final class ContainerFactory
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
+                $c->get(Fail2BanLogService::class),
             ),
 
             PasskeyLoginHandler::class => fn (ContainerInterface $c) => new PasskeyLoginHandler(
                 $c->get(PasskeyService::class), $c->get(RateLimitService::class), $c->get(AuditService::class),
+                $c->get(Fail2BanLogService::class),
             ),
 
             PasskeyRegisterHandler::class => fn (ContainerInterface $c) => new PasskeyRegisterHandler(
                 $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
+            ),
+
+            Fail2BanSettingHandler::class => fn (ContainerInterface $c) => new Fail2BanSettingHandler(
+                $c->get(SystemSettingService::class),
+                $c->get(AuditService::class),
             ),
 
             TotpEnrollHandler::class => fn (ContainerInterface $c) => new TotpEnrollHandler(

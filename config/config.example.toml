@@ -9,6 +9,14 @@ locale   = "de"
 [security]
 totp_app_key = ""
 
+# Optional Fail2ban-compatible signal log. The relative path is resolved from
+# the LexNova project root and therefore works without access to system /var.
+# After installation, the database setting has priority over this fallback.
+[security.fail2ban]
+enabled = false
+path = "var/log/fail2ban.log"
+settings_cache_ttl = 60
+
 [db]
 # Supported drivers: sqlite, mysql, pgsql
 # SQLite  : dsn = "sqlite:/absolute/path/to/lexnova.sqlite"

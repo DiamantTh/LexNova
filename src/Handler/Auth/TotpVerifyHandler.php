@@ -7,6 +7,7 @@ namespace LexNova\Handler\Auth;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
 use LexNova\Service\TotpService;
 use LexNova\Service\UserService;
@@ -35,6 +36,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
+        private readonly Fail2BanLogService $fail2ban,
     ) {
     }
 
@@ -56,6 +58,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
             if ($this->rateLimit->isBlocked($ip, 'totp_verify')) {
+                $this->fail2ban->record($ip);
                 $seconds = $this->rateLimit->secondsRemaining($ip, 'totp_verify');
                 $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
             } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
@@ -88,6 +91,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                 }
 
                 $this->rateLimit->recordFailure($ip, 'totp_verify');
+                $this->fail2ban->record($ip);
                 $this->audit->log(
                     $userId, null, 'auth.totp_failed',
                     'user:' . $userId, null, $ip,

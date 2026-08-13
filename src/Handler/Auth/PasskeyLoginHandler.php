@@ -6,6 +6,7 @@ namespace LexNova\Handler\Auth;
 
 use Laminas\Diactoros\Response\JsonResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\PasskeyService;
 use LexNova\Service\RateLimitService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -16,8 +17,12 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class PasskeyLoginHandler implements RequestHandlerInterface
 {
-    public function __construct(private PasskeyService $passkeys, private RateLimitService $rateLimit, private AuditService $audit)
-    {
+    public function __construct(
+        private PasskeyService $passkeys,
+        private RateLimitService $rateLimit,
+        private AuditService $audit,
+        private Fail2BanLogService $fail2ban,
+    ) {
     }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -33,6 +38,8 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => 'Passkeys are not configured. Set app.base_url first.'], 503);
         }
         if ($this->rateLimit->isBlocked($ip, 'passkey')) {
+            $this->fail2ban->record($ip);
+
             return new JsonResponse(['error' => 'Too many failed attempts.'], 429);
         }
 
@@ -61,6 +68,7 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
             return new JsonResponse(['redirect' => '/admin']);
         } catch (\Throwable) {
             $this->rateLimit->recordFailure($ip, 'passkey');
+            $this->fail2ban->record($ip);
             $this->audit->log(null, null, 'auth.passkey_failed', null, null, $ip);
 
             return new JsonResponse(['error' => 'Passkey authentication failed.'], 401);

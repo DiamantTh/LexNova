@@ -7,6 +7,7 @@ namespace LexNova\Handler\Admin;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -24,6 +25,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
+        private readonly Fail2BanLogService $fail2ban,
     ) {
     }
 
@@ -45,6 +47,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
 
             if ($this->rateLimit->isBlocked($ip, 'login')) {
+                $this->fail2ban->record($ip);
                 $seconds = $this->rateLimit->secondsRemaining($ip, 'login');
                 $errors[] = "Too many failed attempts. Try again in {$seconds} seconds.";
             } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
@@ -84,6 +87,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
                 }
 
                 $this->rateLimit->recordFailure($ip, 'login');
+                $this->fail2ban->record($ip);
                 $this->audit->log(
                     null, $username, 'auth.login_failed',
                     null, 'username: ' . $username, $ip,

@@ -8,6 +8,7 @@ use Laminas\Diactoros\Response\HtmlResponse;
 use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
+use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -28,6 +29,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private readonly PasswordService $passwords,
         private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
+        private readonly Fail2BanLogService $fail2ban,
         private readonly array $generatorConfig = [],
     ) {
     }
@@ -76,6 +78,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'messages' => $messages,
             'current_user_id' => (int) $session->get('user_id'),
             'audit_log' => $this->audit->recent(50),
+            'fail2ban' => $this->fail2ban->status(),
         ]));
     }
 }

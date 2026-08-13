@@ -305,6 +305,11 @@ final class ConfigureStep
                 // XSalsa20-Poly1305 key for TOTP secret encryption (32 bytes / 64 hex chars).
                 // Do NOT change after TOTP secrets are enrolled — it will invalidate them.
                 'totp_app_key' => $totpAppKey,
+                'fail2ban' => [
+                    'enabled' => false,
+                    'path' => 'var/log/fail2ban.log',
+                    'settings_cache_ttl' => 60,
+                ],
             ],
             'db' => [
                 'dsn' => $dsn,
