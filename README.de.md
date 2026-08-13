@@ -7,6 +7,8 @@ Datenbankentwicklung in
 [docs/DATABASE_EVOLUTION.md](docs/DATABASE_EVOLUTION.md) und die
 Sicherheitsanforderungen in
 [docs/SECURITY_BASELINE.md](docs/SECURITY_BASELINE.md).
+Die optionale, für Shared Hosting ausgelegte Fail2ban-Signalausgabe ist in
+[docs/FAIL2BAN.md](docs/FAIL2BAN.md) beschrieben.
 
 Der derzeitige Admin-Prototyp bildet Rollen, Workspaces, Planlimits und echte
 unveränderliche Dokumentrevisionen noch nicht vollständig ab. Bis diese Punkte
@@ -160,6 +162,7 @@ Wichtige Abschnitte in `config/config.example.toml`:
 | `[db]` | Datenbankverbindung (DSN, User, Passwort) |
 | `[security]` | `totp_app_key` (32 Byte hex, beim Install generiert) |
 | `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
+| `[security.fail2ban]` | Optionales projektlokales Fail2ban-Signallog und Settings-Cache |
 | `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
 | `[cache]` | Dokument-Cache: standardmäßig Dateisystem; optional Valkey per Redis-DSN |
 
@@ -206,6 +209,8 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
   - Empfohlene Apps: Aegis, 2FAS, Ente Auth, KeePassXC oder Raivo
 - Rate Limiting: Login und TOTP-Versuche werden nach konfigurierbarer Anzahl
   für eine konfigurierbare Zeitspanne gesperrt (IP-basiert)
+- Optionales Fail2ban-Signallog unter `var/log/fail2ban.log`; Aktivierung über
+  `config.toml` oder mit Datenbankvorrang im Adminbereich
 - Passkeys/WebAuthn: passwortloser Login über Plattform-Authenticator oder
   Sicherheitsschlüssel; Passkeys werden im Adminbereich registriert
 
@@ -293,6 +298,9 @@ sql/migrations/002_webauthn_credentials.pgsql.sql    # PostgreSQL
 sql/migrations/003_document_public_hash.sql          # SQLite
 sql/migrations/003_document_public_hash.mysql.sql    # MySQL 8 / MariaDB 10.10+
 sql/migrations/003_document_public_hash.pgsql.sql    # PostgreSQL 13+
+sql/migrations/004_system_settings.sql               # SQLite
+sql/migrations/004_system_settings.mysql.sql         # MySQL/MariaDB
+sql/migrations/004_system_settings.pgsql.sql         # PostgreSQL
 ```
 
 Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).

@@ -34,6 +34,7 @@ erstellt.
 | `document_permissions` | Optionale Freigabe über Workspace-Rollen hinaus |
 | `audit_events` | Append-only Sicherheits- und Fachereignisse |
 | `rate_limit_buckets` | Datenbankgestütztes Authentifizierungs-Limiting |
+| `system_settings` | Instanzweite, cachebare Laufzeitschalter mit Vorrang vor Konfigurations-Fallbacks |
 | `schema_migrations` | Bereits ausgeführte Migrationen |
 
 ## Zentrale Regeln
