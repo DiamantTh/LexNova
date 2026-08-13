@@ -77,13 +77,16 @@ path = "var/log/fail2ban.log"
 settings_cache_ttl = 60
 
 [db]
-# Supported drivers: sqlite, mysql, pgsql
-# SQLite  : dsn = "sqlite:/absolute/path/to/lexnova.sqlite"
-# MySQL   : dsn = "mysql:host=localhost;dbname=lexnova;charset=utf8mb4"
-# PostgreSQL: dsn = "pgsql:host=localhost;dbname=lexnova"
-dsn      = "sqlite:/path/to/lexnova/data/lexnova.sqlite"
-user     = ""
-password = ""
+# MySQL/MariaDB example. Use driver = "pgsql" and usually port = 5432 for
+# PostgreSQL. For SQLite only driver = "sqlite" and path = "/.../lexnova.sqlite"
+# are required; the browser installer writes the matching form automatically.
+driver   = "mysql" # mysql | pgsql | sqlite
+host     = "localhost"
+port     = 3306
+name     = "lexnova"
+user     = "lexnova"
+password = "change-me"
+charset  = "utf8mb4" # MySQL/MariaDB only
 
 [install]
 # Absolute paths as visible to PHP. On chroot/shared hosting these are paths
@@ -107,9 +110,14 @@ cookie_domain = "" # empty = current host; do not broaden unless explicitly requ
 # On connection failure LexNova falls back to filesystem caching.
 [cache]
 adapter     = "filesystem" # "filesystem" | "valkey"
-dsn         = "redis://127.0.0.1:6379/0"
 namespace   = "lexnova"
 default_ttl = 3600
+host        = "127.0.0.1" # Valkey only
+port        = 6379        # Valkey only
+database    = 0           # Valkey only
+username    = ""          # Valkey ACL user; usually empty
+password    = ""          # Valkey password; usually empty
+tls         = false       # true for a TLS-protected Valkey connection
 
 [log]
 # Project-local absolute path as visible to PHP.

@@ -13,17 +13,7 @@ final readonly class DoctrineConnectionFactory
     public function __invoke(ContainerInterface $container): Connection
     {
         $config = $container->get('config');
-        $db = $config['db'] ?? [];
-        $dsn = (string) ($db['dsn'] ?? '');
-
-        if ($dsn === '') {
-            throw new \RuntimeException('Database DSN is not configured.');
-        }
-
-        $user = ($db['user'] ?? '') !== '' ? (string) $db['user'] : null;
-        $password = ($db['password'] ?? '') !== '' ? (string) $db['password'] : null;
-
-        $params = self::parseDsn($dsn, $user, $password);
+        $params = self::connectionParams((array) ($config['db'] ?? []));
 
         $connection = DriverManager::getConnection($params);
         if (($params['driver'] ?? null) === 'pdo_sqlite') {
@@ -34,86 +24,52 @@ final readonly class DoctrineConnectionFactory
     }
 
     /**
-     * Maps a PDO-style DSN + optional credentials to Doctrine DBAL connection params.
-     *
-     * Supported drivers: sqlite, mysql/mariadb, pgsql.
-     *
+     * @param  array<string, mixed> $db
      * @return array<string, mixed>
      */
-    private static function parseDsn(string $dsn, ?string $user, ?string $password): array
+    public static function connectionParams(array $db): array
     {
-        if (str_starts_with($dsn, 'sqlite:')) {
-            $path = ltrim(substr($dsn, 7), '/');
+        $driver = (string) ($db['driver'] ?? '');
+
+        if ($driver === 'sqlite') {
+            $path = (string) ($db['path'] ?? '');
+            if ($path === '') {
+                throw new \RuntimeException('SQLite database path is not configured.');
+            }
 
             return [
                 'driver' => 'pdo_sqlite',
-                'path' => '/' . $path,
+                'path' => $path,
             ];
         }
 
-        if (str_starts_with($dsn, 'mysql:')) {
-            return array_merge(
-                self::parseMysqlDsn($dsn),
-                [
-                    'driver' => 'pdo_mysql',
-                    'user' => $user,
-                    'password' => $password,
-                    'charset' => 'utf8mb4',
-                ],
-            );
+        if (!in_array($driver, ['mysql', 'pgsql'], true)) {
+            throw new \RuntimeException('Database driver must be sqlite, mysql or pgsql.');
         }
 
-        if (str_starts_with($dsn, 'pgsql:')) {
-            return array_merge(
-                self::parsePgsqlDsn($dsn),
-                [
-                    'driver' => 'pdo_pgsql',
-                    'user' => $user,
-                    'password' => $password,
-                ],
-            );
+        $host = trim((string) ($db['host'] ?? ''));
+        $name = trim((string) ($db['name'] ?? ''));
+        if ($host === '' || $name === '') {
+            throw new \RuntimeException('Database host and name must be configured.');
         }
 
-        throw new \RuntimeException("Unsupported database driver in DSN: {$dsn}");
-    }
-
-    /** @return array<string, mixed> */
-    private static function parseMysqlDsn(string $dsn): array
-    {
-        $parts = [];
-        $raw = substr($dsn, 6); // strip "mysql:"
-        foreach (explode(';', $raw) as $segment) {
-            [$k, $v] = array_pad(explode('=', $segment, 2), 2, '');
-            $parts[trim($k)] = trim($v);
-        }
-        $out = ['host' => $parts['host'] ?? 'localhost'];
-        if (isset($parts['port'])) {
-            $out['port'] = (int) $parts['port'];
-        }
-        if (isset($parts['dbname'])) {
-            $out['dbname'] = $parts['dbname'];
+        $port = (int) ($db['port'] ?? ($driver === 'mysql' ? 3306 : 5432));
+        if ($port < 1 || $port > 65535) {
+            throw new \RuntimeException('Database port must be between 1 and 65535.');
         }
 
-        return $out;
-    }
-
-    /** @return array<string, mixed> */
-    private static function parsePgsqlDsn(string $dsn): array
-    {
-        $parts = [];
-        $raw = substr($dsn, 6); // strip "pgsql:"
-        foreach (explode(';', $raw) as $segment) {
-            [$k, $v] = array_pad(explode('=', $segment, 2), 2, '');
-            $parts[trim($k)] = trim($v);
-        }
-        $out = ['host' => $parts['host'] ?? 'localhost'];
-        if (isset($parts['port'])) {
-            $out['port'] = (int) $parts['port'];
-        }
-        if (isset($parts['dbname'])) {
-            $out['dbname'] = $parts['dbname'];
+        $params = [
+            'driver' => $driver === 'mysql' ? 'pdo_mysql' : 'pdo_pgsql',
+            'host' => $host,
+            'port' => $port,
+            'dbname' => $name,
+            'user' => (string) ($db['user'] ?? ''),
+            'password' => (string) ($db['password'] ?? ''),
+        ];
+        if ($driver === 'mysql') {
+            $params['charset'] = (string) ($db['charset'] ?? 'utf8mb4');
         }
 
-        return $out;
+        return $params;
     }
 }

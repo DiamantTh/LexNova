@@ -159,12 +159,12 @@ Wichtige Abschnitte in `config/config.example.toml`:
 
 | Abschnitt | Inhalt |
 |---|---|
-| `[db]` | Datenbankverbindung (DSN, User, Passwort) |
+| `[db]` | Datenbankverbindung mit Treiber, Host, Port, Name, User und Passwort |
 | `[security]` | `totp_app_key` (32 Byte hex, beim Install generiert) |
 | `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
 | `[security.fail2ban]` | Optionales projektlokales Fail2ban-Signallog und Settings-Cache |
 | `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
-| `[cache]` | Dokument-Cache: standardmäßig Dateisystem; optional Valkey per Redis-DSN |
+| `[cache]` | Dokument-Cache: standardmäßig Dateisystem; optional Valkey mit klassischen Verbindungsfeldern |
 
 `[app].base_url` muss die öffentliche HTTPS-URL der Instanz enthalten. Sie ist
 für sichere Session-Cookies und Passkeys erforderlich. Nur für lokale Entwicklung
@@ -178,7 +178,12 @@ kompatibel ist. In `config/config.toml`:
 ```
 [cache]
 adapter = "valkey"
-dsn = "redis://127.0.0.1:6379/0"
+host = "127.0.0.1"
+port = 6379
+database = 0
+username = ""
+password = ""
+tls = false
 namespace = "lexnova"
 ```
 

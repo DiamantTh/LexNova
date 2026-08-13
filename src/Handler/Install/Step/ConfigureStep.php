@@ -91,9 +91,7 @@ final class ConfigureStep
             $stmt->execute([$operatorHash, $formData['operatorName'], $operatorContact]);
 
             $configContent = $this->buildConfigFile(
-                $dsn,
-                $pdoUser,
-                $pdoPass,
+                $formData,
                 $formData['appBaseUrl'],
                 $formData['appLocale'],
                 sodium_bin2hex(random_bytes(32)),
@@ -287,15 +285,33 @@ final class ConfigureStep
         }
     }
 
+    /** @param array<string, string> $formData */
     private function buildConfigFile(
-        string $dsn,
-        ?string $user,
-        ?string $password,
+        array $formData,
         string $appBaseUrl,
         string $appLocale,
         string $totpAppKey,
         string $root,
     ): string {
+        $database = $formData['dbType'] === 'sqlite'
+            ? [
+                'driver' => 'sqlite',
+                'path' => $formData['dbPath'],
+            ]
+            : [
+                'driver' => $formData['dbType'],
+                'host' => $formData['dbHost'],
+                'port' => $formData['dbPort'] !== ''
+                    ? (int) $formData['dbPort']
+                    : ($formData['dbType'] === 'mysql' ? 3306 : 5432),
+                'name' => $formData['dbName'],
+                'user' => $formData['dbUser'],
+                'password' => $formData['dbPassword'],
+            ];
+        if ($formData['dbType'] === 'mysql') {
+            $database['charset'] = 'utf8mb4';
+        }
+
         return toml_encode([
             'app' => [
                 'base_url' => rtrim($appBaseUrl, '/'),
@@ -311,11 +327,7 @@ final class ConfigureStep
                     'settings_cache_ttl' => 60,
                 ],
             ],
-            'db' => [
-                'dsn' => $dsn,
-                'user' => $user ?? '',
-                'password' => $password ?? '',
-            ],
+            'db' => $database,
             'install' => [
                 'lock' => $root . '/data/install.lock',
                 'password_file' => $root . '/data/install.pw',

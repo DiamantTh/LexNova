@@ -284,9 +284,23 @@ final class ContainerFactory
             // remains a safe, dependency-free fallback.
             CacheInterface::class => function (ContainerInterface $c) use ($root): CacheInterface {
                 $cache = (array) ($c->get('config')['cache'] ?? []);
-                if (($cache['adapter'] ?? 'filesystem') === 'valkey' && isset($cache['dsn']) && $cache['dsn'] !== '') {
+                if (($cache['adapter'] ?? 'filesystem') === 'valkey') {
                     try {
-                        $connection = RedisAdapter::createConnection((string) $cache['dsn']);
+                        $host = (string) ($cache['host'] ?? '127.0.0.1');
+                        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
+                            $host = '[' . $host . ']';
+                        }
+                        $username = (string) ($cache['username'] ?? '');
+                        $password = (string) ($cache['password'] ?? '');
+                        $auth = $username !== '' || $password !== ''
+                            ? rawurlencode($username) . ':' . rawurlencode($password) . '@'
+                            : '';
+                        $scheme = (bool) ($cache['tls'] ?? false) ? 'valkeys' : 'valkey';
+                        $port = min(65535, max(1, (int) ($cache['port'] ?? 6379)));
+                        $database = max(0, (int) ($cache['database'] ?? 0));
+                        $connection = RedisAdapter::createConnection(
+                            "{$scheme}://{$auth}{$host}:{$port}/{$database}",
+                        );
 
                         return new Psr16Cache(new RedisAdapter(
                             $connection,

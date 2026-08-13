@@ -54,7 +54,10 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "cs-check": "php-cs-fixer check --diff",
         "cs-fix": "php-cs-fixer fix",
-        "test:config": "@php tests/Config/ConfigExampleTest.php",
+        "test:config": [
+            "@php tests/Config/ConfigExampleTest.php",
+            "@php tests/Config/DatabaseConfigurationTest.php"
+        ],
         "test:integration": "@php tests/Integration/DocumentEndpointTest.php",
         "test:security": [
             "@php tests/Security/EmailExtensionTest.php",

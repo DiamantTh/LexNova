@@ -49,9 +49,13 @@ $expectedTypes = [
     'security.fail2ban.enabled' => 'boolean',
     'security.fail2ban.path' => 'string',
     'security.fail2ban.settings_cache_ttl' => 'integer',
-    'db.dsn' => 'string',
+    'db.driver' => 'string',
+    'db.host' => 'string',
+    'db.port' => 'integer',
+    'db.name' => 'string',
     'db.user' => 'string',
     'db.password' => 'string',
+    'db.charset' => 'string',
     'install.lock' => 'string',
     'install.password_file' => 'string',
     'install.config_file' => 'string',
@@ -63,9 +67,14 @@ $expectedTypes = [
     'session.cookie_path' => 'string',
     'session.cookie_domain' => 'string',
     'cache.adapter' => 'string',
-    'cache.dsn' => 'string',
     'cache.namespace' => 'string',
     'cache.default_ttl' => 'integer',
+    'cache.host' => 'string',
+    'cache.port' => 'integer',
+    'cache.database' => 'integer',
+    'cache.username' => 'string',
+    'cache.password' => 'string',
+    'cache.tls' => 'boolean',
     'log.path' => 'string',
     'log.level' => 'string',
     'twig.cache' => 'boolean',
@@ -120,6 +129,10 @@ if ($instance['log']['level'] !== 'warning') {
 
 if ($instance['security']['fail2ban']['path'] !== 'var/log/fail2ban.log') {
     throw new RuntimeException('Fail2ban example path must remain project-relative.');
+}
+
+if (array_key_exists('dsn', $instance['db']) || array_key_exists('dsn', $instance['cache'])) {
+    throw new RuntimeException('User-facing configuration must not expose DSN URLs.');
 }
 
 echo "Configuration example contract test: OK\n";
