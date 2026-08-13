@@ -190,6 +190,29 @@ namespace = "lexnova"
 Ist Valkey nicht erreichbar, fällt LexNova kontrolliert auf den Dateisystem-Cache
 zurück. Geänderte Dokumente invalidieren alle Sprachvarianten sofort.
 
+Der Konfigurationsname `adapter = "valkey"` drückt bewusst das bevorzugte
+Serverprodukt aus. Der Symfony-Adapter spricht dasselbe Protokoll mit Valkey und
+Redis. Unter `/admin/system` fragt LexNova ausschließlich für die gecachte
+Systemdiagnose `INFO server` ab: `server_name=valkey` beziehungsweise
+`valkey_version` wird grün als bevorzugtes Valkey angezeigt, ein tatsächlicher
+Redis-Server gelb als kompatibel. Die Diagnose wird fünf Minuten lokal gecacht.
+Ist `INFO server` durch die Server-ACL gesperrt, bleibt der Cache nutzbar, das
+Produkt wird aber nicht geraten.
+
+Aktuell existieren folgende Cachewege:
+
+| Zweck | Adapter |
+|---|---|
+| öffentliche Rechtsdokumente | Dateisystem (Standard) oder Valkey/Redis-Protokoll |
+| Twig-Templates | Dateisystem |
+| Datenbank-Systemeinstellungen | PSR-16-Dateisystemcache |
+| HIBP-Abfrageergebnisse | PSR-16-Dateisystemcache |
+| Installer-Rate-Limit vor vorhandener DB | geschützte lokale Dateien |
+
+Die Datenbankanbindung läuft über Doctrine DBAL und PDO. Unterstützt sind SQLite,
+MySQL/MariaDB und PostgreSQL. Zugangsdaten und Cache-Secrets werden in den
+Systeminformationen niemals ausgegeben.
+
 ## CLI
 
 ```
