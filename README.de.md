@@ -1,5 +1,18 @@
 # LexNova Core
 
+LexNova verwaltet, versioniert und veröffentlicht Impressums- und
+Datenschutztexte für persönliche Bereiche und Teams. Der verbindliche geplante
+Umfang steht in [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md), die geplante
+Datenbankentwicklung in
+[docs/DATABASE_EVOLUTION.md](docs/DATABASE_EVOLUTION.md) und die
+Sicherheitsanforderungen in
+[docs/SECURITY_BASELINE.md](docs/SECURITY_BASELINE.md).
+
+Der derzeitige Admin-Prototyp bildet Rollen, Workspaces, Planlimits und echte
+unveränderliche Dokumentrevisionen noch nicht vollständig ab. Bis diese Punkte
+implementiert und migrierbar getestet sind, ist der Source als Vorabentwicklung
+und nicht als stabile Produktivversion zu behandeln.
+
 ## Betrieb auf Shared Hosting
 
 LexNova ist für klassischen PHP-Betrieb ohne Container und ohne Release-System
@@ -136,6 +149,10 @@ Release-Verzeichnis sinnvoll, aber für einen einzelnen Shared Host nicht nötig
 - Installiert: `config/config.toml` (wird vom Installer erstellt)
 - Sicherheitseinstellungen: `config/security.toml` (im Repository enthalten)
 
+`config/security.toml` enthält die ausgelieferten Standardwerte. Werte in der
+lokalen `config/config.toml` überschreiben diese Defaults, damit beispielsweise
+HIBP und abweichende Rate-Limits pro Installation konfigurierbar sind.
+
 Wichtige Abschnitte in `config/config.example.toml`:
 
 | Abschnitt | Inhalt |
@@ -186,7 +203,7 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 - TOTP Zwei-Faktor-Authentifizierung (SHA-256, 8-stellig, 30-Sekunden-Fenster)
   - Mehrere TOTP-Keys pro Benutzer möglich (z. B. Smartphone + YubiKey)
   - QR-Code bei der Einrichtung als SVG inline gerendert
-  - Empfohlene Apps: Aegis, andOTP, Authy, Raivo (kein Google Authenticator)
+  - Empfohlene Apps: Aegis, 2FAS, Ente Auth, KeePassXC oder Raivo
 - Rate Limiting: Login und TOTP-Versuche werden nach konfigurierbarer Anzahl
   für eine konfigurierbare Zeitspanne gesperrt (IP-basiert)
 - Passkeys/WebAuthn: passwortloser Login über Plattform-Authenticator oder
@@ -203,13 +220,15 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 - Anlegen, Bearbeiten, Löschen
 - Typen: `imprint` (Impressum), `privacy` (Datenschutzerklärung)
 - Mehrsprachig: pro Dokument ein BCP 47-Sprachcode (z. B. `de`, `en`, `fr-CH`)
-- Versionierung (freies Versionsfeld, z. B. `2024-01`, `v3`)
+- Freies Versionslabel (z. B. `2024-01`, `v3`); noch keine unveränderliche
+  Revisionshistorie
 - Jedes Dokument erhält einen eigenen zufälligen 32-Zeichen-Hex-Hash
 - Direkt-Link „Anzeigen" öffnet die öffentliche URL im neuen Tab
 
 ### Benutzer
 
-- Anlegen, Rolle ändern, Passwort setzen, Löschen
+- Anlegen, Passwort setzen, Löschen; der aktuelle Prototyp erlaubt bislang nur
+  die Systemrolle `admin`
 - TOTP-Keys verwalten (einzelne Keys löschen oder alle zurücksetzen)
 
 ### Audit-Log
@@ -257,6 +276,8 @@ erweitern, ohne Gestaltung und Struktur erneut anzulegen.
   - `Cache-Control: public, max-age=3600, stale-while-revalidate=86400`
   - 404-Antworten: `Cache-Control: no-store`
 - Admin- und Installer-Seiten: `<meta name="robots" content="noindex, nofollow">`
+- Zentrale HTTP-Sicherheitsheader: CSP, `nosniff`, Frame-Schutz,
+  `Referrer-Policy`, `Permissions-Policy` und HSTS bei HTTPS
 
 ## Datenbankmigrationen
 
@@ -320,7 +341,8 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 composer analyse       PHPStan-Analyse (Level 6, --memory-limit=512M)
 composer cs-check      PHP-CS-Fixer Dry-Run (nur prüfen)
 composer cs-fix        PHP-CS-Fixer mit automatischer Korrektur
-composer qa            analyse + cs-check
+composer test          Integrations- und Security-Regressionstests
+composer qa            analyse + cs-check + Tests
 ```
 
 ## Hinweise
