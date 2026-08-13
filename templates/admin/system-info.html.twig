@@ -1,0 +1,141 @@
+{% extends 'layout.html.twig' %}
+
+{% block title %}Systeminformationen · LexNova{% endblock %}
+
+{% block extra_styles %}
+    .status { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:12px; }
+    .status.good { color:#1f5f2b; background:#e4f5e7; border:1px solid #9bd2a4; }
+    .status.warn { color:#7a5600; background:#fff5d6; border:1px solid #e7c65b; }
+    .status.bad { color:#8a1f0e; background:#ffe9e6; border:1px solid #f0b1a5; }
+    .status.neutral { color:#34445a; background:#edf2f7; border:1px solid #bdc9d8; }
+    .system-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:24px; }
+    .system-grid .card { margin-bottom:0; }
+    .system-table th { width:42%; }
+    code.path { overflow-wrap:anywhere; }
+{% endblock %}
+
+{% block body %}
+<header>
+    <div>
+        <h1>Systeminformationen</h1>
+        <p class="hint">Diagnose ohne Anzeige von Passwörtern, Schlüsseln oder anderen Secrets.</p>
+    </div>
+    <a href="/admin">Zurück zum Adminbereich</a>
+</header>
+
+<div class="system-grid">
+    <section class="card">
+        <h2>LexNova</h2>
+        <table class="system-table">
+            <tr><th>Version</th><td>{{ system.application.version }}</td></tr>
+            <tr><th>Installation gesperrt</th><td><span class="status {{ system.application.installed ? 'good' : 'warn' }}">{{ system.application.installed ? 'ja' : 'nein' }}</span></td></tr>
+            <tr><th>Basis-URL</th><td><code class="path">{{ system.application.base_url ?: 'nicht gesetzt' }}</code></td></tr>
+            <tr><th>Sprache</th><td>{{ system.application.locale }}</td></tr>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>PHP-Runtime</h2>
+        <table class="system-table">
+            <tr><th>PHP</th><td>{{ system.runtime.php_version }}</td></tr>
+            <tr><th>SAPI</th><td>{{ system.runtime.sapi }}</td></tr>
+            <tr><th>Architektur</th><td>{{ system.runtime.architecture }} Bit</td></tr>
+            <tr><th>Memory-Limit</th><td>{{ system.runtime.memory_limit }}</td></tr>
+            <tr><th>OPcache</th><td><span class="status {{ system.runtime.opcache ? 'good' : 'neutral' }}">{{ system.runtime.opcache ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+        </table>
+        <h3>Erweiterungen</h3>
+        <table>
+        {% for extension in system.runtime.extensions %}
+            <tr>
+                <th>{{ extension.name }}</th>
+                <td><span class="status {{ extension.loaded ? 'good' : 'bad' }}">{{ extension.loaded ? 'geladen' : 'fehlt' }}</span></td>
+                <td>{{ extension.version ?? '–' }}</td>
+            </tr>
+        {% endfor %}
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Datenbank</h2>
+        <table class="system-table">
+            <tr><th>Status</th><td><span class="status {{ system.database.connected ? 'good' : 'bad' }}">{{ system.database.connected ? 'verbunden' : 'nicht erreichbar' }}</span></td></tr>
+            <tr><th>Produkt</th><td>{{ system.database.product }}</td></tr>
+            <tr><th>Version</th><td>{{ system.database.version ?? 'nicht ermittelbar' }}</td></tr>
+            <tr><th>Konfigurierter Adapter</th><td>{{ system.database.configured }}</td></tr>
+            <tr><th>{{ system.database.configured == 'sqlite' ? 'Datei' : 'Host' }}</th><td><code class="path">{{ system.database.host ?? '–' }}</code></td></tr>
+            {% if system.database.port %}<tr><th>Port</th><td>{{ system.database.port }}</td></tr>{% endif %}
+            {% if system.database.name %}<tr><th>Datenbankname</th><td>{{ system.database.name }}</td></tr>{% endif %}
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Dokument-Cache</h2>
+        <table class="system-table">
+            <tr><th>Konfiguriert</th><td>{{ system.cache.configured }}</td></tr>
+            <tr><th>Effektiv</th><td>{{ system.cache.effective }}</td></tr>
+            <tr>
+                <th>Erkanntes Produkt</th>
+                <td>
+                    {% if system.cache.product == 'Valkey' %}
+                        <span class="status good">Valkey · bevorzugt</span>
+                    {% elseif system.cache.product == 'Redis' %}
+                        <span class="status warn">Redis · kompatibel</span>
+                    {% elseif system.cache.connected %}
+                        <span class="status neutral">{{ system.cache.product }}</span>
+                    {% else %}
+                        <span class="status bad">{{ system.cache.product }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr><th>Serverversion</th><td>{{ system.cache.version ?? 'nicht ermittelbar' }}</td></tr>
+            <tr><th>PHP-Client</th><td>{{ system.cache.client }}</td></tr>
+            {% if system.cache.endpoint %}<tr><th>Endpunkt</th><td>{{ system.cache.endpoint }}</td></tr>{% endif %}
+            {% if system.cache.database is not null %}<tr><th>Logische Datenbank</th><td>{{ system.cache.database }}</td></tr>{% endif %}
+            <tr><th>TLS</th><td><span class="status {{ system.cache.tls ? 'good' : 'neutral' }}">{{ system.cache.tls ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+            <tr><th>Namespace</th><td>{{ system.cache.namespace }}</td></tr>
+            <tr><th>Standard-TTL</th><td>{{ system.cache.default_ttl }} Sekunden</td></tr>
+            <tr><th>Verbindung</th><td><span class="status {{ system.cache.connected ? 'good' : 'bad' }}">{{ system.cache.connected ? 'verfügbar' : 'fehlgeschlagen' }}</span></td></tr>
+            <tr><th>Fallback aktiv</th><td><span class="status {{ system.cache.fallback ? 'warn' : 'good' }}">{{ system.cache.fallback ? 'ja, Dateisystem' : 'nein' }}</span></td></tr>
+            {% if system.cache.path %}<tr><th>Cachepfad</th><td><code class="path">{{ system.cache.path }}</code></td></tr>{% endif %}
+        </table>
+        {% if system.cache.detection == 'info_unavailable' %}
+            <p class="notice warning">Die Verbindung funktioniert, aber <code>INFO server</code> ist nicht erlaubt oder liefert keine Produktkennung. Valkey und Redis können daher nicht sicher unterschieden werden.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>Sicherheitsstatus</h2>
+        <table class="system-table">
+            <tr><th>HTTPS-Basis-URL</th><td><span class="status {{ system.security.https_base_url ? 'good' : 'bad' }}">{{ system.security.https_base_url ? 'ja' : 'nein' }}</span></td></tr>
+            <tr><th>Secure-Cookie</th><td><span class="status {{ system.security.session_secure ? 'good' : 'bad' }}">{{ system.security.session_secure ? 'ja' : 'nein' }}</span></td></tr>
+            <tr><th>HttpOnly-Cookie</th><td><span class="status {{ system.security.session_httponly ? 'good' : 'bad' }}">{{ system.security.session_httponly ? 'ja' : 'nein' }}</span></td></tr>
+            <tr><th>SameSite</th><td>{{ system.security.session_samesite }}</td></tr>
+            <tr><th>Twig-Cache</th><td><span class="status {{ system.security.twig_cache ? 'good' : 'warn' }}">{{ system.security.twig_cache ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+            <tr><th>Fail2ban-Signal</th><td><span class="status {{ system.security.fail2ban.enabled ? 'good' : 'neutral' }}">{{ system.security.fail2ban.enabled ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+            <tr><th>Fail2ban-Pfad</th><td><span class="status {{ system.security.fail2ban.writable ? 'good' : 'bad' }}">{{ system.security.fail2ban.writable ? 'schreibbar' : 'nicht schreibbar' }}</span></td></tr>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Runtime-Verzeichnisse</h2>
+        <table>
+        {% for path in system.paths %}
+            <tr>
+                <th>{{ path.name }}</th>
+                <td><code class="path">{{ path.path }}</code></td>
+                <td><span class="status {{ path.writable ? 'good' : 'bad' }}">{{ path.writable ? 'schreibbar' : 'nicht schreibbar' }}</span></td>
+            </tr>
+        {% endfor %}
+        </table>
+    </section>
+</div>
+
+<section class="card" style="margin-top:24px;">
+    <h2>Unterstützte Adapter</h2>
+    <div class="grid">
+        <div><strong>Datenbank</strong><ul>{% for item in system.supported.database %}<li>{{ item }}</li>{% endfor %}</ul></div>
+        <div><strong>Öffentliche Dokumente</strong><ul>{% for item in system.supported.document_cache %}<li>{{ item }}</li>{% endfor %}</ul></div>
+        <div><strong>Interne Caches</strong><ul>{% for item in system.supported.internal_cache %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    </div>
+</section>
+{% endblock %}

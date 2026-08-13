@@ -5,10 +5,13 @@
 {% block body %}
 <header>
     <h1>LexNova Admin</h1>
-    <form method="post" action="/admin/logout">
-        <input type="hidden" name="__csrf" value="{{ csrf_token }}">
-        <button type="submit" class="secondary">{{ trans('Logout') }}</button>
-    </form>
+    <div class="actions">
+        <a href="/admin/system">Systeminformationen</a>
+        <form method="post" action="/admin/logout">
+            <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+            <button type="submit" class="secondary">{{ trans('Logout') }}</button>
+        </form>
+    </div>
 </header>
 
 {# ── Flash messages ────────────────────────────────────────────────────── #}

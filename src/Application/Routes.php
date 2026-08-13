@@ -14,6 +14,7 @@ use LexNova\Handler\Admin\EntityUpdateHandler;
 use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\LogoutHandler;
+use LexNova\Handler\Admin\SystemInfoHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
@@ -37,6 +38,8 @@ final class Routes
 
         // ── Admin ────────────────────────────────────────────────────────────────
         $app->get('/admin[/]', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.dashboard');
+
+        $app->get('/admin/system', [AdminAuthMiddleware::class, SystemInfoHandler::class], 'admin.system');
 
         $app->route('/admin/login', LoginHandler::class, ['GET', 'POST'], 'admin.login');
 

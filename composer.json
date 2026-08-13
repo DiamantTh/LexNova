@@ -56,7 +56,8 @@
         "cs-fix": "php-cs-fixer fix",
         "test:config": [
             "@php tests/Config/ConfigExampleTest.php",
-            "@php tests/Config/DatabaseConfigurationTest.php"
+            "@php tests/Config/DatabaseConfigurationTest.php",
+            "@php tests/Config/CacheBackendIdentificationTest.php"
         ],
         "test:integration": "@php tests/Integration/DocumentEndpointTest.php",
         "test:security": [
@@ -65,7 +66,8 @@
             "@php tests/Security/TotpEncryptionTest.php",
             "@php tests/Security/SecurityHeadersMiddlewareTest.php",
             "@php tests/Security/InstallRateLimitServiceTest.php",
-            "@php tests/Security/Fail2BanLogServiceTest.php"
+            "@php tests/Security/Fail2BanLogServiceTest.php",
+            "@php tests/Security/SystemInfoServiceTest.php"
         ],
         "test": ["@test:config", "@test:integration", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]

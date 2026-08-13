@@ -16,6 +16,7 @@ use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
 use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
+use LexNova\Handler\Admin\SystemInfoHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Auth\PasskeyLoginHandler;
@@ -27,6 +28,7 @@ use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
 use LexNova\Middleware\SecurityHeadersMiddleware;
 use LexNova\Service\AuditService;
+use LexNova\Service\CacheBackendService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\Fail2BanLogService;
@@ -40,6 +42,7 @@ use LexNova\Service\Password\NullBreachedPasswordChecker;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\RateLimitService;
+use LexNova\Service\SystemInfoService;
 use LexNova\Service\SystemSettingService;
 use LexNova\Service\TotpService;
 use LexNova\Service\UserService;
@@ -90,7 +93,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
-use Symfony\Component\Cache\Adapter\RedisAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Twig\Environment;
 
@@ -279,41 +281,17 @@ final class ContainerFactory
             ),
 
             // ── Cache ────────────────────────────────────────────────────────────────
-            // PSR-16 cache for public documents. Valkey speaks the Redis protocol;
-            // when it is not configured or unavailable, the local filesystem cache
-            // remains a safe, dependency-free fallback.
-            CacheInterface::class => function (ContainerInterface $c) use ($root): CacheInterface {
-                $cache = (array) ($c->get('config')['cache'] ?? []);
-                if (($cache['adapter'] ?? 'filesystem') === 'valkey') {
-                    try {
-                        $host = (string) ($cache['host'] ?? '127.0.0.1');
-                        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
-                            $host = '[' . $host . ']';
-                        }
-                        $username = (string) ($cache['username'] ?? '');
-                        $password = (string) ($cache['password'] ?? '');
-                        $auth = $username !== '' || $password !== ''
-                            ? rawurlencode($username) . ':' . rawurlencode($password) . '@'
-                            : '';
-                        $scheme = (bool) ($cache['tls'] ?? false) ? 'valkeys' : 'valkey';
-                        $port = min(65535, max(1, (int) ($cache['port'] ?? 6379)));
-                        $database = max(0, (int) ($cache['database'] ?? 0));
-                        $connection = RedisAdapter::createConnection(
-                            "{$scheme}://{$auth}{$host}:{$port}/{$database}",
-                        );
+            'cache.system_info' => fn () => new Psr16Cache(new FilesystemAdapter('system-info', 300, $root . '/var/cache/system-info')),
 
-                        return new Psr16Cache(new RedisAdapter(
-                            $connection,
-                            (string) ($cache['namespace'] ?? 'lexnova'),
-                            (int) ($cache['default_ttl'] ?? 3600),
-                        ));
-                    } catch (\Throwable) {
-                        // Keep legal documents available if the optional cache backend is down.
-                    }
-                }
+            CacheBackendService::class => fn (ContainerInterface $c) => new CacheBackendService(
+                (array) ($c->get('config')['cache'] ?? []),
+                $root,
+                $c->get('cache.system_info'),
+            ),
 
-                return new Psr16Cache(new FilesystemAdapter('lexnova', 3600, $root . '/var/cache/app'));
-            },
+            // PSR-16 cache for public documents. Valkey is preferred; compatible
+            // Redis servers work through the same wire-protocol adapter.
+            CacheInterface::class => fn (ContainerInterface $c) => $c->get(CacheBackendService::class)->cache(),
 
             // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
             'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/var/cache/hibp')),
@@ -400,6 +378,14 @@ final class ContainerFactory
                 );
             },
 
+            SystemInfoService::class => fn (ContainerInterface $c) => new SystemInfoService(
+                $c->get(Connection::class),
+                $c->get(CacheBackendService::class),
+                $c->get(Fail2BanLogService::class),
+                $c->get('config'),
+                $root,
+            ),
+
             InstallRateLimitService::class => fn (ContainerInterface $c) => new InstallRateLimitService(
                 $root . '/var/cache/install-rate-limit',
                 $c->get(ClockInterface::class),
@@ -469,6 +455,11 @@ final class ContainerFactory
             Fail2BanSettingHandler::class => fn (ContainerInterface $c) => new Fail2BanSettingHandler(
                 $c->get(SystemSettingService::class),
                 $c->get(AuditService::class),
+            ),
+
+            SystemInfoHandler::class => fn (ContainerInterface $c) => new SystemInfoHandler(
+                $c->get(SystemInfoService::class),
+                $c->get(TemplateRendererInterface::class),
             ),
 
             TotpEnrollHandler::class => fn (ContainerInterface $c) => new TotpEnrollHandler(
