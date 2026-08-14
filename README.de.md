@@ -217,10 +217,12 @@ separat, welcher Client verfügbar und welcher Server tatsächlich verbunden ist
 
 Mezzio enthält bewusst keinen eigenen Cache. LexNova behält Symfony Cache als
 frameworkunabhängige PSR-16-Implementierung. Ein Wechsel zu Laminas Cache würde
-`laminas-cache` sowie getrennte Storage-Adapter benötigen, intern das Laminas-
-`StorageInterface` statt des bereits verwendeten PSR-16-Vertrags einführen und
-für dessen Redis-Adapter weiterhin PhpRedis voraussetzen. Er bringt für die
-aktuellen Dateisystem-/Valkey-Anforderungen daher keinen funktionalen Vorteil.
+`laminas-cache` sowie getrennte Storage-Adapter benötigen. Dessen internes
+`StorageInterface` könnte zwar mit `SimpleCacheDecorator` wieder als PSR-16
+bereitgestellt werden; für Dateisystem und Redis wäre zusätzlich der Serializer-
+Plugin-Aufbau nötig. Der Laminas-Redis-Adapter setzt zudem weiterhin PhpRedis
+voraus. Der Wechsel bringt für die aktuellen Dateisystem-/Valkey-Anforderungen
+daher keinen funktionalen Vorteil.
 
 Aktuell existieren folgende Cachewege:
 
