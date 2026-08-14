@@ -199,6 +199,29 @@ Redis-Server gelb als kompatibel. Die Diagnose wird fünf Minuten lokal gecacht.
 Ist `INFO server` durch die Server-ACL gesperrt, bleibt der Cache nutzbar, das
 Produkt wird aber nicht geraten.
 
+Symfony Cache stellt die Cache-Abstraktion bereit, ist aber nicht selbst der
+Netzwerkclient. Bei `adapter = "valkey"` verwendet Symfony automatisch den ersten
+verfügbaren kompatiblen Client in dieser Reihenfolge:
+
+| Priorität | Client | Installation | Einordnung |
+|---:|---|---|---|
+| 1 | PhpRedis | PHP-Erweiterung `ext-redis` | Schnell und speichersparend; auf Shared Hosting nur nutzbar, wenn der Hoster die Erweiterung anbietet |
+| 2 | Relay | PHP-Erweiterung `ext-relay` | Performanter alternativer Extension-Client; auf typischen Shared Hosts selten verfügbar |
+| 3 | Predis | Composer-Paket `predis/predis` | Reines PHP und ohne Serverrechte installierbar; portabler, aber mit mehr PHP-Overhead |
+
+`ext-redis` ist trotz seines Namens nur ein Client für das Redis-Protokoll und
+kann einen Valkey-Server ansprechen. Es verpflichtet LexNova nicht zum Einsatz
+des Redis-Serverprodukts. Im ausgelieferten Standardbetrieb mit Dateisystem-Cache
+ist keiner dieser drei optionalen Clients erforderlich. `/admin/system` zeigt
+separat, welcher Client verfügbar und welcher Server tatsächlich verbunden ist.
+
+Mezzio enthält bewusst keinen eigenen Cache. LexNova behält Symfony Cache als
+frameworkunabhängige PSR-16-Implementierung. Ein Wechsel zu Laminas Cache würde
+`laminas-cache` sowie getrennte Storage-Adapter benötigen, intern das Laminas-
+`StorageInterface` statt des bereits verwendeten PSR-16-Vertrags einführen und
+für dessen Redis-Adapter weiterhin PhpRedis voraussetzen. Er bringt für die
+aktuellen Dateisystem-/Valkey-Anforderungen daher keinen funktionalen Vorteil.
+
 Aktuell existieren folgende Cachewege:
 
 | Zweck | Adapter |
@@ -208,6 +231,14 @@ Aktuell existieren folgende Cachewege:
 | Datenbank-Systemeinstellungen | PSR-16-Dateisystemcache |
 | HIBP-Abfrageergebnisse | PSR-16-Dateisystemcache |
 | Installer-Rate-Limit vor vorhandener DB | geschützte lokale Dateien |
+
+Die admin-geschützte Seite `/admin/system` ist die allgemeine
+Systeminformationsseite der Installation. Sie zeigt LexNova- und
+Komponentenversionen, Host/OS, Kernel und Architektur, Webserver/SAPI, relevante
+PHP-Limits und Erweiterungen, PDO- und Datenbankinformationen, Cache-Client und
+-Server, Sicherheitsstatus, Speicherplatz sowie die Schreibbarkeit der
+Runtime-Verzeichnisse. Passwörter, App-Schlüssel und sonstige Secrets werden
+nicht ausgegeben.
 
 Die Datenbankanbindung läuft über Doctrine DBAL und PDO. Unterstützt sind SQLite,
 MySQL/MariaDB und PostgreSQL. Zugangsdaten und Cache-Secrets werden in den
