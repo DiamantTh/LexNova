@@ -35,13 +35,48 @@
     </section>
 
     <section class="card">
+        <h2>Host und Betriebssystem</h2>
+        <table class="system-table">
+            <tr><th>Betriebssystem</th><td>{{ system.host.os_family }} ({{ system.host.os }})</td></tr>
+            <tr><th>Kernel</th><td>{{ system.host.kernel_release }}</td></tr>
+            <tr><th>Architektur</th><td>{{ system.host.machine }}</td></tr>
+            <tr><th>Hostname</th><td>{{ system.host.hostname }}</td></tr>
+            <tr><th>Serverzeit</th><td>{{ system.host.server_time_utc }}</td></tr>
+            {% if system.host.load_average is not empty %}<tr><th>Load Average</th><td>{{ system.host.load_average|join(' / ') }}</td></tr>{% endif %}
+            <tr><th>Speicherplatz gesamt</th><td>{{ system.host.disk_total is not null ? (system.host.disk_total / 1073741824)|number_format(2, ',', '.') ~ ' GiB' : 'nicht ermittelbar' }}</td></tr>
+            <tr><th>Speicherplatz frei</th><td>{{ system.host.disk_free is not null ? (system.host.disk_free / 1073741824)|number_format(2, ',', '.') ~ ' GiB' : 'nicht ermittelbar' }}</td></tr>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2>Webserver</h2>
+        <table class="system-table">
+            <tr><th>Software</th><td>{{ system.host.server_software }}</td></tr>
+            <tr><th>Gateway/SAPI</th><td>{{ system.host.gateway_interface }}</td></tr>
+            <tr><th>HTTP-Protokoll</th><td>{{ system.host.server_protocol }}</td></tr>
+            <tr><th>DocumentRoot</th><td><code class="path">{{ system.host.document_root }}</code></td></tr>
+            <tr><th>Temporäres Verzeichnis</th><td><code class="path">{{ system.host.temporary_directory }}</code></td></tr>
+        </table>
+    </section>
+
+    <section class="card">
         <h2>PHP-Runtime</h2>
         <table class="system-table">
             <tr><th>PHP</th><td>{{ system.runtime.php_version }}</td></tr>
+            <tr><th>Zend Engine</th><td>{{ system.runtime.zend_version }}</td></tr>
             <tr><th>SAPI</th><td>{{ system.runtime.sapi }}</td></tr>
             <tr><th>Architektur</th><td>{{ system.runtime.architecture }} Bit</td></tr>
+            <tr><th>php.ini</th><td><code class="path">{{ system.runtime.ini_file ?? 'keine geladen' }}</code></td></tr>
+            <tr><th>Zeitzone</th><td>{{ system.runtime.timezone }}</td></tr>
             <tr><th>Memory-Limit</th><td>{{ system.runtime.memory_limit }}</td></tr>
+            <tr><th>Max. Ausführungszeit</th><td>{{ system.runtime.max_execution_time }} Sekunden</td></tr>
+            <tr><th>Max. Eingabezeit</th><td>{{ system.runtime.max_input_time }} Sekunden</td></tr>
+            <tr><th>Max. Eingabevariablen</th><td>{{ system.runtime.max_input_vars }}</td></tr>
+            <tr><th>POST-Limit</th><td>{{ system.runtime.post_max_size }}</td></tr>
+            <tr><th>Upload-Limit</th><td>{{ system.runtime.upload_max_filesize }} / {{ system.runtime.max_file_uploads }} Dateien</td></tr>
             <tr><th>OPcache</th><td><span class="status {{ system.runtime.opcache ? 'good' : 'neutral' }}">{{ system.runtime.opcache ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+            <tr><th>Fehleranzeige</th><td><span class="status {{ system.runtime.display_errors ? 'warn' : 'good' }}">{{ system.runtime.display_errors ? 'aktiv' : 'inaktiv' }}</span></td></tr>
+            <tr><th>PDO-Treiber</th><td>{{ system.runtime.pdo_drivers|join(', ') }}</td></tr>
         </table>
         <h3>Erweiterungen</h3>
         <table>
@@ -53,6 +88,24 @@
             </tr>
         {% endfor %}
         </table>
+        <h3>Valkey-/Redis-Protokoll-Clients</h3>
+        <p class="hint">Symfony verwendet den ersten verfügbaren Client in dieser Reihenfolge. Die Clients funktionieren sowohl mit Valkey als auch mit kompatiblen Redis-Servern.</p>
+        <table>
+        {% for client in system.runtime.cache_clients %}
+            <tr>
+                <th>{{ client.priority }}. {{ client.name }}</th>
+                <td>{{ client.type }}</td>
+                <td><span class="status {{ client.available ? 'good' : 'neutral' }}">{{ client.available ? 'verfügbar' : 'nicht installiert' }}</span></td>
+                <td>{{ client.version ?? '–' }}</td>
+            </tr>
+        {% endfor %}
+        </table>
+        <h3>Wichtige Komponenten</h3>
+        <table>
+        {% for component in system.runtime.components %}
+            <tr><th>{{ component.name }}</th><td>{{ component.version }}</td></tr>
+        {% endfor %}
+        </table>
     </section>
 
     <section class="card">
@@ -61,6 +114,7 @@
             <tr><th>Status</th><td><span class="status {{ system.database.connected ? 'good' : 'bad' }}">{{ system.database.connected ? 'verbunden' : 'nicht erreichbar' }}</span></td></tr>
             <tr><th>Produkt</th><td>{{ system.database.product }}</td></tr>
             <tr><th>Version</th><td>{{ system.database.version ?? 'nicht ermittelbar' }}</td></tr>
+            <tr><th>PDO-Client</th><td>{{ system.database.client_version ?? 'nicht ermittelbar' }}</td></tr>
             <tr><th>Konfigurierter Adapter</th><td>{{ system.database.configured }}</td></tr>
             <tr><th>{{ system.database.configured == 'sqlite' ? 'Datei' : 'Host' }}</th><td><code class="path">{{ system.database.host ?? '–' }}</code></td></tr>
             {% if system.database.port %}<tr><th>Port</th><td>{{ system.database.port }}</td></tr>{% endif %}

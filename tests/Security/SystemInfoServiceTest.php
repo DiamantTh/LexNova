@@ -37,12 +37,26 @@ $service = new SystemInfoService($db, $cache, $fail2ban, [
     'twig' => ['cache_dir' => $root . '/var/cache/twig'],
 ], $root);
 
-$status = $service->status();
+$status = $service->status([
+    'SERVER_SOFTWARE' => 'Apache/2.4 Test',
+    'SERVER_PROTOCOL' => 'HTTP/2.0',
+    'GATEWAY_INTERFACE' => 'CGI/1.1',
+    'DOCUMENT_ROOT' => $root . '/httpdocs',
+]);
 if (!$status['database']['connected'] || $status['database']['product'] !== 'SQLite') {
     throw new RuntimeException('System information did not report the active SQLite database.');
 }
 if ($status['cache']['effective'] !== 'filesystem' || !$status['application']['installed']) {
     throw new RuntimeException('System information did not report the effective runtime state.');
+}
+if ($status['host']['server_software'] !== 'Apache/2.4 Test'
+    || $status['host']['os_family'] === ''
+    || $status['runtime']['php_version'] !== PHP_VERSION
+    || $status['runtime']['pdo_drivers'] === []
+    || count($status['runtime']['cache_clients']) !== 3
+    || $status['runtime']['cache_clients'][0]['name'] !== 'PhpRedis'
+) {
+    throw new RuntimeException('General host, webserver or PHP information is incomplete.');
 }
 
 $serialized = json_encode($status, JSON_THROW_ON_ERROR);

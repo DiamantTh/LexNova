@@ -22,7 +22,7 @@ final readonly class SystemInfoHandler implements RequestHandlerInterface
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         return new HtmlResponse($this->renderer->render('admin/system-info', [
-            'system' => $this->systemInfo->status(),
+            'system' => $this->systemInfo->status($request->getServerParams()),
         ]));
     }
 }
