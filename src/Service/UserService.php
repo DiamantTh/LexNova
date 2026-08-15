@@ -26,7 +26,7 @@ final readonly class UserService
     public function list(): array
     {
         $users = $this->db->createQueryBuilder()
-            ->select('id', 'username', 'role', 'created_at')
+            ->select('id', 'username', 'role', 'password_login_enabled', 'created_at')
             ->from('users')
             ->orderBy('username', 'ASC')
             ->executeQuery()
@@ -35,6 +35,8 @@ final readonly class UserService
         // Annotate each user with TOTP key count for the dashboard
         foreach ($users as &$user) {
             $user['totp_key_count'] = $this->countActiveKeys((int) $user['id']);
+            $user['passkey_count'] = $this->countPasskeys((int) $user['id']);
+            $user['password_login_enabled'] = $this->databaseBool($user['password_login_enabled']);
         }
 
         return $users;
@@ -44,37 +46,48 @@ final readonly class UserService
     public function findById(int $id): ?array
     {
         $row = $this->db->createQueryBuilder()
-            ->select('id', 'username', 'role', 'created_at')
+            ->select('id', 'username', 'role', 'password_login_enabled', 'created_at')
             ->from('users')
             ->where('id = :id')
             ->setParameter('id', $id)
             ->executeQuery()
             ->fetchAssociative();
 
-        return $row ?: null;
+        if (!$row) {
+            return null;
+        }
+        $row['password_login_enabled'] = $this->databaseBool($row['password_login_enabled']);
+
+        return $row;
     }
 
     /** @return array<string,mixed>|null */
     public function findByUsername(string $username): ?array
     {
         $row = $this->db->createQueryBuilder()
-            ->select('id', 'username', 'password_hash', 'role')
+            ->select('id', 'username', 'password_hash', 'password_login_enabled', 'role')
             ->from('users')
             ->where('username = :username')
             ->setParameter('username', $username)
             ->executeQuery()
             ->fetchAssociative();
 
-        return $row ?: null;
+        if (!$row) {
+            return null;
+        }
+        $row['password_login_enabled'] = $this->databaseBool($row['password_login_enabled']);
+
+        return $row;
     }
 
     /** @return array<string,mixed>|null */
     public function verifyCredentials(string $username, string $password): ?array
     {
         $user = $this->findByUsername($username);
-        $hash = $user !== null ? (string) $user['password_hash'] : self::DUMMY_PASSWORD_HASH;
+        $passwordLoginEnabled = $user !== null && $user['password_login_enabled'] === true;
+        $hash = $passwordLoginEnabled ? (string) $user['password_hash'] : self::DUMMY_PASSWORD_HASH;
 
-        if (!$this->passwords->verify($password, $hash) || $user === null) {
+        if (!$this->passwords->verify($password, $hash) || $user === null || !$passwordLoginEnabled) {
             return null;
         }
 
@@ -87,13 +100,20 @@ final readonly class UserService
         return $user;
     }
 
-    public function create(string $username, string $password, string $role = 'admin'): int
-    {
-        $hash = $this->passwords->hash($password);
+    public function create(
+        string $username,
+        string $password,
+        string $role = 'admin',
+        bool $passwordLoginEnabled = true,
+    ): int {
+        $hash = $this->passwords->hash(
+            $passwordLoginEnabled ? $password : bin2hex(random_bytes(32)),
+        );
 
         $this->db->insert('users', [
             'username' => $username,
             'password_hash' => $hash,
+            'password_login_enabled' => $passwordLoginEnabled ? 1 : 0,
             'role' => $role,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
@@ -110,6 +130,27 @@ final readonly class UserService
     {
         $hash = $this->passwords->hash($password);
         $this->db->update('users', ['password_hash' => $hash], ['id' => $id]);
+    }
+
+    public function setPasswordLoginEnabled(int $id, bool $enabled): void
+    {
+        $this->db->update('users', ['password_login_enabled' => $enabled ? 1 : 0], ['id' => $id]);
+    }
+
+    public function countPasskeys(int $userId): int
+    {
+        return (int) $this->db->createQueryBuilder()
+            ->select('COUNT(*)')
+            ->from('user_webauthn_credentials')
+            ->where('user_id = :uid')
+            ->setParameter('uid', $userId)
+            ->executeQuery()
+            ->fetchOne();
+    }
+
+    public function hasPasskey(int $userId): bool
+    {
+        return $this->countPasskeys($userId) > 0;
     }
 
     public function delete(int $id): void
@@ -234,5 +275,10 @@ final readonly class UserService
     public function deleteAllTotpKeys(int $userId): int
     {
         return (int) $this->db->delete('user_totp_keys', ['user_id' => $userId]);
+    }
+
+    private function databaseBool(mixed $value): bool
+    {
+        return in_array($value, [true, 1, '1', 't', 'true'], true);
     }
 }

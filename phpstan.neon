@@ -13,6 +13,9 @@ parameters:
     scanDirectories:
         - vendor
 
+    stubFiles:
+        - stubs/laminas-cache.stub
+
     # Report unmatched ignored errors
     reportUnmatchedIgnoredErrors: false
 
@@ -29,11 +32,6 @@ parameters:
         # convention (injected by DI) but delegates redirects to RedirectResponse
         # directly — PHPStan marks it as "only written".
         - '#Property LexNova\\Middleware\\AdminAuthMiddleware::\$responseFactory is never read, only written#'
-
-        # DocumentInputFilter extends a generic Laminas class; specifying the
-        # generic type parameter requires forking the return signature of every
-        # Laminas method — not worth the churn at this stage.
-        - '#Class LexNova\\InputFilter\\DocumentInputFilter extends generic class#'
 
         # password_hash() in PHP 8 never returns false (signature changed from
         # string|false to string), so === false is always false. The checks are

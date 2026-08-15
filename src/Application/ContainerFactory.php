@@ -9,7 +9,6 @@ use Doctrine\DBAL\Connection;
 use Laminas\HttpHandlerRunner\Emitter\EmitterInterface;
 use Laminas\HttpHandlerRunner\RequestHandlerRunner;
 use Laminas\HttpHandlerRunner\RequestHandlerRunnerInterface;
-use Laminas\I18n\Translator\Translator;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Clock\SystemClock;
 use LexNova\Factory\DoctrineConnectionFactory;
@@ -19,8 +18,10 @@ use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\SystemInfoHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
+use LexNova\Handler\Auth\PasskeyDeleteHandler;
 use LexNova\Handler\Auth\PasskeyLoginHandler;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
+use LexNova\Handler\Auth\PasskeyUpdateHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Error\NotFoundHandler;
@@ -45,6 +46,7 @@ use LexNova\Service\RateLimitService;
 use LexNova\Service\SystemInfoService;
 use LexNova\Service\SystemSettingService;
 use LexNova\Service\TotpService;
+use LexNova\Service\TranslationService;
 use LexNova\Service\UserService;
 use LexNova\Twig\EmailExtension;
 use LexNova\Twig\TranslationExtension;
@@ -92,8 +94,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter;
-use Symfony\Component\Cache\Psr16Cache;
 use Twig\Environment;
 
 final class ContainerFactory
@@ -138,7 +138,7 @@ final class ContainerFactory
         $config['app']['locale'] ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
-        foreach ([$root . '/var/cache/twig', $root . '/var/cache/app', $root . '/var/log'] as $dir) {
+        foreach ([$root . '/var/cache/twig', $root . '/var/log'] as $dir) {
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -236,7 +236,24 @@ final class ContainerFactory
 
             ErrorResponseGenerator::class => fn (ContainerInterface $c) => (new ErrorResponseGeneratorFactory())($c),
 
-            ErrorHandler::class => fn (ContainerInterface $c) => (new ErrorHandlerFactory())($c),
+            ErrorHandler::class => function (ContainerInterface $c): ErrorHandler {
+                $handler = (new ErrorHandlerFactory())($c);
+                $logger = $c->get(LoggerInterface::class);
+                $handler->attachListener(static function (
+                    \Throwable $error,
+                    ServerRequestInterface $request,
+                    ResponseInterface $response,
+                ) use ($logger): void {
+                    $logger->error('Unhandled HTTP request error.', [
+                        'exception' => $error,
+                        'method' => $request->getMethod(),
+                        'path' => $request->getUri()->getPath(),
+                        'status' => $response->getStatusCode(),
+                    ]);
+                });
+
+                return $handler;
+            },
 
             // ── Infrastructure ──────────────────────────────────────────────────────
             // PHP 8.4 native lazy proxy: Connection is only established on first use.
@@ -250,22 +267,13 @@ final class ContainerFactory
             ClockInterface::class => fn () => new SystemClock(),
 
             // ── Twig extensions ──────────────────────────────────────────────────────
-            Translator::class => function (ContainerInterface $c) use ($root): Translator {
-                $locale = str_replace('-', '_', (string) ($c->get('config')['app']['locale'] ?? 'de'));
-                $translator = new Translator();
-                $translator->setLocale($locale);
-                $translator->setFallbackLocale('en');
-                $translator->addTranslationFilePattern(
-                    'phparray',
-                    $root . '/resources/translations',
-                    '%s.php',
-                );
-
-                return $translator;
-            },
+            TranslationService::class => fn (ContainerInterface $c) => new TranslationService(
+                $root . '/resources/translations',
+                (string) ($c->get('config')['app']['locale'] ?? 'de'),
+            ),
 
             TranslationExtension::class => fn (ContainerInterface $c) => new TranslationExtension(
-                $c->get(Translator::class),
+                $c->get(TranslationService::class),
                 (string) ($c->get('config')['app']['locale'] ?? 'de'),
             ),
 
@@ -281,7 +289,11 @@ final class ContainerFactory
             ),
 
             // ── Cache ────────────────────────────────────────────────────────────────
-            'cache.system_info' => fn () => new Psr16Cache(new FilesystemAdapter('system-info', 300, $root . '/var/cache/system-info')),
+            'cache.system_info' => fn () => CacheBackendService::createFilesystemCache(
+                $root . '/var/cache/system-info',
+                'system-info',
+                300,
+            ),
 
             CacheBackendService::class => fn (ContainerInterface $c) => new CacheBackendService(
                 (array) ($c->get('config')['cache'] ?? []),
@@ -294,10 +306,12 @@ final class ContainerFactory
             CacheInterface::class => fn (ContainerInterface $c) => $c->get(CacheBackendService::class)->cache(),
 
             // PSR-16 cache dedicated to HIBP range lookups (24 h TTL handled by service).
-            'cache.hibp' => fn () => new Psr16Cache(new FilesystemAdapter('hibp', 86400, $root . '/var/cache/hibp')),
+            'cache.hibp' => fn (ContainerInterface $c) => $c->get(CacheBackendService::class)
+                ->namedCache('hibp', 86400),
 
             // Cached system settings avoid a database query on every security event.
-            'cache.settings' => fn () => new Psr16Cache(new FilesystemAdapter('settings', 0, $root . '/var/cache/settings')),
+            'cache.settings' => fn (ContainerInterface $c) => $c->get(CacheBackendService::class)
+                ->namedCache('settings', 60),
 
             // ── Breached-password checker (HIBP, optional) ──────────────────────────
             BreachedPasswordCheckerInterface::class => function (ContainerInterface $c): BreachedPasswordCheckerInterface {
@@ -427,6 +441,7 @@ final class ContainerFactory
                 $c->get(EntityService::class),
                 $c->get(DocumentService::class),
                 $c->get(PasswordService::class),
+                $c->get(PasskeyService::class),
                 $c->get(AuditService::class),
                 $c->get(TemplateRendererInterface::class),
                 $c->get(Fail2BanLogService::class),
@@ -450,6 +465,14 @@ final class ContainerFactory
 
             PasskeyRegisterHandler::class => fn (ContainerInterface $c) => new PasskeyRegisterHandler(
                 $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
+            ),
+
+            PasskeyDeleteHandler::class => fn (ContainerInterface $c) => new PasskeyDeleteHandler(
+                $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
+            ),
+
+            PasskeyUpdateHandler::class => fn (ContainerInterface $c) => new PasskeyUpdateHandler(
+                $c->get(PasskeyService::class), $c->get(AuditService::class),
             ),
 
             Fail2BanSettingHandler::class => fn (ContainerInterface $c) => new Fail2BanSettingHandler(

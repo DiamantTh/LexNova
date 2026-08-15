@@ -4,6 +4,7 @@ CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    password_login_enabled INTEGER NOT NULL DEFAULT 1,
     role VARCHAR(20) NOT NULL,
     created_at DATETIME NOT NULL
 );

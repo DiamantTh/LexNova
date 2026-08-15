@@ -3,12 +3,12 @@
 declare(strict_types=1);
 
 use Doctrine\DBAL\DriverManager;
+use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
+use Laminas\Cache\Storage\Adapter\Memory;
 use LexNova\Service\CacheBackendService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\SystemInfoService;
 use LexNova\Service\SystemSettingService;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\Cache\Psr16Cache;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -20,7 +20,7 @@ touch($root . '/data/install.lock');
 
 $db = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
 $db->executeStatement('CREATE TABLE system_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT NOT NULL, updated_at DATETIME NOT NULL)');
-$localCache = new Psr16Cache(new ArrayAdapter());
+$localCache = new SimpleCacheDecorator(new Memory());
 $settings = new SystemSettingService($db, $localCache);
 $fail2ban = new Fail2BanLogService($settings, false, $root . '/var/log/fail2ban.log');
 $cache = new CacheBackendService(
@@ -53,7 +53,7 @@ if ($status['host']['server_software'] !== 'Apache/2.4 Test'
     || $status['host']['os_family'] === ''
     || $status['runtime']['php_version'] !== PHP_VERSION
     || $status['runtime']['pdo_drivers'] === []
-    || count($status['runtime']['cache_clients']) !== 3
+    || count($status['runtime']['cache_clients']) !== 1
     || $status['runtime']['cache_clients'][0]['name'] !== 'PhpRedis'
 ) {
     throw new RuntimeException('General host, webserver or PHP information is incomplete.');

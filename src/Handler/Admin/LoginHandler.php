@@ -6,6 +6,7 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\LoginInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
@@ -53,11 +54,13 @@ final readonly class LoginHandler implements RequestHandlerInterface
             } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
-                $username = trim((string) ($body['username'] ?? ''));
-                $password = (string) ($body['password'] ?? '');
-                $inputWithinLimits = strlen($username) <= 100
-                    && strlen($password) <= 256;
-                $user = $inputWithinLimits ? $this->users->verifyCredentials($username, $password) : null;
+                $input = new LoginInputFilter();
+                $input->setData($body);
+                $validInput = $input->isValid();
+                $values = $input->getValues();
+                $username = $values['username'] ?? '';
+                $password = $values['password'] ?? '';
+                $user = $validInput ? $this->users->verifyCredentials($username, $password) : null;
 
                 if ($user !== null) {
                     $this->rateLimit->recordSuccess($ip, 'login');

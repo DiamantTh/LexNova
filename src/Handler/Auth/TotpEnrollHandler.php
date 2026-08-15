@@ -9,6 +9,7 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\SvgWriter;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\TotpEnrollmentInputFilter;
 use LexNova\Service\TotpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -60,14 +61,18 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
-                $code = trim((string) ($body['code'] ?? ''));
+                $input = new TotpEnrollmentInputFilter();
+                $body['label'] = isset($body['label']) && $body['label'] !== '' ? $body['label'] : 'Default';
+                $input->setData($body);
+                $validInput = $input->isValid();
+                $values = $input->getValues();
+                $code = $values['code'] ?? '';
                 $enrollSecret = (string) ($session->get('totp_enrolling_secret') ?? '');
-                $label = trim((string) ($body['label'] ?? 'Default'));
-                if ($label === '') {
-                    $label = 'Default';
-                }
+                $label = $values['label'] ?? 'Default';
 
-                if ($enrollSecret === '') {
+                if (!$validInput) {
+                    $errors = $input->getErrorMessages();
+                } elseif ($enrollSecret === '') {
                     $errors[] = 'Enrollment session expired. Please reload the page.';
                 } elseif ($this->totp->verifyPlain($enrollSecret, $code)) {
                     $encrypted = $this->totp->encrypt($enrollSecret);

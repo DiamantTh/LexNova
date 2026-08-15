@@ -1,6 +1,7 @@
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY, username VARCHAR(255) NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL, role VARCHAR(20) NOT NULL, created_at TIMESTAMP NOT NULL
+    password_hash TEXT NOT NULL, password_login_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    role VARCHAR(20) NOT NULL, created_at TIMESTAMP NOT NULL
 );
 
 CREATE TABLE user_totp_keys (

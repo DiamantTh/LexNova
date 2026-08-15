@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace LexNova\Service;
 
+use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
+use Laminas\Cache\Storage\Adapter\Filesystem;
+use Laminas\Cache\Storage\Adapter\Redis as RedisAdapter;
+use Laminas\Cache\Storage\Adapter\RedisOptions;
+use Laminas\Cache\Storage\Adapter\RedisResourceManager;
 use Psr\SimpleCache\CacheInterface;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter;
-use Symfony\Component\Cache\Adapter\RedisAdapter;
-use Symfony\Component\Cache\Psr16Cache;
 
 final class CacheBackendService
 {
-    private ?CacheInterface $cache = null;
+    /** @var array<string, CacheInterface> */
+    private array $caches = [];
+    private ?\Redis $redisConnection = null;
 
     /** @param array<string, mixed> $config */
     public function __construct(
@@ -23,25 +27,25 @@ final class CacheBackendService
 
     public function cache(): CacheInterface
     {
-        if ($this->cache !== null) {
-            return $this->cache;
+        return $this->namedCache('documents', max(0, (int) ($this->config['default_ttl'] ?? 3600)));
+    }
+
+    public function namedCache(string $name, int $defaultTtl): CacheInterface
+    {
+        $name = self::normalizeNamespace($name);
+        if (isset($this->caches[$name])) {
+            return $this->caches[$name];
         }
 
         if (($this->config['adapter'] ?? 'filesystem') === 'valkey') {
             try {
-                $connection = $this->connect();
-
-                return $this->cache = new Psr16Cache(new RedisAdapter(
-                    $connection,
-                    (string) ($this->config['namespace'] ?? 'lexnova'),
-                    (int) ($this->config['default_ttl'] ?? 3600),
-                ));
+                return $this->caches[$name] = $this->valkeyCache($name, $defaultTtl);
             } catch (\Throwable) {
-                // Public documents must remain available if the optional backend fails.
+                // Every cache consumer must remain available if the optional backend fails.
             }
         }
 
-        return $this->cache = $this->filesystemCache();
+        return $this->caches[$name] = $this->filesystemCache($name, $defaultTtl);
     }
 
     /**
@@ -108,14 +112,14 @@ final class CacheBackendService
     {
         $configured = (string) ($this->config['adapter'] ?? 'filesystem');
         if ($configured !== 'valkey') {
-            $path = $this->root . '/var/cache/app';
+            $path = $this->root . '/var/cache/documents';
 
             return [
                 'configured' => $configured === 'filesystem' ? 'filesystem' : $configured,
                 'effective' => 'filesystem',
                 'product' => 'Dateisystem',
                 'version' => null,
-                'client' => FilesystemAdapter::class,
+                'client' => Filesystem::class,
                 'connected' => true,
                 'fallback' => $configured !== 'filesystem',
                 'preferred' => false,
@@ -131,12 +135,12 @@ final class CacheBackendService
         }
 
         try {
-            $connection = $this->connect();
-            if (!$this->probe($connection)) {
+            $cache = $this->valkeyCache('system-probe', 10);
+            if (!$this->probe($cache)) {
                 throw new \RuntimeException('Cache backend does not accept cache operations.');
             }
             try {
-                $info = $this->serverInfo($connection);
+                $info = $this->serverInfo($this->redisConnection);
             } catch (\Throwable) {
                 $info = [];
             }
@@ -149,7 +153,7 @@ final class CacheBackendService
                 'effective' => 'redis-protocol',
                 'product' => $identity['product'],
                 'version' => $identity['version'],
-                'client' => get_debug_type($connection),
+                'client' => 'PhpRedis ' . (phpversion('redis') ?: 'Version unbekannt'),
                 'connected' => true,
                 'fallback' => false,
                 'preferred' => $identity['preferred'],
@@ -173,7 +177,7 @@ final class CacheBackendService
                 'fallback' => true,
                 'preferred' => false,
                 'detection' => 'connection_failed',
-                'path' => $this->root . '/var/cache/app',
+                'path' => $this->root . '/var/cache/documents',
                 'writable' => is_writable($this->root . '/var/cache'),
                 'endpoint' => (string) ($this->config['host'] ?? '127.0.0.1') . ':'
                     . min(65535, max(1, (int) ($this->config['port'] ?? 6379))),
@@ -185,49 +189,52 @@ final class CacheBackendService
         }
     }
 
-    private function connect(): object
+    private function valkeyCache(string $name, int $defaultTtl): CacheInterface
     {
         $host = (string) ($this->config['host'] ?? '127.0.0.1');
-        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
-            $host = '[' . $host . ']';
+        if ((bool) ($this->config['tls'] ?? false)) {
+            $host = 'tls://' . $host;
         }
         $username = (string) ($this->config['username'] ?? '');
         $password = (string) ($this->config['password'] ?? '');
-        $auth = $username !== '' || $password !== ''
-            ? rawurlencode($username) . ':' . rawurlencode($password) . '@'
-            : '';
-        $scheme = (bool) ($this->config['tls'] ?? false) ? 'valkeys' : 'valkey';
         $port = min(65535, max(1, (int) ($this->config['port'] ?? 6379)));
         $database = max(0, (int) ($this->config['database'] ?? 0));
+        $options = new RedisOptions();
+        $options->setServer(['host' => $host, 'port' => $port, 'timeout' => 2]);
+        $options->setDatabase($database);
+        $options->setNamespace($this->namespace($name));
+        $options->setTtl(max(0, $defaultTtl));
+        $options->setLibOptions([\Redis::OPT_SERIALIZER => \Redis::SERIALIZER_PHP]);
+        if ($username !== '') {
+            $options->setUser($username);
+        }
+        if ($password !== '') {
+            $options->setPassword($password);
+        }
 
-        return RedisAdapter::createConnection("{$scheme}://{$auth}{$host}:{$port}/{$database}");
+        $adapter = new RedisAdapter($options);
+        $resourceManager = new RedisResourceManager($options);
+        $adapter->setResourceManager($resourceManager);
+        $connection = $resourceManager->getResource();
+        $this->redisConnection ??= $connection;
+
+        return new SimpleCacheDecorator($adapter);
     }
 
     /** @return array<string, mixed> */
-    private function serverInfo(object $connection): array
+    private function serverInfo(?\Redis $connection): array
     {
-        if (is_callable([$connection, 'info'])) {
-            $result = call_user_func([$connection, 'info'], 'server');
-
-            return $this->normalizeInfo($result);
+        if (!$connection instanceof \Redis) {
+            return [];
         }
 
-        if (is_callable([$connection, 'executeRaw'])) {
-            $result = call_user_func([$connection, 'executeRaw'], ['INFO', 'server']);
+        $result = $connection->info('server');
 
-            return $this->normalizeInfo($result);
-        }
-
-        return [];
+        return $this->normalizeInfo($result);
     }
 
-    private function probe(object $connection): bool
+    private function probe(CacheInterface $cache): bool
     {
-        $cache = new Psr16Cache(new RedisAdapter(
-            $connection,
-            (string) ($this->config['namespace'] ?? 'lexnova'),
-            10,
-        ));
         $key = 'system_info_probe_' . bin2hex(random_bytes(8));
         $value = bin2hex(random_bytes(8));
 
@@ -269,12 +276,45 @@ final class CacheBackendService
         return $info;
     }
 
-    private function filesystemCache(): CacheInterface
+    private function filesystemCache(string $name, int $defaultTtl): CacheInterface
     {
-        return new Psr16Cache(new FilesystemAdapter(
-            (string) ($this->config['namespace'] ?? 'lexnova'),
-            (int) ($this->config['default_ttl'] ?? 3600),
-            $this->root . '/var/cache/app',
-        ));
+        return self::createFilesystemCache(
+            $this->root . '/var/cache/' . $name,
+            $this->namespace($name),
+            $defaultTtl,
+        );
+    }
+
+    public static function createFilesystemCache(string $path, string $namespace, int $defaultTtl): CacheInterface
+    {
+        if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
+            throw new \RuntimeException('Cache directory could not be created: ' . $path);
+        }
+        @chmod($path, 0700);
+
+        $adapter = new Filesystem([
+            'cache_dir' => $path,
+            'namespace' => self::normalizeNamespace($namespace),
+            'ttl' => max(0, $defaultTtl),
+            'dir_permission' => 0700,
+            'file_permission' => 0600,
+            'unserializable_classes' => false,
+        ]);
+
+        return new SimpleCacheDecorator($adapter);
+    }
+
+    private function namespace(string $name = ''): string
+    {
+        $base = self::normalizeNamespace((string) ($this->config['namespace'] ?? 'lexnova'));
+
+        return $name === '' ? $base : self::normalizeNamespace($base . '.' . $name);
+    }
+
+    private static function normalizeNamespace(string $namespace): string
+    {
+        $normalized = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $namespace);
+
+        return $normalized !== null && $normalized !== '' ? substr($normalized, 0, 128) : 'lexnova';
     }
 }

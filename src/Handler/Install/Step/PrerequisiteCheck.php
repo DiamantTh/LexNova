@@ -36,7 +36,7 @@ final class PrerequisiteCheck
         ];
 
         // ── Required extensions ───────────────────────────────────────────
-        foreach (['sodium', 'pdo', 'json', 'mbstring', 'openssl'] as $ext) {
+        foreach (['ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'] as $ext) {
             $checks[] = [
                 'label' => 'ext-' . $ext,
                 'ok' => extension_loaded($ext),
@@ -54,14 +54,6 @@ final class PrerequisiteCheck
             'label' => 'PDO-Treiber (sqlite / mysql / pgsql)',
             'ok' => count($pdoDrivers) > 0,
             'value' => count($pdoDrivers) > 0 ? implode(', pdo_', $pdoDrivers) : null,
-            'required' => true,
-        ];
-
-        // ── Required extensions (directly required by laminas-i18n) ───────
-        $checks[] = [
-            'label' => 'ext-intl',
-            'ok' => extension_loaded('intl'),
-            'value' => null,
             'required' => true,
         ];
 

@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use LexNova\Service\CacheBackendService;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\Cache\Psr16Cache;
+use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
+use Laminas\Cache\Storage\Adapter\Memory;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -32,7 +32,7 @@ mkdir($temporaryRoot . '/var/cache', 0700, true);
 $service = new CacheBackendService(
     ['adapter' => 'filesystem', 'namespace' => 'lexnova', 'default_ttl' => 3600],
     $temporaryRoot,
-    new Psr16Cache(new ArrayAdapter()),
+    new SimpleCacheDecorator(new Memory()),
 );
 $status = $service->status();
 if ($status['effective'] !== 'filesystem'
@@ -42,6 +42,33 @@ if ($status['effective'] !== 'filesystem'
 ) {
     throw new RuntimeException('Filesystem cache status is incorrect.');
 }
+
+$documents = $service->namedCache('documents', 3600);
+$settings = $service->namedCache('settings', 60);
+$documents->set('same-key', 'document');
+$settings->set('same-key', 'setting');
+if ($documents->get('same-key') !== 'document' || $settings->get('same-key') !== 'setting') {
+    throw new RuntimeException('Named cache areas are not isolated.');
+}
+foreach (['documents', 'settings'] as $directory) {
+    $path = $temporaryRoot . '/var/cache/' . $directory;
+    if (!is_dir($path) || (fileperms($path) & 0777) !== 0700) {
+        throw new RuntimeException('Filesystem cache directory permissions are not restrictive.');
+    }
+}
+
+$removeTree = static function (string $path): void {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST,
+    );
+    foreach ($iterator as $item) {
+        $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    }
+    rmdir($path);
+};
+$removeTree($temporaryRoot . '/var/cache/documents');
+$removeTree($temporaryRoot . '/var/cache/settings');
 
 rmdir($temporaryRoot . '/var/cache');
 rmdir($temporaryRoot . '/var');

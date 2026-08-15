@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\UserUpdateInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
@@ -17,8 +18,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class UserUpdateHandler implements RequestHandlerInterface
 {
-    private const ALLOWED_ROLES = ['admin'];
-
     public function __construct(
         private readonly UserService $users,
         private readonly PasswordService $passwords,
@@ -40,16 +39,22 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
         }
 
         $userId = (int) ($request->getAttribute('id') ?? 0);
-        $role = (string) ($body['role'] ?? 'admin');
-        $newPassword = (string) ($body['new_password'] ?? '');
-        $errors = [];
+        $body['password_login_enabled'] ??= '0';
+        $input = new UserUpdateInputFilter();
+        $input->setData($body);
+        $validInput = $input->isValid();
+        $values = $input->getValues();
+        $role = $values['role'] ?? '';
+        $newPassword = $values['new_password'] ?? '';
+        $passwordLoginEnabled = ($values['password_login_enabled'] ?? '') === '1';
+        $errors = $input->getErrorMessages();
 
-        if ($userId <= 0 || $this->users->findById($userId) === null) {
+        if ($validInput && ($userId <= 0 || $this->users->findById($userId) === null)) {
             $errors[] = 'User not found.';
-        } elseif (!in_array($role, self::ALLOWED_ROLES, true)) {
-            $errors[] = 'Invalid role.';
-        } elseif ($newPassword !== '' && ($pwErr = $this->passwords->validate($newPassword)) !== null) {
+        } elseif ($validInput && $newPassword !== '' && ($pwErr = $this->passwords->validate($newPassword)) !== null) {
             $errors[] = $pwErr;
+        } elseif ($validInput && !$passwordLoginEnabled && !$this->users->hasPasskey($userId)) {
+            $errors[] = 'Password login can only be disabled after at least one passkey has been enrolled.';
         }
 
         if ($errors) {
@@ -59,8 +64,10 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
             if ($newPassword !== '') {
                 $this->users->updatePassword($userId, $newPassword);
             }
+            $this->users->setPasswordLoginEnabled($userId, $passwordLoginEnabled);
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
-            $detail = $newPassword !== '' ? 'role+password' : 'role';
+            $detail = ($newPassword !== '' ? 'role+password' : 'role')
+                . ';password-login:' . ($passwordLoginEnabled ? 'enabled' : 'disabled');
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),
                 (string) ($session->get('username') ?? ''),

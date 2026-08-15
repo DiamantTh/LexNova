@@ -14,7 +14,7 @@ use Psr\Log\LoggerInterface;
  * admin user, writes config/config.php and locks the installer.
  *
  * BCP 47 locale validation uses PHP's ext-intl Locale class, which is a
- * hard dependency of laminas/laminas-i18n and therefore always available.
+ * declared runtime dependency and therefore available on supported hosts.
  */
 final class ConfigureStep
 {
@@ -178,7 +178,7 @@ final class ConfigureStep
             }
         }
 
-        // ── App locale — BCP 47 via ext-intl (laminas/laminas-i18n dep) ───
+        // ── App locale — BCP 47 via ext-intl ───────────────────────────────
         $appBaseUrl = $formData['appBaseUrl'] ?? '';
         if (!$this->isValidBaseUrl($appBaseUrl)) {
             $errors[] = 'A public HTTPS base URL is required for secure sessions and passkeys (http://localhost is allowed for local development).';

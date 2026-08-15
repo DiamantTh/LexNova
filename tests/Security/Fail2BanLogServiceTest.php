@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use Doctrine\DBAL\DriverManager;
+use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
+use Laminas\Cache\Storage\Adapter\Memory;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\SystemSettingService;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\Cache\Psr16Cache;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -19,7 +19,7 @@ CREATE TABLE system_settings (
 )
 SQL);
 
-$cache = new Psr16Cache(new ArrayAdapter());
+$cache = new SimpleCacheDecorator(new Memory());
 $settings = new SystemSettingService($db, $cache, 60);
 $temporaryPath = sys_get_temp_dir() . '/lexnova-fail2ban-' . bin2hex(random_bytes(8)) . '.log';
 $log = new Fail2BanLogService($settings, false, $temporaryPath);

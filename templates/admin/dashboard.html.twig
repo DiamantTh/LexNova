@@ -61,9 +61,16 @@
 </div>
 
 <div class="card">
-    <h2>Passkeys</h2>
-    <p>Passkeys ermöglichen eine passwortlose Anmeldung mit dem Geräte- oder Sicherheitsschlüssel.</p>
-    <button type="button" onclick="lexnovaRegisterPasskey()">Passkey hinzufügen</button>
+    <h2>Passkeys / FIDO2</h2>
+    <p>
+        Passkeys ermöglichen eine Anmeldung mit Plattform-Authenticator oder
+        FIDO2-Sicherheitsschlüssel. Pro Benutzer können mehrere Schlüssel als
+        Reserve hinterlegt werden.
+    </p>
+    <p id="passkey-browser-status" role="status" class="hint"></p>
+    <button type="button" data-passkey-action onclick="lexnovaRegisterPasskey({{ current_user_id }}, 'eigenes Konto')">
+        Passkey für mein Konto hinzufügen
+    </button>
 </div>
 
 {# ── Create user ────────────────────────────────────────────────────────── #}
@@ -83,12 +90,20 @@
                 </select>
             </div>
             <div>
+                <label for="new_authentication">Anmeldung</label>
+                <select id="new_authentication" name="authentication">
+                    <option value="password">Passwort, Passkey später ergänzen</option>
+                    <option value="passkey">Nur Passkey / FIDO2</option>
+                </select>
+                <p class="hint">Bei „Nur Passkey“ nach dem Anlegen direkt einen Passkey in der Benutzertabelle registrieren.</p>
+            </div>
+            <div data-password-create-field>
                 <label for="new_password">{{ trans('Password') }}</label>
                 <input type="password" id="new_password" name="password" class="pw-field"
                        minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
                 <p class="hint">{{ trans('pw_hint')|format(pw_min, pw_max) }}</p>
             </div>
-            <div>
+            <div data-password-create-field>
                 <label for="new_password_confirm">{{ trans('Confirm password') }}</label>
                 <input type="password" id="new_password_confirm" name="password_confirm" class="pw-field"
                        minlength="{{ pw_min }}" maxlength="{{ pw_max }}" required autocomplete="new-password">
@@ -112,6 +127,7 @@
                 <th scope="col">ID</th>
                 <th scope="col">{{ trans('Username') }}</th>
                 <th scope="col">{{ trans('Role') }}</th>
+                <th scope="col">Anmeldung</th>
                 <th scope="col">{{ trans('TOTP Status') }}</th>
                 <th scope="col">{{ trans('Created') }}</th>
                 <th scope="col">{{ trans('Actions') }}</th>
@@ -129,6 +145,11 @@
                             aria-label="{{ trans('Role') }} {{ user.username }}">
                         <option value="admin"{{ user.role == 'admin' ? ' selected' : '' }}>admin</option>
                     </select>
+                    <input type="hidden" name="password_login_enabled" value="0">
+                    <label style="display:block;margin-top:8px;">
+                        <input type="checkbox" name="password_login_enabled" value="1"{{ user.password_login_enabled ? ' checked' : '' }}>
+                        Passwort-Anmeldung
+                    </label>
                     <input type="password" name="new_password" class="pw-field"
                            placeholder="{{ trans('New password (optional)') }}"
                            aria-label="{{ trans('New password (optional)') }} {{ user.username }}"
@@ -137,6 +158,46 @@
                     <button type="submit" class="secondary" style="padding:6px 12px;font-size:13px;"
                             aria-label="{{ trans('Update') }} {{ user.username }}">{{ trans('Update') }}</button>
                 </form>
+            </td>
+            <td>
+                {% set userPasskeys = passkeys[user.id] ?? [] %}
+                <strong>{{ user.password_login_enabled ? 'Passwort aktiv' : 'Passkey-only' }}</strong>
+                <div style="margin-top:6px;">Passkeys: {{ userPasskeys|length }}</div>
+                <button type="button" class="secondary" data-passkey-action
+                        style="padding:4px 10px;font-size:12px;margin-top:6px;"
+                        onclick="lexnovaRegisterPasskey({{ user.id }}, {{ user.username|json_encode|raw }})">
+                    Passkey hinzufügen
+                </button>
+                {% if userPasskeys is not empty %}
+                <details style="margin-top:6px;">
+                    <summary>Passkeys verwalten</summary>
+                    {% for passkey in userPasskeys %}
+                    <div style="border-top:1px solid #ddd;padding:6px 0;">
+                        <form method="post" action="/admin/users/{{ user.id }}/passkeys/{{ passkey.id }}/update"
+                              style="display:flex;gap:4px;align-items:center;margin-bottom:5px;">
+                            <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                            <input type="text" name="label" value="{{ passkey.label }}" maxlength="100"
+                                   required aria-label="Name des Passkeys" style="min-width:130px;">
+                            <button type="submit" class="secondary" style="padding:2px 7px;font-size:11px;">Name speichern</button>
+                        </form>
+                        <small>
+                            <strong>{{ passkey.kind }}</strong><br>
+                            Transport: {{ passkey.transports is empty ? 'nicht gemeldet' : passkey.transports|join(', ') }}<br>
+                            Speicher: {% if passkey.backup_eligible is same as(true) %}synchronisierbar{% elseif passkey.backup_eligible is same as(false) %}gerätegebunden{% else %}nicht gemeldet{% endif %}
+                            {% if passkey.backup_status is same as(true) %} · gesichert/synchronisiert{% endif %}<br>
+                            Hersteller: {{ passkey.manufacturer ?? 'nicht zuverlässig ermittelbar' }}
+                            {% if passkey.aaguid %}<br>AAGUID: <code>{{ passkey.aaguid }}</code>{% endif %}<br>
+                            Angelegt: {{ passkey.created_at }}{% if passkey.last_used_at %} · zuletzt: {{ passkey.last_used_at }}{% endif %}
+                        </small>
+                        <form method="post" action="/admin/users/{{ user.id }}/passkeys/{{ passkey.id }}/delete"
+                              onsubmit="return confirm('Passkey {{ passkey.label|e('js') }} löschen?')">
+                            <input type="hidden" name="__csrf" value="{{ csrf_token }}">
+                            <button type="submit" style="background:#b71c1c;padding:2px 7px;font-size:11px;">Löschen</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </details>
+                {% endif %}
             </td>
             <td>
                 {% set keys = totp_keys[user.id] ?? [] %}
@@ -379,10 +440,18 @@
     const b64 = value => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')), c => c.charCodeAt(0));
     const b64url = value => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const post = async (url, data) => (await fetch(url, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({__csrf:csrf,...data}), credentials:'same-origin'})).json();
-    window.lexnovaRegisterPasskey = async () => {
+    const supported = Boolean(window.PublicKeyCredential && navigator.credentials);
+    const status = document.getElementById('passkey-browser-status');
+    status.textContent = supported
+        ? 'Passkey-Unterstützung dieses Browsers wurde erkannt.'
+        : 'Dieser Browser unterstützt keine Passkeys. Einen aktuellen Browser oder einen anderen Client verwenden.';
+    document.querySelectorAll('[data-passkey-action]').forEach(button => button.disabled = !supported);
+
+    window.lexnovaRegisterPasskey = async (userId, username) => {
+        if (!supported) return;
         try {
-            const label = window.prompt('Name für diesen Passkey', 'Passkey'); if (label === null) return;
-            const options = await post('/admin/passkeys/register/options', {}); if (options.error) throw new Error(options.error);
+            const label = window.prompt(`Name für den Passkey von ${username}`, 'Passkey'); if (label === null) return;
+            const options = await post('/admin/passkeys/register/options', {user_id:String(userId)}); if (options.error) throw new Error(options.error);
             options.challenge = b64(options.challenge); options.user.id = b64(options.user.id);
             if (options.excludeCredentials) options.excludeCredentials.forEach(c => c.id = b64(c.id));
             const credential = await navigator.credentials.create({publicKey: options});
@@ -394,6 +463,21 @@
             if (result.error) throw new Error(result.error); window.location.assign(result.redirect);
         } catch (error) { window.alert(error.message || 'Passkey-Registrierung fehlgeschlagen.'); }
     };
+
+    const authentication = document.getElementById('new_authentication');
+    const passwordFields = document.querySelectorAll('[data-password-create-field]');
+    const togglePasswordFields = () => {
+        const enabled = authentication.value === 'password';
+        passwordFields.forEach(wrapper => {
+            wrapper.hidden = !enabled;
+            wrapper.querySelectorAll('input').forEach(input => {
+                input.disabled = !enabled;
+                input.required = enabled;
+            });
+        });
+    };
+    authentication.addEventListener('change', togglePasswordFields);
+    togglePasswordFields();
 })();
 </script>
 <script src="/assets/zxcvbn.js"></script>

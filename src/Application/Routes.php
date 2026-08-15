@@ -20,8 +20,10 @@ use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
+use LexNova\Handler\Auth\PasskeyDeleteHandler;
 use LexNova\Handler\Auth\PasskeyLoginHandler;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
+use LexNova\Handler\Auth\PasskeyUpdateHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Install\InstallHandler;
@@ -52,6 +54,14 @@ final class Routes
         $app->post('/admin/passkeys/login/finish', PasskeyLoginHandler::class, 'admin.passkeys.login.finish');
         $app->post('/admin/passkeys/register/options', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.options');
         $app->post('/admin/passkeys/register/finish', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.finish');
+        $app->post('/admin/users/{userId:\d+}/passkeys/{credentialId:\d+}/delete',
+            [AdminAuthMiddleware::class, PasskeyDeleteHandler::class],
+            'admin.passkeys.delete',
+        );
+        $app->post('/admin/users/{userId:\d+}/passkeys/{credentialId:\d+}/update',
+            [AdminAuthMiddleware::class, PasskeyUpdateHandler::class],
+            'admin.passkeys.update',
+        );
 
         // ── TOTP: enrollment + reset (requires admin session)
         $app->route('/admin/totp/enroll',

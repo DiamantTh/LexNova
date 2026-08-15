@@ -104,9 +104,10 @@ cookie_lifetime = 0
 cookie_path = "/"
 cookie_domain = "" # empty = current host; do not broaden unless explicitly required
 
-# Public document cache. "filesystem" needs no external service. Valkey is
-# Redis-protocol compatible; with adapter = "valkey" the PHP redis extension
-# (or a compatible Redis client) and a reachable server are required.
+# Application cache for documents, settings and HIBP results. Each area uses
+# its own namespace. "filesystem" needs no external service. Valkey is
+# Redis-protocol compatible; with adapter = "valkey" the PhpRedis extension
+# ext-redis and a reachable server are required.
 # On connection failure LexNova falls back to filesystem caching.
 [cache]
 adapter     = "filesystem" # "filesystem" | "valkey"

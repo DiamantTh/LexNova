@@ -47,11 +47,16 @@ final readonly class DocumentService
     {
         $cacheKey = "doc_public_{$type}_{$publicHash}";
 
-        if ($this->cache->has($cacheKey)) {
-            /** @var array{found: bool, document: array<string, mixed>|null} $cached */
+        try {
             $cached = $this->cache->get($cacheKey);
+            if (is_array($cached) && ($cached['found'] ?? false) === true && is_array($cached['document'] ?? null)) {
+                /** @var array<string, mixed> $document */
+                $document = $cached['document'];
 
-            return $cached['document'];
+                return $document;
+            }
+        } catch (\Throwable) {
+            // The database remains authoritative when a cache backend fails.
         }
 
         $row = $this->db->createQueryBuilder()
@@ -151,24 +156,36 @@ final readonly class DocumentService
     /** @param array<string, mixed>|null $document */
     private function storeCachedResult(int $entityId, string $type, string $key, ?array $document): void
     {
-        $this->cache->set($key, ['found' => $document !== null, 'document' => $document], 3600);
+        try {
+            // No explicit TTL: the selected named cache area owns this policy
+            // (config cache.default_ttl for documents).
+            $this->cache->set($key, ['found' => $document !== null, 'document' => $document]);
 
-        $indexKey = $this->indexKey($entityId, $type);
-        /** @var list<string> $keys */
-        $keys = $this->cache->get($indexKey, []);
-        if (!in_array($key, $keys, true)) {
-            $keys[] = $key;
-            $this->cache->set($indexKey, $keys, 3600);
+            $indexKey = $this->indexKey($entityId, $type);
+            $cachedKeys = $this->cache->get($indexKey, []);
+            /** @var list<string> $keys */
+            $keys = is_array($cachedKeys) ? array_values(array_filter($cachedKeys, 'is_string')) : [];
+            if (!in_array($key, $keys, true)) {
+                $keys[] = $key;
+                $this->cache->set($indexKey, $keys);
+            }
+        } catch (\Throwable) {
+            // Cache population is an optimization and must not fail a write.
         }
     }
 
     private function invalidate(int $entityId, string $type): void
     {
         $indexKey = $this->indexKey($entityId, $type);
-        /** @var list<string> $keys */
-        $keys = $this->cache->get($indexKey, []);
-        $this->cache->deleteMultiple(array_unique($keys));
-        $this->cache->delete($indexKey);
+        try {
+            $cachedKeys = $this->cache->get($indexKey, []);
+            /** @var list<string> $keys */
+            $keys = is_array($cachedKeys) ? array_values(array_filter($cachedKeys, 'is_string')) : [];
+            $this->cache->deleteMultiple(array_unique($keys));
+            $this->cache->delete($indexKey);
+        } catch (\Throwable) {
+            // Cached public documents expire; database writes remain authoritative.
+        }
     }
 
     private function indexKey(int $entityId, string $type): string

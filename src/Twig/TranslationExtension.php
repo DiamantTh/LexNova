@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace LexNova\Twig;
 
-use Laminas\I18n\Translator\Translator;
+use LexNova\Service\TranslationService;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
 /**
- * Twig-Extension für Übersetzungen via laminas-i18n.
+ * Twig-Extension für die PHP-Array-Übersetzungskataloge von LexNova.
  *
  * Stellt die Twig-Funktion trans() bereit:
  *   {{ trans('key') }}           → App-Standardsprache (app_locale)
@@ -20,14 +20,14 @@ use Twig\TwigFunction;
  * BCP 47), die durch Render-Kontext-Variablen überschrieben werden kann –
  * z. B. für öffentliche Dokumentseiten, wo die Sprache aus der URL stammt.
  *
- * Wenn kein Übersetzungseintrag existiert, gibt Laminas den Schlüssel
+ * Wenn kein Übersetzungseintrag existiert, gibt der Übersetzungsdienst den Schlüssel
  * unverändert zurück; englische Klartext-Schlüssel dienen damit als
  * automatischer Fallback.
  */
 final class TranslationExtension extends AbstractExtension
 {
     public function __construct(
-        private readonly Translator $translator,
+        private readonly TranslationService $translator,
         /** BCP 47, z. B. "de" oder "de-CH" */
         private readonly string $defaultLocale,
     ) {
@@ -56,7 +56,7 @@ final class TranslationExtension extends AbstractExtension
     {
         $resolved = $this->normalizeLocale($locale ?? $this->defaultLocale);
 
-        return $this->translator->translate($key, 'default', $resolved);
+        return $this->translator->translate($key, $resolved);
     }
 
     /** Konvertiert BCP 47 (de-CH) in das Laminas-Format (de_CH). */

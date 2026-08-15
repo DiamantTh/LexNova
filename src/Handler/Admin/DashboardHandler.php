@@ -9,6 +9,7 @@ use LexNova\Service\AuditService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\Fail2BanLogService;
+use LexNova\Service\PasskeyService;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
@@ -27,6 +28,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private readonly EntityService $entities,
         private readonly DocumentService $documents,
         private readonly PasswordService $passwords,
+        private readonly PasskeyService $passkeys,
         private readonly AuditService $audit,
         private readonly TemplateRendererInterface $renderer,
         private readonly Fail2BanLogService $fail2ban,
@@ -59,13 +61,16 @@ final readonly class DashboardHandler implements RequestHandlerInterface
 
         // Load all TOTP keys per user (N+1 is acceptable — admin tool, few users).
         $totpKeys = [];
+        $passkeys = [];
         foreach ($users as $u) {
             $totpKeys[(int) $u['id']] = $this->users->getTotpKeys((int) $u['id']);
+            $passkeys[(int) $u['id']] = $this->passkeys->listForUser((int) $u['id']);
         }
 
         return new HtmlResponse($this->renderer->render('admin/dashboard', [
             'users' => $users,
             'totp_keys' => $totpKeys,
+            'passkeys' => $passkeys,
             'entities' => $this->entities->list(),
             'documents' => $this->documents->list(),
             'editDoc' => $editDoc,

@@ -153,22 +153,93 @@ final readonly class PasskeyService
         ];
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * @return list<array{
+     *   id: mixed, label: mixed, created_at: mixed, last_used_at: mixed,
+     *   kind: string, transports: list<string>, aaguid: ?string,
+     *   manufacturer: ?string, backup_eligible: ?bool, backup_status: ?bool
+     * }>
+     */
     public function listForUser(int $userId): array
     {
-        return $this->db->createQueryBuilder()
-            ->select('id', 'label', 'created_at', 'last_used_at')
+        $rows = $this->db->createQueryBuilder()
+            ->select('id', 'label', 'created_at', 'last_used_at', 'credential_data')
             ->from('user_webauthn_credentials')
             ->where('user_id = :user_id')
             ->setParameter('user_id', $userId)
             ->orderBy('id', 'DESC')
             ->executeQuery()
             ->fetchAllAssociative();
+
+        return array_map(function (array $row): array {
+            $details = $this->credentialDetails((string) $row['credential_data']);
+            unset($row['credential_data']);
+
+            return array_merge($row, $details);
+        }, $rows);
+    }
+
+    public function renameForUser(int $credentialId, int $userId, string $label): bool
+    {
+        return $this->db->update(
+            'user_webauthn_credentials',
+            ['label' => $this->normaliseLabel($label)],
+            ['id' => $credentialId, 'user_id' => $userId],
+        ) > 0;
     }
 
     public function deleteForUser(int $credentialId, int $userId): bool
     {
         return $this->db->delete('user_webauthn_credentials', ['id' => $credentialId, 'user_id' => $userId]) > 0;
+    }
+
+    /**
+     * Manufacturer names are intentionally not guessed from transports or the
+     * AAGUID. A reliable name needs trusted FIDO metadata; attestation "none"
+     * can also deliberately suppress identifying information.
+     *
+     * @return array{
+     *   kind: string, transports: list<string>, aaguid: ?string,
+     *   manufacturer: ?string, backup_eligible: ?bool, backup_status: ?bool
+     * }
+     */
+    private function credentialDetails(string $credentialData): array
+    {
+        $fallback = [
+            'kind' => 'Passkey',
+            'transports' => [],
+            'aaguid' => null,
+            'manufacturer' => null,
+            'backup_eligible' => null,
+            'backup_status' => null,
+        ];
+
+        try {
+            $source = $this->serializer->deserialize($credentialData, PublicKeyCredentialSource::class, 'json');
+            $transports = array_values($source->transports);
+            $aaguid = $source->aaguid->toRfc4122();
+            if ($aaguid === '00000000-0000-0000-0000-000000000000') {
+                $aaguid = null;
+            }
+            $kind = match (true) {
+                in_array('internal', $transports, true) => 'Plattform-Passkey',
+                array_intersect(['usb', 'nfc', 'ble'], $transports) !== [] => 'FIDO2-Sicherheitsschlüssel',
+                in_array('hybrid', $transports, true) => 'Hybrid-/Cross-Device-Passkey',
+                $source->backupEligible === true => 'Synchronisierbarer Passkey',
+                default => 'Passkey',
+            };
+
+            return [
+                'kind' => $kind,
+                'transports' => $transports,
+                'aaguid' => $aaguid,
+                'manufacturer' => null,
+                'backup_eligible' => $source->backupEligible,
+                'backup_status' => $source->backupStatus,
+            ];
+        } catch (\Throwable) {
+            return $fallback;
+        }
     }
 
     /** @return list<\Webauthn\PublicKeyCredentialDescriptor> */

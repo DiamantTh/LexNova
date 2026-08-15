@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Doctrine\DBAL\DriverManager;
+use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
+use Laminas\Cache\Storage\Adapter\Memory;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Uri;
 use LexNova\Application\ContainerFactory;
@@ -18,8 +20,6 @@ use Mezzio\Router\RouterInterface;
 use Mezzio\Template\TemplatePath;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\SimpleCache\CacheInterface;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
-use Symfony\Component\Cache\Psr16Cache;
 
 $root = dirname(__DIR__, 2);
 require $root . '/vendor/autoload.php';
@@ -43,13 +43,58 @@ $db->insert('legal_entities', [
 $entityId = (int) $db->lastInsertId();
 
 /** @var CacheInterface $cache */
-$cache = new Psr16Cache(new ArrayAdapter());
+$cache = new SimpleCacheDecorator(new Memory());
 $documents = new DocumentService($db, $cache);
 $documentId = $documents->create($entityId, 'imprint', 'de', 'Testinhalt', '1');
 $document = $documents->findById($documentId);
 $check($document !== null, 'Created document cannot be read.');
 $publicHash = (string) $document['public_hash'];
 $check(preg_match('/^[0-9a-f]{32}$/D', $publicHash) === 1, 'Document hash has the wrong format.');
+
+$failingCache = new class implements CacheInterface {
+    public function get(string $key, mixed $default = null): mixed
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function set(string $key, mixed $value, null|int|DateInterval $ttl = null): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function delete(string $key): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function clear(): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function getMultiple(iterable $keys, mixed $default = null): iterable
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function setMultiple(iterable $values, null|int|DateInterval $ttl = null): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function deleteMultiple(iterable $keys): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+
+    public function has(string $key): bool
+    {
+        throw new RuntimeException('cache unavailable');
+    }
+};
+$uncachedDocuments = new DocumentService($db, $failingCache);
+$uncached = $uncachedDocuments->findByPublicHashAndType($publicHash, 'imprint');
+$check($uncached !== null && (int) $uncached['id'] === $documentId, 'A cache outage blocked document reads.');
 
 $renderer = new class implements TemplateRendererInterface {
     /** @var array<string, mixed> */

@@ -6,6 +6,7 @@ namespace LexNova\Handler\Auth;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\TotpVerificationInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
@@ -64,10 +65,13 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
             } elseif (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
                 $errors[] = 'Invalid session token.';
             } else {
-                $code = trim((string) ($body['code'] ?? ''));
+                $input = new TotpVerificationInputFilter();
+                $input->setData($body);
+                $validInput = $input->isValid();
+                $code = $input->getValues()['code'] ?? '';
                 $user = $this->users->findById($userId);
                 $keys = $user !== null ? $this->users->getActiveTotpKeys($userId) : [];
-                $matched = $keys !== [] ? $this->totp->verifyAny($keys, $code) : null;
+                $matched = $validInput && $keys !== [] ? $this->totp->verifyAny($keys, $code) : null;
 
                 if ($matched !== null) {
                     $this->rateLimit->recordSuccess($ip, 'totp_verify');

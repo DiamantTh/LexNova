@@ -2,6 +2,7 @@ CREATE TABLE users (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    password_login_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     role VARCHAR(20) NOT NULL,
     created_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

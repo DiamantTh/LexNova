@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\InputFilter\UserCreateInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\PasswordService;
 use LexNova\Service\UserService;
@@ -17,8 +18,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class UserCreateHandler implements RequestHandlerInterface
 {
-    private const ALLOWED_ROLES = ['admin'];
-
     public function __construct(
         private readonly UserService $users,
         private readonly PasswordService $passwords,
@@ -39,40 +38,41 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
-        $username = trim((string) ($body['username'] ?? ''));
-        $password = (string) ($body['password'] ?? '');
-        $passwordConfirm = (string) ($body['password_confirm'] ?? '');
-        $role = (string) ($body['role'] ?? 'admin');
-        $errors = [];
+        $body['authentication'] ??= 'password';
+        $input = new UserCreateInputFilter();
+        $input->setData($body);
+        $validInput = $input->isValid();
+        $values = $input->getValues();
+        $username = $values['username'] ?? '';
+        $password = $values['password'] ?? '';
+        $role = $values['role'] ?? '';
+        $passwordLoginEnabled = ($values['authentication'] ?? '') === 'password';
+        $errors = $input->getErrorMessages();
 
-        if (preg_match('/^[a-zA-Z0-9_.@+-]{3,100}$/D', $username) !== 1) {
-            $errors[] = 'Username must be 3–100 characters and may contain letters, digits, ., _, @, + and -.';
-        } elseif ($password === '') {
-            $errors[] = 'Password is required.';
-        } elseif ($password !== $passwordConfirm) {
-            $errors[] = 'Passwords do not match.';
-        } elseif (($pwErr = $this->passwords->validate($password)) !== null) {
+        if ($validInput && $passwordLoginEnabled && ($pwErr = $this->passwords->validate($password)) !== null) {
             $errors[] = $pwErr;
-        } elseif (!in_array($role, self::ALLOWED_ROLES, true)) {
-            $errors[] = 'Invalid role.';
-        } elseif ($this->users->findByUsername($username) !== null) {
+        } elseif ($validInput && $this->users->findByUsername($username) !== null) {
             $errors[] = "Username '{$username}' already exists.";
         }
 
         if ($errors) {
             $session->set('flash_errors', $errors);
         } else {
-            $this->users->create($username, $password, $role);
+            $this->users->create($username, $password, $role, $passwordLoginEnabled);
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),
                 (string) ($session->get('username') ?? ''),
                 'user.create',
                 'user:' . $username,
-                'role:' . $role,
+                'role:' . $role . ';password-login:' . ($passwordLoginEnabled ? 'enabled' : 'disabled'),
                 $ip,
             );
-            $session->set('flash_messages', ["User '{$username}' created."]);
+            $message = "User '{$username}' created.";
+            if (!$passwordLoginEnabled) {
+                $message .= ' Register at least one Passkey for this account before handing it over.';
+            }
+            $session->set('flash_messages', [$message]);
         }
 
         return new RedirectResponse('/admin');

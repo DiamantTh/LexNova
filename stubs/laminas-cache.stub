@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Laminas\Cache\Storage\Adapter {
+    class AdapterOptions
+    {
+    }
+}
+
+namespace Laminas\Cache\Storage {
+    /** @template TOptions of \Laminas\Cache\Storage\Adapter\AdapterOptions */
+    interface StorageInterface
+    {
+    }
+}
+
+namespace Psr\Clock {
+    interface ClockInterface
+    {
+    }
+}
+
+namespace Laminas\Cache\Psr\SimpleCache {
+    final class SimpleCacheDecorator
+    {
+        /**
+         * @template TOptions of \Laminas\Cache\Storage\Adapter\AdapterOptions
+         * @param \Laminas\Cache\Storage\StorageInterface<TOptions> $storage
+         */
+        public function __construct(
+            \Laminas\Cache\Storage\StorageInterface $storage,
+            ?\Psr\Clock\ClockInterface $clock = null,
+        ) {
+        }
+    }
+}

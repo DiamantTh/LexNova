@@ -64,7 +64,8 @@ außerhalb des Webzugriffs.
 
 **Pflicht:**
 - PHP 8.4+
-- PHP-Extensions: `sodium`, `pdo`, `json`, `mbstring`, `openssl`, `intl`
+- PHP-Extensions: `ctype`, `fileinfo`, `filter`, `intl`, `json`, `mbstring`,
+  `openssl`, `pdo`, `redis` (PhpRedis 6+) und `sodium`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
 - Relationale SQL-Datenbank (SQLite 3.35+, MySQL 8+, MariaDB 10.10+ oder PostgreSQL 13+)
 - libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten)
@@ -164,7 +165,7 @@ Wichtige Abschnitte in `config/config.example.toml`:
 | `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
 | `[security.fail2ban]` | Optionales projektlokales Fail2ban-Signallog und Settings-Cache |
 | `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
-| `[cache]` | Dokument-Cache: standardmäßig Dateisystem; optional Valkey mit klassischen Verbindungsfeldern |
+| `[cache]` | Anwendungs-Cache: standardmäßig Dateisystem; optional Valkey mit klassischen Verbindungsfeldern |
 
 `[app].base_url` muss die öffentliche HTTPS-URL der Instanz enthalten. Sie ist
 für sichere Session-Cookies und Passkeys erforderlich. Nur für lokale Entwicklung
@@ -172,7 +173,7 @@ ist `http://localhost` zulässig.
 
 ### Valkey
 
-Valkey kann als verteilter Dokument-Cache genutzt werden, weil es zum Redis-Protokoll
+Valkey kann als verteilter Anwendungs-Cache genutzt werden, weil es zum Redis-Protokoll
 kompatibel ist. In `config/config.toml`:
 
 ```
@@ -191,48 +192,42 @@ Ist Valkey nicht erreichbar, fällt LexNova kontrolliert auf den Dateisystem-Cac
 zurück. Geänderte Dokumente invalidieren alle Sprachvarianten sofort.
 
 Der Konfigurationsname `adapter = "valkey"` drückt bewusst das bevorzugte
-Serverprodukt aus. Der Symfony-Adapter spricht dasselbe Protokoll mit Valkey und
-Redis. Unter `/admin/system` fragt LexNova ausschließlich für die gecachte
+Serverprodukt aus. Der Laminas-Redis-Adapter spricht über PhpRedis dasselbe
+Protokoll mit Valkey und Redis. Unter `/admin/system` fragt LexNova ausschließlich für die gecachte
 Systemdiagnose `INFO server` ab: `server_name=valkey` beziehungsweise
 `valkey_version` wird grün als bevorzugtes Valkey angezeigt, ein tatsächlicher
 Redis-Server gelb als kompatibel. Die Diagnose wird fünf Minuten lokal gecacht.
 Ist `INFO server` durch die Server-ACL gesperrt, bleibt der Cache nutzbar, das
 Produkt wird aber nicht geraten.
 
-Symfony Cache stellt die Cache-Abstraktion bereit, ist aber nicht selbst der
-Netzwerkclient. Bei `adapter = "valkey"` verwendet Symfony automatisch den ersten
-verfügbaren kompatiblen Client in dieser Reihenfolge:
+LexNova verwendet durchgängig Laminas Cache. `SimpleCacheDecorator` stellt den
+Anwendungsdiensten weiterhin den frameworkneutralen PSR-16-Vertrag bereit. Der
+Dateisystemadapter serialisiert Cachewerte selbst; beim Valkey-Adapter übernimmt
+PhpRedis mit `Redis::SERIALIZER_PHP` die Serialisierung. Ein zusätzliches
+Serializer-Paket ist daher nicht nötig.
 
-| Priorität | Client | Installation | Einordnung |
-|---:|---|---|---|
-| 1 | PhpRedis | PHP-Erweiterung `ext-redis` | Schnell und speichersparend; auf Shared Hosting nur nutzbar, wenn der Hoster die Erweiterung anbietet |
-| 2 | Relay | PHP-Erweiterung `ext-relay` | Performanter alternativer Extension-Client; auf typischen Shared Hosts selten verfügbar |
-| 3 | Predis | Composer-Paket `predis/predis` | Reines PHP und ohne Serverrechte installierbar; portabler, aber mit mehr PHP-Overhead |
-
-`ext-redis` ist trotz seines Namens nur ein Client für das Redis-Protokoll und
-kann einen Valkey-Server ansprechen. Es verpflichtet LexNova nicht zum Einsatz
-des Redis-Serverprodukts. Im ausgelieferten Standardbetrieb mit Dateisystem-Cache
-ist keiner dieser drei optionalen Clients erforderlich. `/admin/system` zeigt
-separat, welcher Client verfügbar und welcher Server tatsächlich verbunden ist.
-
-Mezzio enthält bewusst keinen eigenen Cache. LexNova behält Symfony Cache als
-frameworkunabhängige PSR-16-Implementierung. Ein Wechsel zu Laminas Cache würde
-`laminas-cache` sowie getrennte Storage-Adapter benötigen. Dessen internes
-`StorageInterface` könnte zwar mit `SimpleCacheDecorator` wieder als PSR-16
-bereitgestellt werden; für Dateisystem und Redis wäre zusätzlich der Serializer-
-Plugin-Aufbau nötig. Der Laminas-Redis-Adapter setzt zudem weiterhin PhpRedis
-voraus. Der Wechsel bringt für die aktuellen Dateisystem-/Valkey-Anforderungen
-daher keinen funktionalen Vorteil.
+`ext-redis` ist trotz seines Namens nur der übliche kompilierte PHP-Client für
+das Redis-Protokoll. Er kann einen Valkey-Server ansprechen und verpflichtet
+LexNova nicht zum Einsatz des Redis-Serverprodukts. `/admin/system` zeigt die
+PhpRedis-Version getrennt vom tatsächlich erkannten Serverprodukt. Mezzio selbst
+schreibt keinen Cache vor; die Wahl von Laminas Cache hält den Infrastrukturstack
+innerhalb des Laminas-/Mezzio-Ökosystems.
 
 Aktuell existieren folgende Cachewege:
 
 | Zweck | Adapter |
 |---|---|
-| öffentliche Rechtsdokumente | Dateisystem (Standard) oder Valkey/Redis-Protokoll |
+| öffentliche Rechtsdokumente | Laminas Filesystem (Standard) oder Laminas Redis mit PhpRedis/Valkey |
 | Twig-Templates | Dateisystem |
-| Datenbank-Systemeinstellungen | PSR-16-Dateisystemcache |
-| HIBP-Abfrageergebnisse | PSR-16-Dateisystemcache |
+| Datenbank-Systemeinstellungen | gewählter Laminas-Adapter, eigener Namespace |
+| Systemdiagnose | Laminas Filesystem über PSR-16, fünf Minuten |
+| HIBP-Abfrageergebnisse | gewählter Laminas-Adapter, eigener Namespace |
 | Installer-Rate-Limit vor vorhandener DB | geschützte lokale Dateien |
+
+Dokumente, Systemeinstellungen und HIBP verwenden getrennte Cache-Namespaces.
+Ein nicht erreichbarer Valkey-/Redis-Protokollserver fällt pro Cachebereich auf
+geschützte Verzeichnisse unter `var/cache/` zurück. Datenbank und öffentliche
+Dokumentausgabe bleiben auch bei Cachefehlern funktionsfähig.
 
 Die admin-geschützte Seite `/admin/system` ist die allgemeine
 Systeminformationsseite der Installation. Sie zeigt LexNova- und
@@ -264,7 +259,7 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 
 - Login mit Benutzername + Passwort
   - Passwortqualität wird beim Setzen mit zxcvbn bewertet (Score 0–4)
-- TOTP Zwei-Faktor-Authentifizierung (SHA-256, 8-stellig, 30-Sekunden-Fenster)
+- TOTP Zwei-Faktor-Authentifizierung (SHA-256, 6-stellig, 30-Sekunden-Fenster)
   - Mehrere TOTP-Keys pro Benutzer möglich (z. B. Smartphone + YubiKey)
   - QR-Code bei der Einrichtung als SVG inline gerendert
   - Empfohlene Apps: Aegis, 2FAS, Ente Auth, KeePassXC oder Raivo
@@ -273,7 +268,22 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
 - Optionales Fail2ban-Signallog unter `var/log/fail2ban.log`; Aktivierung über
   `config.toml` oder mit Datenbankvorrang im Adminbereich
 - Passkeys/WebAuthn: passwortloser Login über Plattform-Authenticator oder
-  Sicherheitsschlüssel; Passkeys werden im Adminbereich registriert
+  FIDO2-Sicherheitsschlüssel
+  - mehrere Passkeys pro Benutzer mit Bezeichnung und letztem Nutzungszeitpunkt
+  - frei vergebbare und nachträglich änderbare Bezeichnung
+  - Anzeige von Authenticator-Art, Transporten, Backup-/Synchronisationsstatus
+    und – sofern der Authenticator sie offenlegt – AAGUID
+  - Registrierung, Umbenennung und einzelne Löschung im Adminbereich
+  - Passkey-only-Benutzer ohne freigeschalteten Passwort-Login
+  - Schutz vor dem Deaktivieren des Passworts ohne vorhandenen Passkey
+  - Schutz vor dem Löschen des letzten Passkeys eines Passkey-only-Kontos
+
+Ein Herstellername wird nicht aus Transport oder AAGUID geraten. Die
+Registrierung fordert aus Datenschutzgründen keine direkte Attestation an;
+Authenticator und Browser dürfen identifizierende Daten daher ausblenden. Eine
+belastbare Hersteller-/Modellzuordnung benötigt später einen geprüften und
+regelmäßig aktualisierten FIDO-Metadatendienst. Die Oberfläche kennzeichnet
+diesen Wert bis dahin ausdrücklich als nicht zuverlässig ermittelbar.
 
 ### Entities (Rechtliche Einheiten)
 
@@ -362,6 +372,9 @@ sql/migrations/003_document_public_hash.pgsql.sql    # PostgreSQL 13+
 sql/migrations/004_system_settings.sql               # SQLite
 sql/migrations/004_system_settings.mysql.sql         # MySQL/MariaDB
 sql/migrations/004_system_settings.pgsql.sql         # PostgreSQL
+sql/migrations/005_passwordless_auth.sql             # SQLite
+sql/migrations/005_passwordless_auth.mysql.sql       # MySQL/MariaDB
+sql/migrations/005_passwordless_auth.pgsql.sql       # PostgreSQL
 ```
 
 Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
@@ -376,10 +389,13 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `devium/toml` | TOML-Parser für `config.toml` und `security.toml` |
 | `doctrine/dbal` | Datenbankabstraktion (SQLite, MariaDB, PostgreSQL) |
 | `endroid/qr-code` | QR-Code-Generierung (SVG) bei TOTP-Einrichtung |
+| `laminas/laminas-cache` | Cache-Abstraktion mit PSR-16-Decorator |
+| `laminas/laminas-cache-storage-adapter-filesystem` | Geschützter lokaler Cache für Dokumente, Settings, HIBP und Diagnose |
+| `laminas/laminas-cache-storage-adapter-redis` | PhpRedis-basierter Valkey-/Redis-Protokollcache |
 | `laminas/laminas-diactoros` | PSR-7 HTTP Message Implementierung |
 | `laminas/laminas-filter` | Filter-Chain (StringTrim, Callback) für Input-Validierung |
-| `laminas/laminas-i18n` | Internationalisierung (wird von laminas-validator benötigt) |
-| `laminas/laminas-inputfilter` | Formular-Validierungs-Framework |
+| `laminas/laminas-i18n` | Sicheres Laden der PHP-Array-Übersetzungskataloge und I18n-Grundlage |
+| `laminas/laminas-inputfilter` | Gemeinsame Input-/Filter-/Validator-Pipeline aller HTTP-Formulare |
 | `laminas/laminas-validator` | Einzelne Validatoren (NotEmpty, StringLength, InArray, Callback) |
 | `mezzio/mezzio` | PSR-15 Middleware-Framework |
 | `mezzio/mezzio-csrf` | CSRF-Token-Schutz für alle Formulare |
@@ -389,19 +405,39 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `mezzio/mezzio-twigrenderer` | Twig-Template-Renderer für Mezzio |
 | `monolog/monolog` | Logging (Datei-Handler) |
 | `php-di/php-di` | Dependency-Injection-Container |
+| `phpdocumentor/reflection-docblock` | PHPDoc-Typinformationen für die WebAuthn-Deserialisierung |
 | `psr/clock` | PSR-20 Clock-Interface (für testbare Zeitstempel) |
 | `psr/simple-cache` | PSR-16 Simple Cache Interface |
 | `spomky-labs/otphp` | TOTP/HOTP-Implementierung (RFC 6238) |
-| `symfony/cache` | PSR-16-kompatibler Dateisystem- oder optionaler Valkey-Cache für öffentliche Dokumente |
+| `symfony/cache` | Beibehaltene PSR-6/PSR-16-Alternative; der aktive Anwendungscache nutzt Laminas Cache |
 | `symfony/console` | CLI-Framework für `bin/lexnova`-Befehle |
+| `symfony/polyfill-iconv` | Automatischer `iconv`-Fallback für eingeschränkte Shared Hosts |
+| `symfony/property-info` | Typinformationen für den von WebAuthn erzeugten Symfony ObjectNormalizer |
+| `symfony/serializer` | JSON-Serialisierung der WebAuthn-Optionen und Credentials |
 | `twig/twig` | Template-Engine |
 | `web-auth/webauthn-lib` | WebAuthn/FIDO2-Passkeys: Registrierung im Adminbereich und passwortloser Login |
+
+Die Symfony-Komponenten für PropertyInfo und Serializer sind kein zweites
+Anwendungsframework. `web-auth/webauthn-lib` erzeugt seinen Serializer über
+`WebauthnSerializerFactory` und verwendet dabei ausdrücklich Symfony
+`ObjectNormalizer`, `PropertyInfoExtractor`, `PhpDocExtractor` und
+`ReflectionExtractor`. Laminas Filter/Validator normalisieren und prüfen
+HTTP-Eingaben; sie ersetzen diese Objekt-Deserialisierung nicht.
+
+`laminas-inputfilter` und `laminas-i18n` werden derzeit aus ihren kommenden
+3.0-Zweigen auf feste Commitstände im Lockfile aufgelöst. Nur diese Zweige sind
+mit dem für PHP 8.5 nötigen Laminas ServiceManager 4 sowie Filter/Validator 3
+kompatibel; die letzten stabilen 2.x-Ausgaben verlangen ServiceManager 3. Vor
+einem stabilen Release muss diese Übergangslösung erneut gegen veröffentlichte
+3.0-Versionen geprüft werden. `symfony/cache` bleibt entsprechend der
+Projektvorgabe installiert, ist aber nicht der aktive Cachepfad.
 
 ### Entwicklung (`require-dev`)
 
 | Paket | Zweck |
 |---|---|
 | `friendsofphp/php-cs-fixer` | Code-Style-Prüfung und -Formatierung (PSR-12 + Symfony-Preset) |
+| `laminas/laminas-cache-storage-adapter-memory` | Flüchtiger Laminas-Cache für isolierte Tests |
 | `phpstan/phpstan` | Statische Analyse, Level 6 |
 
 ### QA-Skripte

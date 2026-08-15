@@ -88,8 +88,8 @@
             </tr>
         {% endfor %}
         </table>
-        <h3>Valkey-/Redis-Protokoll-Clients</h3>
-        <p class="hint">Symfony verwendet den ersten verfügbaren Client in dieser Reihenfolge. Die Clients funktionieren sowohl mit Valkey als auch mit kompatiblen Redis-Servern.</p>
+        <h3>Valkey-/Redis-Protokoll-Client</h3>
+        <p class="hint">Der Laminas-Redis-Adapter verwendet PhpRedis. Die Erweiterung spricht sowohl mit Valkey als auch mit kompatiblen Redis-Servern.</p>
         <table>
         {% for client in system.runtime.cache_clients %}
             <tr>
@@ -123,7 +123,7 @@
     </section>
 
     <section class="card">
-        <h2>Dokument-Cache</h2>
+        <h2>Anwendungs-Cache</h2>
         <table class="system-table">
             <tr><th>Konfiguriert</th><td>{{ system.cache.configured }}</td></tr>
             <tr><th>Effektiv</th><td>{{ system.cache.effective }}</td></tr>

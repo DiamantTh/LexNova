@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Auth;
 
 use Laminas\Diactoros\Response\JsonResponse;
+use LexNova\InputFilter\PasskeyCredentialInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\PasskeyService;
@@ -57,7 +58,15 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
         }
 
         try {
-            $user = $this->passkeys->finishAuthentication((string) $pending['options'], (string) ($body['credential'] ?? ''));
+            $input = new PasskeyCredentialInputFilter(false);
+            $input->setData($body);
+            if (!$input->isValid()) {
+                throw new \InvalidArgumentException('Invalid Passkey response.');
+            }
+            $user = $this->passkeys->finishAuthentication(
+                (string) $pending['options'],
+                $input->getValues()['credential'],
+            );
             $this->rateLimit->recordSuccess($ip, 'passkey');
             $session->regenerate();
             $session->set('user_id', $user['id']);

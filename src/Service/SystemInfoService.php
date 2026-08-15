@@ -72,8 +72,8 @@ final readonly class SystemInfoService
             ],
             'supported' => [
                 'database' => ['SQLite (PDO)', 'MySQL/MariaDB (PDO)', 'PostgreSQL (PDO)'],
-                'document_cache' => ['Dateisystem', 'Valkey/Redis-Protokoll'],
-                'internal_cache' => ['Twig: Dateisystem', 'Systemeinstellungen: Dateisystem', 'HIBP: Dateisystem'],
+                'application_cache' => ['Laminas Dateisystem', 'Laminas Redis-Adapter mit PhpRedis für Valkey'],
+                'internal_cache' => ['Twig und Systemdiagnose: Dateisystem', 'Laminas: Dokumente, Systemeinstellungen und HIBP'],
             ],
         ];
     }
@@ -155,7 +155,7 @@ final readonly class SystemInfoService
     /** @return list<array{name: string, loaded: bool, version: string|null}> */
     private function extensions(): array
     {
-        $extensions = ['pdo', 'intl', 'mbstring', 'openssl', 'sodium'];
+        $extensions = ['ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'];
         $driver = (string) ($this->config['db']['driver'] ?? '');
         if ($driver !== '') {
             $extensions[] = 'pdo_' . $driver;
@@ -178,22 +178,6 @@ final readonly class SystemInfoService
                 'available' => extension_loaded('redis'),
                 'version' => extension_loaded('redis') ? phpversion('redis') ?: null : null,
                 'priority' => 1,
-            ],
-            [
-                'name' => 'Relay',
-                'type' => 'PHP-Erweiterung ext-relay',
-                'available' => extension_loaded('relay'),
-                'version' => extension_loaded('relay') ? phpversion('relay') ?: null : null,
-                'priority' => 2,
-            ],
-            [
-                'name' => 'Predis',
-                'type' => 'Composer-Paket (reines PHP)',
-                'available' => InstalledVersions::isInstalled('predis/predis'),
-                'version' => InstalledVersions::isInstalled('predis/predis')
-                    ? InstalledVersions::getPrettyVersion('predis/predis')
-                    : null,
-                'priority' => 3,
             ],
         ];
     }
@@ -224,7 +208,9 @@ final readonly class SystemInfoService
         $packages = [
             'mezzio/mezzio' => 'Mezzio',
             'doctrine/dbal' => 'Doctrine DBAL',
-            'symfony/cache' => 'Symfony Cache',
+            'laminas/laminas-cache' => 'Laminas Cache',
+            'laminas/laminas-cache-storage-adapter-filesystem' => 'Laminas Filesystem Cache',
+            'laminas/laminas-cache-storage-adapter-redis' => 'Laminas Redis Cache',
             'twig/twig' => 'Twig',
             'php-di/php-di' => 'PHP-DI',
         ];
