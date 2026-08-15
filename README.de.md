@@ -271,8 +271,9 @@ bin/lexnova user:totp-reset <username> [-y]     Alle TOTP-Keys eines Users lösc
   FIDO2-Sicherheitsschlüssel
   - mehrere Passkeys pro Benutzer mit Bezeichnung und letztem Nutzungszeitpunkt
   - frei vergebbare und nachträglich änderbare Bezeichnung
-  - Anzeige von Authenticator-Art, Transporten, Backup-/Synchronisationsstatus
-    und – sofern der Authenticator sie offenlegt – AAGUID
+  - verständliche Einordnung als externer FIDO2-Hardware-Key, integrierter
+    Geräte-Passkey, synchronisierter Geräte-/Cloud-Passkey oder Smartphone/
+    anderes Gerät; zusätzlich Backupstatus und – sofern offengelegt – AAGUID
   - Registrierung, Umbenennung und einzelne Löschung im Adminbereich
   - Passkey-only-Benutzer ohne freigeschalteten Passwort-Login
   - Schutz vor dem Deaktivieren des Passworts ohne vorhandenen Passkey
@@ -284,6 +285,11 @@ Authenticator und Browser dürfen identifizierende Daten daher ausblenden. Eine
 belastbare Hersteller-/Modellzuordnung benötigt später einen geprüften und
 regelmäßig aktualisierten FIDO-Metadatendienst. Die Oberfläche kennzeichnet
 diesen Wert bis dahin ausdrücklich als nicht zuverlässig ermittelbar.
+WebAuthns `authenticatorAttachment` (`platform` oder `cross-platform`) wird bei
+neuen Registrierungen zusätzlich im Credential-Datensatz gespeichert. Zusammen
+mit den gemeldeten Transporten erlaubt dies die genannte Einordnung, aber keine
+Behauptung, ob ein integrierter Passkey ausschließlich in Software oder in TPM/
+Secure Enclave abgesichert ist.
 
 ### Entities (Rechtliche Einheiten)
 

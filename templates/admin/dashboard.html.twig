@@ -182,7 +182,8 @@
                         </form>
                         <small>
                             <strong>{{ passkey.kind }}</strong><br>
-                            Transport: {{ passkey.transports is empty ? 'nicht gemeldet' : passkey.transports|join(', ') }}<br>
+                            Einordnung: {% if passkey.attachment == 'platform' %}auf diesem Gerät integriert{% elseif passkey.attachment == 'cross-platform' %}extern/geräteübergreifend{% else %}vom Browser nicht gemeldet{% endif %}<br>
+                            Verbindungsdetails: {{ passkey.transports is empty ? 'nicht gemeldet' : passkey.transports|join(', ') }}<br>
                             Speicher: {% if passkey.backup_eligible is same as(true) %}synchronisierbar{% elseif passkey.backup_eligible is same as(false) %}gerätegebunden{% else %}nicht gemeldet{% endif %}
                             {% if passkey.backup_status is same as(true) %} · gesichert/synchronisiert{% endif %}<br>
                             Hersteller: {{ passkey.manufacturer ?? 'nicht zuverlässig ermittelbar' }}
@@ -459,7 +460,11 @@
                 clientDataJSON:b64url(credential.response.clientDataJSON), attestationObject:b64url(credential.response.attestationObject),
                 transports: credential.response.getTransports ? credential.response.getTransports() : []
             }};
-            const result = await post('/admin/passkeys/register/finish', {label, credential:JSON.stringify(payload)});
+            const result = await post('/admin/passkeys/register/finish', {
+                label,
+                credential:JSON.stringify(payload),
+                attachment:credential.authenticatorAttachment || ''
+            });
             if (result.error) throw new Error(result.error); window.location.assign(result.redirect);
         } catch (error) { window.alert(error.message || 'Passkey-Registrierung fehlgeschlagen.'); }
     };

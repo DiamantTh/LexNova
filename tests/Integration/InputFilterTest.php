@@ -102,9 +102,18 @@ if ($totpVerification->isValid()) {
 }
 
 $passkey = new PasskeyCredentialInputFilter(true);
-$passkey->setData(['credential' => '{"id":"test"}', 'label' => ' Security Key ', 'user_id' => '1']);
+$passkey->setData([
+    'credential' => '{"id":"test"}',
+    'label' => ' Security Key ',
+    'user_id' => '1',
+    'attachment' => 'cross-platform',
+]);
 if (!$passkey->isValid() || $passkey->getValues()['label'] !== 'Security Key') {
     throw new RuntimeException('Passkey input was not validated and normalized.');
+}
+$passkey->setData(['credential' => '{"id":"test"}', 'label' => 'Key', 'attachment' => 'virtual']);
+if ($passkey->isValid()) {
+    throw new RuntimeException('An invented authenticator attachment was accepted.');
 }
 
 $passkeyTarget = new PasskeyTargetInputFilter();

@@ -82,6 +82,7 @@ final readonly class PasskeyRegisterHandler implements RequestHandlerInterface
                 (string) $pending['options'],
                 $values['credential'],
                 $values['label'],
+                $values['attachment'] !== '' ? $values['attachment'] : null,
             );
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),

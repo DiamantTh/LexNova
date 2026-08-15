@@ -6,6 +6,7 @@ namespace LexNova\InputFilter;
 
 use Laminas\Filter\StringTrim;
 use Laminas\Validator\Digits;
+use Laminas\Validator\InArray;
 use Laminas\Validator\IsJsonString;
 use Laminas\Validator\NotEmpty;
 use Laminas\Validator\StringLength;
@@ -28,6 +29,11 @@ final class PasskeyCredentialInputFilter extends AbstractInputFilter
             new StringLength(['max' => 100]),
         ] : [new StringLength(['max' => 100])], !$this->registration);
         $this->validateField('user_id', [new StringTrim()], [new StringLength(['max' => 20])], true);
+        $this->validateField('attachment', [new StringTrim()], [new InArray([
+            'haystack' => ['platform', 'cross-platform'],
+            'strict' => InArray::COMPARE_STRICT,
+            'messages' => [InArray::NOT_IN_ARRAY => 'Invalid authenticator attachment.'],
+        ])], true);
         if ($this->value('user_id') !== '' && !(new Digits())->isValid($this->value('user_id'))) {
             $this->addMessage('user_id', 'digits', 'Invalid user ID.');
         }

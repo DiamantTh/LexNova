@@ -92,8 +92,13 @@ final readonly class PasskeyService
         return $this->serializer->serialize($options, 'json');
     }
 
-    public function finishRegistration(int $userId, string $optionsJson, string $credentialJson, string $label): int
-    {
+    public function finishRegistration(
+        int $userId,
+        string $optionsJson,
+        string $credentialJson,
+        string $label,
+        ?string $authenticatorAttachment = null,
+    ): int {
         $this->assertConfigured();
         $options = $this->serializer->deserialize($optionsJson, PublicKeyCredentialCreationOptions::class, 'json');
         $credential = $this->serializer->deserialize($credentialJson, PublicKeyCredential::class, 'json');
@@ -104,6 +109,12 @@ final readonly class PasskeyService
         $source = $this->attestationValidator()->check($credential->response, $options, $this->rpId());
         if (!hash_equals($this->userHandle($userId), $source->userHandle)) {
             throw new \RuntimeException('Passkey does not belong to the current user.');
+        }
+        if (in_array($authenticatorAttachment, ['platform', 'cross-platform'], true)) {
+            $source->otherUI = array_replace(
+                $source->otherUI ?? [],
+                ['authenticator_attachment' => $authenticatorAttachment],
+            );
         }
 
         $this->db->insert('user_webauthn_credentials', [
@@ -156,7 +167,7 @@ final readonly class PasskeyService
     /**
      * @return list<array{
      *   id: mixed, label: mixed, created_at: mixed, last_used_at: mixed,
-     *   kind: string, transports: list<string>, aaguid: ?string,
+     *   kind: string, attachment: ?string, transports: list<string>, aaguid: ?string,
      *   manufacturer: ?string, backup_eligible: ?bool, backup_status: ?bool
      * }>
      */
@@ -199,14 +210,15 @@ final readonly class PasskeyService
      * can also deliberately suppress identifying information.
      *
      * @return array{
-     *   kind: string, transports: list<string>, aaguid: ?string,
+     *   kind: string, attachment: ?string, transports: list<string>, aaguid: ?string,
      *   manufacturer: ?string, backup_eligible: ?bool, backup_status: ?bool
      * }
      */
     private function credentialDetails(string $credentialData): array
     {
         $fallback = [
-            'kind' => 'Passkey',
+            'kind' => 'Passkey (Art nicht gemeldet)',
+            'attachment' => null,
             'transports' => [],
             'aaguid' => null,
             'manufacturer' => null,
@@ -221,16 +233,23 @@ final readonly class PasskeyService
             if ($aaguid === '00000000-0000-0000-0000-000000000000') {
                 $aaguid = null;
             }
+            $attachment = $source->otherUI['authenticator_attachment'] ?? null;
+            if (!in_array($attachment, ['platform', 'cross-platform'], true)) {
+                $attachment = null;
+            }
             $kind = match (true) {
-                in_array('internal', $transports, true) => 'Plattform-Passkey',
-                array_intersect(['usb', 'nfc', 'ble'], $transports) !== [] => 'FIDO2-Sicherheitsschlüssel',
-                in_array('hybrid', $transports, true) => 'Hybrid-/Cross-Device-Passkey',
+                array_intersect(['usb', 'nfc', 'ble'], $transports) !== [] => 'Externer FIDO2-Hardware-Key',
+                in_array('hybrid', $transports, true) => 'Smartphone oder anderes Gerät',
+                $attachment === 'cross-platform' => 'Externer Authenticator',
+                $attachment === 'platform' && $source->backupEligible === true => 'Synchronisierter Geräte-/Cloud-Passkey',
+                $attachment === 'platform', in_array('internal', $transports, true) => 'Integrierter Geräte-Passkey',
                 $source->backupEligible === true => 'Synchronisierbarer Passkey',
-                default => 'Passkey',
+                default => 'Passkey (Art nicht gemeldet)',
             };
 
             return [
                 'kind' => $kind,
+                'attachment' => $attachment,
                 'transports' => $transports,
                 'aaguid' => $aaguid,
                 'manufacturer' => null,

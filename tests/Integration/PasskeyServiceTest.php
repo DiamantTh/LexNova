@@ -66,6 +66,7 @@ $credentialSource = new PublicKeyCredentialSource(
     'public-key-data',
     'user-handle',
     0,
+    otherUI: ['authenticator_attachment' => 'cross-platform'],
     backupEligible: false,
     backupStatus: false,
     uvInitialized: true,
@@ -81,7 +82,8 @@ $db->insert('user_webauthn_credentials', [
 $credentials = $passkeys->listForUser($userId);
 if (count($credentials) !== 1
     || $credentials[0]['label'] !== 'Test key'
-    || $credentials[0]['kind'] !== 'FIDO2-Sicherheitsschlüssel'
+    || $credentials[0]['kind'] !== 'Externer FIDO2-Hardware-Key'
+    || $credentials[0]['attachment'] !== 'cross-platform'
     || $credentials[0]['transports'] !== ['usb', 'nfc']
     || $credentials[0]['aaguid'] !== 'fa2b99dc-9e39-4257-8f92-4a30d23c4118'
     || !$users->hasPasskey($userId)
