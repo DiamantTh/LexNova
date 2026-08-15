@@ -39,6 +39,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         private readonly TemplateRendererInterface $renderer,
         private readonly LoggerInterface $logger,
         private readonly Fail2BanLogService $fail2ban,
+        private readonly PrerequisiteCheck $prerequisites,
         /** @var array<string, mixed> */
         private readonly array $config,
     ) {
@@ -67,7 +68,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         $root = dirname(__DIR__, 3);
 
         // ── Prerequisites ─────────────────────────────────────────────────
-        $prereq = (new PrerequisiteCheck($root))->run();
+        $prereq = $this->prerequisites->run();
 
         // ── Step: Init ────────────────────────────────────────────────────
         $init = (new InitStep())->handle($this->install, $security);
@@ -87,7 +88,11 @@ final readonly class InstallHandler implements RequestHandlerInterface
             }
         }
 
-        if ($request->getMethod() === 'POST' && $installReady && $csrfValid) {
+        if ($request->getMethod() === 'POST' && $prereq['blocked']) {
+            $errors[] = 'Required system prerequisites are missing or incompatible.';
+        }
+
+        if ($request->getMethod() === 'POST' && $installReady && $csrfValid && !$prereq['blocked']) {
             $body = (array) ($request->getParsedBody() ?? []);
             $action = trim((string) ($body['action'] ?? ''));
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');

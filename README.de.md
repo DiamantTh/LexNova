@@ -65,7 +65,7 @@ außerhalb des Webzugriffs.
 ## Voraussetzungen
 
 **Pflicht:**
-- PHP 8.4+
+- PHP 8.4.1+
 - PHP-Extensions: `ctype`, `fileinfo`, `filter`, `intl`, `json`, `mbstring`,
   `openssl`, `pdo`, `redis` (PhpRedis 6+) und `sodium`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
@@ -98,8 +98,13 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschr
 3. Installer-Passwort vorbereiten. Mit Shell-Zugang:
 
    ```
+   bin/lexnova install:check
    bin/lexnova install:prepare
    ```
+
+   `install:check` prüft die CLI-SAPI. Die Voraussetzungstabelle des
+   Webinstallers prüft die Webserver-/FPM-SAPI separat, da Shared Hosts je SAPI
+   eine andere `php.ini` und andere Extensions laden können.
 
    Ohne Shell `LEXNOVA_INSTALL_PASSWORD` im Hosting-Panel als geheime
    Umgebungsvariable setzen; der Installer übernimmt sie beim ersten Aufruf.
@@ -247,6 +252,7 @@ Systeminformationen niemals ausgegeben.
 
 ```
 bin/lexnova entity:list                         Alle Entities auflisten
+bin/lexnova install:check                       PHP, Extensions, PDO-Treiber und Rechte prüfen
 bin/lexnova install:prepare                     Einmaliges Installer-Passwort erzeugen
 bin/lexnova user:create <username>              Neuen Admin-User anlegen
 bin/lexnova user:delete <username> [-y]         Admin-User löschen

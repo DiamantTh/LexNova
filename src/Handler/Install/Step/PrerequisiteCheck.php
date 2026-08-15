@@ -15,6 +15,30 @@ namespace LexNova\Handler\Install\Step;
  */
 final class PrerequisiteCheck
 {
+    public const MINIMUM_PHP_VERSION = '8.4.1';
+
+    /**
+     * A null version means that any loaded version is accepted.
+     *
+     * This list is the application-side counterpart of composer.json and is
+     * deliberately public so a regression test can prevent the two lists from
+     * drifting apart.
+     *
+     * @var array<string, ?string>
+     */
+    public const REQUIRED_EXTENSIONS = [
+        'ctype' => null,
+        'fileinfo' => null,
+        'filter' => null,
+        'intl' => null,
+        'json' => null,
+        'mbstring' => null,
+        'openssl' => null,
+        'pdo' => null,
+        'redis' => '6.0.0',
+        'sodium' => null,
+    ];
+
     public function __construct(private readonly string $rootDir)
     {
     }
@@ -29,18 +53,23 @@ final class PrerequisiteCheck
         // ── PHP version ───────────────────────────────────────────────────
         $phpVersion = PHP_VERSION;
         $checks[] = [
-            'label' => 'PHP ≥ 8.4',
-            'ok' => version_compare($phpVersion, '8.4.0', '>='),
+            'label' => 'PHP ≥ ' . self::MINIMUM_PHP_VERSION,
+            'ok' => version_compare($phpVersion, self::MINIMUM_PHP_VERSION, '>='),
             'value' => $phpVersion,
             'required' => true,
         ];
 
         // ── Required extensions ───────────────────────────────────────────
-        foreach (['ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'] as $ext) {
+        foreach (self::REQUIRED_EXTENSIONS as $extension => $minimumVersion) {
+            $loaded = extension_loaded($extension);
+            $version = $loaded ? phpversion($extension) : false;
+            $displayVersion = is_string($version) && $version !== '' ? $version : null;
+
             $checks[] = [
-                'label' => 'ext-' . $ext,
-                'ok' => extension_loaded($ext),
-                'value' => null,
+                'label' => 'ext-' . $extension
+                    . ($minimumVersion !== null ? ' ≥ ' . $minimumVersion : ''),
+                'ok' => self::isExtensionSupported($extension, $loaded, $displayVersion),
+                'value' => $displayVersion ?? ($loaded ? 'geladen' : null),
                 'required' => true,
             ];
         }
@@ -53,7 +82,9 @@ final class PrerequisiteCheck
         $checks[] = [
             'label' => 'PDO-Treiber (sqlite / mysql / pgsql)',
             'ok' => count($pdoDrivers) > 0,
-            'value' => count($pdoDrivers) > 0 ? implode(', pdo_', $pdoDrivers) : null,
+            'value' => count($pdoDrivers) > 0
+                ? implode(', ', array_map(static fn (string $driver): string => 'pdo_' . $driver, $pdoDrivers))
+                : null,
             'required' => true,
         ];
 
@@ -61,7 +92,7 @@ final class PrerequisiteCheck
         $dirs = [
             'data' => true,
             'config' => true,
-            'var' => false,
+            'var' => true,
         ];
 
         foreach ($dirs as $dir => $required) {
@@ -83,12 +114,26 @@ final class PrerequisiteCheck
 
         $blocked = false;
         foreach ($checks as $check) {
-            if ($check['required'] && !$check['ok']) {
+            if (!$check['ok']) {
                 $blocked = true;
                 break;
             }
         }
 
         return ['checks' => $checks, 'blocked' => $blocked];
+    }
+
+    public static function isExtensionSupported(string $extension, bool $loaded, ?string $version): bool
+    {
+        if (!$loaded || !array_key_exists($extension, self::REQUIRED_EXTENSIONS)) {
+            return false;
+        }
+
+        $minimumVersion = self::REQUIRED_EXTENSIONS[$extension] ?? null;
+        if ($minimumVersion === null) {
+            return true;
+        }
+
+        return $version !== null && version_compare($version, $minimumVersion, '>=');
     }
 }

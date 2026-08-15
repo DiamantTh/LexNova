@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LexNova\Console;
 
+use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Service\InstallService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -13,8 +14,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'install:prepare', description: 'Generate the one-time password for the web installer')]
 final class InstallPrepareCommand extends Command
 {
-    public function __construct(private readonly InstallService $install)
-    {
+    public function __construct(
+        private readonly InstallService $install,
+        private readonly PrerequisiteCheck $prerequisites,
+        private readonly PrerequisiteReporter $reporter,
+    ) {
         parent::__construct();
     }
 
@@ -27,6 +31,14 @@ final class InstallPrepareCommand extends Command
         }
         if ($this->install->readPasswordHash() !== null) {
             $output->writeln('<error>An installer password already exists. Complete the installation or remove data/install.pw deliberately.</error>');
+
+            return Command::FAILURE;
+        }
+
+        $result = $this->prerequisites->run();
+        $this->reporter->render($output, $result);
+        if ($result['blocked']) {
+            $output->writeln('<error>Installer preparation stopped because required prerequisites are missing.</error>');
 
             return Command::FAILURE;
         }

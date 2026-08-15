@@ -14,7 +14,7 @@
         "ext-pdo": "*",
         "ext-redis": "^6.0",
         "ext-sodium": "*",
-        "php": ">=8.4",
+        "php": ">=8.4.1",
         "bjeavons/zxcvbn-php": "^1.4",
         "devium/toml": "^1.0",
         "doctrine/dbal": "^3.7",
@@ -65,7 +65,8 @@
         "test:config": [
             "@php tests/Config/ConfigExampleTest.php",
             "@php tests/Config/DatabaseConfigurationTest.php",
-            "@php tests/Config/CacheBackendIdentificationTest.php"
+            "@php tests/Config/CacheBackendIdentificationTest.php",
+            "@php tests/Config/PlatformRequirementsTest.php"
         ],
         "test:integration": [
             "@php tests/Integration/DocumentEndpointTest.php",

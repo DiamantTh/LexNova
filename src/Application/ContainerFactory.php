@@ -25,6 +25,7 @@ use LexNova\Handler\Auth\PasskeyUpdateHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Error\NotFoundHandler;
+use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
 use LexNova\Middleware\SecurityHeadersMiddleware;
@@ -416,6 +417,8 @@ final class ContainerFactory
 
             AuditService::class => fn (ContainerInterface $c) => new AuditService($c->get(Connection::class)),
 
+            PrerequisiteCheck::class => fn () => new PrerequisiteCheck($root),
+
             // ── Handlers: Install ───────────────────────────────────────────────────
             \LexNova\Handler\Install\InstallHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Install\InstallHandler(
                 $c->get(InstallService::class),
@@ -424,6 +427,7 @@ final class ContainerFactory
                 $c->get(TemplateRendererInterface::class),
                 $c->get(LoggerInterface::class),
                 $c->get(Fail2BanLogService::class),
+                $c->get(PrerequisiteCheck::class),
                 $c->get('config'),
             ),
 
@@ -584,6 +588,13 @@ final class ContainerFactory
 
             \LexNova\Console\InstallPrepareCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\InstallPrepareCommand(
                 $c->get(InstallService::class),
+                $c->get(PrerequisiteCheck::class),
+                $c->get(\LexNova\Console\PrerequisiteReporter::class),
+            ),
+
+            \LexNova\Console\InstallCheckCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\InstallCheckCommand(
+                $c->get(PrerequisiteCheck::class),
+                $c->get(\LexNova\Console\PrerequisiteReporter::class),
             ),
 
             \LexNova\Console\UserSetPasswordCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\UserSetPasswordCommand(

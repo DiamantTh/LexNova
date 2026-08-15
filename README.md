@@ -64,7 +64,7 @@ must never be configured as the DocumentRoot. This keeps `config/`, `data/`,
 
 **Required:**
 
-- PHP 8.4+
+- PHP 8.4.1+
 - PHP extensions: `ctype`, `fileinfo`, `filter`, `intl`, `json`, `mbstring`,
   `openssl`, `pdo`, `redis` (PhpRedis 6+), and `sodium`
 - PDO driver: `pdo_sqlite`, `pdo_mysql`, or `pdo_pgsql`
@@ -98,8 +98,13 @@ required extension is missing.
 3. Prepare the installer password. With shell access:
 
    ```
+   bin/lexnova install:check
    bin/lexnova install:prepare
    ```
+
+   `install:check` checks the CLI SAPI. The web installer's requirements table
+   separately checks the web server/FPM SAPI because shared hosts may load a
+   different `php.ini` and different extensions for each SAPI.
 
    Without shell access, set `LEXNOVA_INSTALL_PASSWORD` as a secret environment
    variable in the hosting control panel. The installer imports it on the first
@@ -247,6 +252,7 @@ included in system information.
 
 ```
 bin/lexnova entity:list                         List all entities
+bin/lexnova install:check                       Check PHP, extensions, PDO drivers, and permissions
 bin/lexnova install:prepare                     Generate a one-time installer password
 bin/lexnova user:create <username>              Create a new administrator user
 bin/lexnova user:delete <username> [-y]         Delete an administrator user
