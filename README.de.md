@@ -1,5 +1,7 @@
 # LexNova Core
 
+[English](README.md) | **Deutsch**
+
 LexNova verwaltet, versioniert und veröffentlicht Impressums- und
 Datenschutztexte für persönliche Bereiche und Teams. Der verbindliche geplante
 Umfang steht in [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md), die geplante
