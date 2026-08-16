@@ -20,7 +20,6 @@ $expectedExtensions = [
     'ext-mbstring' => '*',
     'ext-openssl' => '*',
     'ext-pdo' => '*',
-    'ext-redis' => '^6.0',
     'ext-sodium' => '*',
 ];
 $composerExtensions = array_filter(
@@ -42,6 +41,13 @@ if ($checkedExtensions !== $composerExtensionNames) {
     throw new RuntimeException('Installer extension checks do not match composer.json.');
 }
 
+if (PrerequisiteCheck::OPTIONAL_EXTENSIONS !== ['redis' => '6.0.0']
+    || ($composer['suggest']['ext-redis'] ?? null) === null
+    || ($composer['suggest']['laminas/laminas-cache-storage-adapter-redis'] ?? null) === null
+) {
+    throw new RuntimeException('Optional Valkey requirements are not declared consistently.');
+}
+
 if (($requires['php'] ?? null) !== '>=' . PrerequisiteCheck::MINIMUM_PHP_VERSION) {
     throw new RuntimeException('Installer PHP version check does not match composer.json.');
 }
@@ -53,7 +59,7 @@ if (!PrerequisiteCheck::isExtensionSupported('redis', true, '6.0.0')) {
     throw new RuntimeException('PhpRedis 6 was rejected.');
 }
 if (PrerequisiteCheck::isExtensionSupported('redis', false, null)) {
-    throw new RuntimeException('A missing required extension was accepted.');
+    throw new RuntimeException('A missing optional extension was reported as available.');
 }
 if (!PrerequisiteCheck::isExtensionSupported('sodium', true, null)) {
     throw new RuntimeException('A loaded extension without a minimum version was rejected.');

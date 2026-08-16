@@ -191,6 +191,15 @@ final readonly class SystemInfoService
                 'version' => extension_loaded('redis') ? phpversion('redis') ?: null : null,
                 'priority' => 1,
             ],
+            [
+                'name' => 'Laminas Redis Cache',
+                'type' => 'optionaler Composer-Adapter',
+                'available' => InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-redis'),
+                'version' => InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-redis')
+                    ? InstalledVersions::getPrettyVersion('laminas/laminas-cache-storage-adapter-redis')
+                    : null,
+                'priority' => 2,
+            ],
         ];
     }
 

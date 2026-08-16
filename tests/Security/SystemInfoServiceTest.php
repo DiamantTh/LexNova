@@ -53,8 +53,9 @@ if ($status['host']['server_software'] !== 'Apache/2.4 Test'
     || $status['host']['os_family'] === ''
     || $status['runtime']['php_version'] !== PHP_VERSION
     || $status['runtime']['pdo_drivers'] === []
-    || count($status['runtime']['cache_clients']) !== 1
+    || count($status['runtime']['cache_clients']) !== 2
     || $status['runtime']['cache_clients'][0]['name'] !== 'PhpRedis'
+    || $status['runtime']['cache_clients'][1]['name'] !== 'Laminas Redis Cache'
 ) {
     throw new RuntimeException('General host, webserver or PHP information is incomplete.');
 }

@@ -37,8 +37,12 @@ final class PrerequisiteCheck
         'mbstring' => null,
         'openssl' => null,
         'pdo' => null,
-        'redis' => '6.0.0',
         'sodium' => null,
+    ];
+
+    /** @var array<string, ?string> */
+    public const OPTIONAL_EXTENSIONS = [
+        'redis' => '6.0.0',
     ];
 
     /**
@@ -92,11 +96,12 @@ final class PrerequisiteCheck
         ];
 
         // ── Required extensions ───────────────────────────────────────────
-        foreach (self::REQUIRED_EXTENSIONS as $extension => $minimumVersion) {
+        foreach (self::REQUIRED_EXTENSIONS + self::OPTIONAL_EXTENSIONS as $extension => $minimumVersion) {
             $loaded = extension_loaded($extension);
             $version = $loaded ? phpversion($extension) : false;
             $displayVersion = is_string($version) && $version !== '' ? $version : null;
             $polyfillAvailable = !$loaded && self::isPolyfillAvailable($extension);
+            $required = array_key_exists($extension, self::REQUIRED_EXTENSIONS);
 
             $checks[] = [
                 'label' => 'ext-' . $extension
@@ -104,7 +109,7 @@ final class PrerequisiteCheck
                 'ok' => self::isExtensionSupported($extension, $loaded, $displayVersion, $polyfillAvailable),
                 'value' => $displayVersion
                     ?? ($polyfillAvailable ? self::polyfillDescription($extension) : ($loaded ? 'geladen' : null)),
-                'required' => true,
+                'required' => $required,
                 'fallback' => $polyfillAvailable,
             ];
         }
@@ -151,7 +156,7 @@ final class PrerequisiteCheck
 
         $blocked = false;
         foreach ($checks as $check) {
-            if (!$check['ok']) {
+            if ($check['required'] && !$check['ok']) {
                 $blocked = true;
                 break;
             }
@@ -166,7 +171,8 @@ final class PrerequisiteCheck
         ?string $version,
         bool $polyfillAvailable = false,
     ): bool {
-        if (!array_key_exists($extension, self::REQUIRED_EXTENSIONS)) {
+        $extensions = self::REQUIRED_EXTENSIONS + self::OPTIONAL_EXTENSIONS;
+        if (!array_key_exists($extension, $extensions)) {
             return false;
         }
 
@@ -174,7 +180,7 @@ final class PrerequisiteCheck
             return $polyfillAvailable && array_key_exists($extension, self::EXTENSION_POLYFILLS);
         }
 
-        $minimumVersion = self::REQUIRED_EXTENSIONS[$extension] ?? null;
+        $minimumVersion = $extensions[$extension] ?? null;
         if ($minimumVersion === null) {
             return true;
         }

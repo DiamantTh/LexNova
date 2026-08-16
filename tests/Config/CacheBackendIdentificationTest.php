@@ -50,6 +50,27 @@ $settings->set('same-key', 'setting');
 if ($documents->get('same-key') !== 'document' || $settings->get('same-key') !== 'setting') {
     throw new RuntimeException('Named cache areas are not isolated.');
 }
+
+$optionalValkey = new CacheBackendService(
+    [
+        'adapter' => 'valkey',
+        'host' => '127.0.0.1',
+        'port' => 1,
+        'namespace' => 'lexnova-optional',
+        'default_ttl' => 60,
+    ],
+    $temporaryRoot,
+    new SimpleCacheDecorator(new Memory()),
+);
+$fallbackCache = $optionalValkey->cache();
+$fallbackStatus = $optionalValkey->status();
+if (!$fallbackCache->set('fallback-probe', 'works', 60)
+    || $fallbackCache->get('fallback-probe') !== 'works'
+    || $fallbackStatus['effective'] !== 'filesystem'
+    || !$fallbackStatus['fallback']
+) {
+    throw new RuntimeException('Missing or unreachable optional Valkey dependencies did not fall back safely.');
+}
 foreach (['documents', 'settings'] as $directory) {
     $path = $temporaryRoot . '/var/cache/' . $directory;
     if (!is_dir($path) || (fileperms($path) & 0777) !== 0700) {

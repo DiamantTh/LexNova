@@ -97,7 +97,7 @@
         {% endfor %}
         </table>
         <h3>Valkey-/Redis-Protokoll-Client</h3>
-        <p class="hint">Der Laminas-Redis-Adapter verwendet PhpRedis. Die Erweiterung spricht sowohl mit Valkey als auch mit kompatiblen Redis-Servern.</p>
+        <p class="hint">Valkey ist optional. Dafür müssen PhpRedis 6+ und der Laminas-Redis-Adapter gemeinsam verfügbar sein; der Dateisystemcache benötigt beides nicht.</p>
         <table>
         {% for client in system.runtime.cache_clients %}
             <tr>

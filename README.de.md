@@ -66,14 +66,24 @@ außerhalb des Webzugriffs.
 
 **Pflicht:**
 - PHP 8.4.1+
-- Native PHP-Extensions: `fileinfo`, `filter`, `intl`, `json`, `openssl`, `pdo`
-  und `redis` (PhpRedis 6+)
+- Native PHP-Extensions: `fileinfo`, `filter`, `intl`, `json`, `openssl` und
+  `pdo`
 - Native Extensions empfohlen, geprüfter Composer-Fallback enthalten:
   `ctype`, `mbstring` und `sodium`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
 - Relationale SQL-Datenbank (SQLite 3.35+, MySQL 8+, MariaDB 10.10+ oder PostgreSQL 13+)
 - Native libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten) wird für
   Leistung und sichere Speicherbereinigung ausdrücklich bevorzugt
+
+**Optional:** PhpRedis 6+ und
+`laminas/laminas-cache-storage-adapter-redis:^3.2` aktivieren den
+Valkey-Cache. Beide sind bewusst keine Installationsvoraussetzung, weil der
+standardmäßige Dateisystemcache sie nicht benötigt. Der Adapter wird nur bei
+ausgewähltem Valkey installiert:
+
+```bash
+composer require laminas/laminas-cache-storage-adapter-redis:^3.2
+```
 
 **Zur Laufzeit:**
 - Schreibzugriff auf `data/` (bei SQLite) und `var/` (Cache und Logging).
@@ -202,6 +212,10 @@ namespace = "lexnova"
 
 Ist Valkey nicht erreichbar, fällt LexNova kontrolliert auf den Dateisystem-Cache
 zurück. Geänderte Dokumente invalidieren alle Sprachvarianten sofort.
+
+PhpRedis und der Laminas-Redis-Adapter sind gemeinsam optional. Eine
+Basisinstallation ohne beide Komponenten ist gültig; `/install` weist PhpRedis
+als Empfehlung aus und `/admin/system` zeigt Extension und Adapter getrennt.
 
 Der Konfigurationsname `adapter = "valkey"` drückt bewusst das bevorzugte
 Serverprodukt aus. Der Laminas-Redis-Adapter spricht über PhpRedis dasselbe
@@ -410,7 +424,7 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `endroid/qr-code` | QR-Code-Generierung (SVG) bei TOTP-Einrichtung |
 | `laminas/laminas-cache` | Cache-Abstraktion mit PSR-16-Decorator |
 | `laminas/laminas-cache-storage-adapter-filesystem` | Geschützter lokaler Cache für Dokumente, Settings, HIBP und Diagnose |
-| `laminas/laminas-cache-storage-adapter-redis` | PhpRedis-basierter Valkey-/Redis-Protokollcache |
+| `laminas/laminas-cache-storage-adapter-redis` | Optionaler PhpRedis-basierter Valkey-/Redis-Protokollcache (unter Composer `suggest` deklariert) |
 | `laminas/laminas-diactoros` | PSR-7 HTTP Message Implementierung |
 | `laminas/laminas-filter` | Filter-Chain (StringTrim, Callback) für Input-Validierung |
 | `laminas/laminas-i18n` | Sicheres Laden der PHP-Array-Übersetzungskataloge und I18n-Grundlage |

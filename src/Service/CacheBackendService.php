@@ -6,13 +6,15 @@ namespace LexNova\Service;
 
 use Laminas\Cache\Psr\SimpleCache\SimpleCacheDecorator;
 use Laminas\Cache\Storage\Adapter\Filesystem;
-use Laminas\Cache\Storage\Adapter\Redis as RedisAdapter;
-use Laminas\Cache\Storage\Adapter\RedisOptions;
-use Laminas\Cache\Storage\Adapter\RedisResourceManager;
+use Laminas\Cache\Storage\StorageInterface;
 use Psr\SimpleCache\CacheInterface;
 
 final class CacheBackendService
 {
+    private const LAMINAS_REDIS_ADAPTER = 'Laminas\\Cache\\Storage\\Adapter\\Redis';
+    private const LAMINAS_REDIS_OPTIONS = 'Laminas\\Cache\\Storage\\Adapter\\RedisOptions';
+    private const LAMINAS_REDIS_RESOURCE_MANAGER = 'Laminas\\Cache\\Storage\\Adapter\\RedisResourceManager';
+
     /** @var array<string, CacheInterface> */
     private array $caches = [];
     private ?\Redis $redisConnection = null;
@@ -167,16 +169,18 @@ final class CacheBackendService
                 'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
             ];
         } catch (\Throwable) {
+            $clientAvailable = self::valkeyClientAvailable();
+
             return [
                 'configured' => 'valkey',
                 'effective' => 'filesystem',
                 'product' => 'Nicht erreichbar',
                 'version' => null,
-                'client' => 'nicht verfügbar',
+                'client' => $clientAvailable ? 'PhpRedis-Verbindung fehlgeschlagen' : 'PhpRedis/Laminas-Adapter fehlt',
                 'connected' => false,
                 'fallback' => true,
                 'preferred' => false,
-                'detection' => 'connection_failed',
+                'detection' => $clientAvailable ? 'connection_failed' : 'client_unavailable',
                 'path' => $this->root . '/var/cache/documents',
                 'writable' => is_writable($this->root . '/var/cache'),
                 'endpoint' => (string) ($this->config['host'] ?? '127.0.0.1') . ':'
@@ -191,6 +195,10 @@ final class CacheBackendService
 
     private function valkeyCache(string $name, int $defaultTtl): CacheInterface
     {
+        if (!self::valkeyClientAvailable()) {
+            throw new \RuntimeException('Valkey requires PhpRedis 6+ and the Laminas Redis adapter.');
+        }
+
         $host = (string) ($this->config['host'] ?? '127.0.0.1');
         if ((bool) ($this->config['tls'] ?? false)) {
             $host = 'tls://' . $host;
@@ -199,26 +207,60 @@ final class CacheBackendService
         $password = (string) ($this->config['password'] ?? '');
         $port = min(65535, max(1, (int) ($this->config['port'] ?? 6379)));
         $database = max(0, (int) ($this->config['database'] ?? 0));
-        $options = new RedisOptions();
-        $options->setServer(['host' => $host, 'port' => $port, 'timeout' => 2]);
-        $options->setDatabase($database);
-        $options->setNamespace($this->namespace($name));
-        $options->setTtl(max(0, $defaultTtl));
-        $options->setLibOptions([\Redis::OPT_SERIALIZER => \Redis::SERIALIZER_PHP]);
+        $options = self::instantiateOptional(self::LAMINAS_REDIS_OPTIONS);
+        self::callOptional($options, 'setServer', [['host' => $host, 'port' => $port, 'timeout' => 2]]);
+        self::callOptional($options, 'setDatabase', [$database]);
+        self::callOptional($options, 'setNamespace', [$this->namespace($name)]);
+        self::callOptional($options, 'setTtl', [max(0, $defaultTtl)]);
+        self::callOptional($options, 'setLibOptions', [[\Redis::OPT_SERIALIZER => \Redis::SERIALIZER_PHP]]);
         if ($username !== '') {
-            $options->setUser($username);
+            self::callOptional($options, 'setUser', [$username]);
         }
         if ($password !== '') {
-            $options->setPassword($password);
+            self::callOptional($options, 'setPassword', [$password]);
         }
 
-        $adapter = new RedisAdapter($options);
-        $resourceManager = new RedisResourceManager($options);
-        $adapter->setResourceManager($resourceManager);
-        $connection = $resourceManager->getResource();
+        $adapter = self::instantiateOptional(self::LAMINAS_REDIS_ADAPTER, [$options]);
+        $resourceManager = self::instantiateOptional(self::LAMINAS_REDIS_RESOURCE_MANAGER, [$options]);
+        self::callOptional($adapter, 'setResourceManager', [$resourceManager]);
+        $connection = self::callOptional($resourceManager, 'getResource');
+        if (!$adapter instanceof StorageInterface || !$connection instanceof \Redis) {
+            throw new \RuntimeException('The optional Laminas Redis adapter returned incompatible objects.');
+        }
         $this->redisConnection ??= $connection;
 
         return new SimpleCacheDecorator($adapter);
+    }
+
+    private static function valkeyClientAvailable(): bool
+    {
+        $version = extension_loaded('redis') ? phpversion('redis') : false;
+
+        return is_string($version)
+            && version_compare($version, '6.0.0', '>=')
+            && class_exists(self::LAMINAS_REDIS_ADAPTER)
+            && class_exists(self::LAMINAS_REDIS_OPTIONS)
+            && class_exists(self::LAMINAS_REDIS_RESOURCE_MANAGER);
+    }
+
+    /** @param list<mixed> $arguments */
+    private static function instantiateOptional(string $className, array $arguments = []): object
+    {
+        if (!class_exists($className)) {
+            throw new \RuntimeException('Optional cache class is not installed: ' . $className);
+        }
+
+        return new $className(...$arguments);
+    }
+
+    /** @param list<mixed> $arguments */
+    private static function callOptional(object $target, string $method, array $arguments = []): mixed
+    {
+        if (!method_exists($target, $method)) {
+            throw new \RuntimeException('Optional cache method is unavailable: ' . $method);
+        }
+
+        return $target->{$method}(...$arguments);
     }
 
     /** @return array<string, mixed> */
