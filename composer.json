@@ -71,6 +71,7 @@
             "@php tests/Integration/PasskeyServiceTest.php",
             "@php tests/Integration/TranslationServiceTest.php"
         ],
+        "test:frontend": "@php tests/Frontend/SveltePageRendererTest.php",
         "test:security": [
             "@php tests/Security/EmailExtensionTest.php",
             "@php tests/Security/RateLimitServiceTest.php",
@@ -80,7 +81,7 @@
             "@php tests/Security/Fail2BanLogServiceTest.php",
             "@php tests/Security/SystemInfoServiceTest.php"
         ],
-        "test": ["@test:config", "@test:integration", "@test:security"],
+        "test": ["@test:config", "@test:integration", "@test:frontend", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]
     },
     "config": {

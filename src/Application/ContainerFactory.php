@@ -13,6 +13,7 @@ use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Clock\SystemClock;
 use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\SystemInfoHandler;
@@ -263,6 +264,10 @@ final class ContainerFactory
             ),
 
             LoggerInterface::class => fn (ContainerInterface $c) => (new LoggerFactory())($c),
+
+            SveltePageRenderer::class => fn () => new SveltePageRenderer(
+                $root . '/httpdocs/assets/app/.vite/manifest.json',
+            ),
 
             // ── Clock ────────────────────────────────────────────────────────────────
             ClockInterface::class => fn () => new SystemClock(),

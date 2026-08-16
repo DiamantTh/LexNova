@@ -9,6 +9,11 @@
 # Composer
 /vendor/
 
+# Frontend dependencies and local compiler state
+/frontend/node_modules/
+/frontend/.svelte-kit/
+/frontend/.vite/
+
 # Editor
 .vscode/
 .php-cs-fixer.cache
