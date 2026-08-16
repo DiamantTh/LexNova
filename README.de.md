@@ -22,7 +22,7 @@ und nicht als stabile Produktivversion zu behandeln.
 LexNova ist für klassischen PHP-Betrieb ohne Container und ohne Release-System
 geeignet. Das **einzige** öffentliche Verzeichnis ist `httpdocs/`; der gesamte
 Projektordner darf nicht als DocumentRoot konfiguriert werden. Dadurch bleiben
-`config/`, `data/`, `src/`, `templates/`, `vendor/` und `var/`
+`config/`, `data/`, `frontend/`, `src/`, `vendor/` und `var/`
 außerhalb des Webzugriffs.
 
 - Apache 2.4: Bei Shared Hosting ohne eigenen vHost greift
@@ -66,6 +66,7 @@ außerhalb des Webzugriffs.
 
 **Pflicht:**
 - PHP 8.4.1+
+- PHP 8.5 wird durch lokale Syntax-, PHPStan-, Integrations- und Security-Prüfungen abgedeckt
 - Native PHP-Extensions: `fileinfo`, `filter`, `intl`, `json`, `openssl` und
   `pdo`
 - Native Extensions empfohlen, geprüfter Composer-Fallback enthalten:
@@ -121,6 +122,16 @@ LexNova umgeht oder verfälscht sie nicht.
 
    ```
    composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+   ```
+
+   Das Release enthält die fertig kompilierten Svelte-/Skeleton-Assets bereits
+   unter `httpdocs/assets/app/`. Auf dem Webspace wird Node.js weder installiert
+   noch ausgeführt. Nur wer das Frontend lokal verändert, baut diese Dateien neu:
+
+   ```
+   cd frontend
+   npm ci
+   npm run qa
    ```
 
 3. Installer-Passwort vorbereiten. Mit Shell-Zugang:
@@ -199,7 +210,6 @@ Wichtige Abschnitte in `config/config.example.toml`:
 | `[security]` | `totp_app_key` (32 Byte hex, beim Install generiert) |
 | `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
 | `[security.fail2ban]` | Optionales projektlokales Fail2ban-Signallog und Settings-Cache |
-| `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
 | `[cache]` | Anwendungs-Cache: standardmäßig Dateisystem; optional APCu oder Valkey mit klassischen Verbindungsfeldern |
 
 `[app].base_url` muss die öffentliche HTTPS-URL der Instanz enthalten. Sie ist
@@ -289,7 +299,7 @@ Aktuell existieren folgende Cachewege:
 | Zweck | Adapter |
 |---|---|
 | öffentliche Rechtsdokumente | gewählter Laminas-Adapter: Filesystem, APCu oder Redis mit PhpRedis/Valkey |
-| Twig-Templates | Dateisystem |
+| kompiliertes Svelte-/Skeleton-Frontend | statische versionierte Dateien in `httpdocs/assets/app/`; kein Runtime-Templatecache |
 | Datenbank-Systemeinstellungen | gewählter Laminas-Adapter, eigener Namespace |
 | Systemdiagnose | Laminas Filesystem über PSR-16, fünf Minuten |
 | HIBP-Abfrageergebnisse | gewählter Laminas-Adapter, eigener Namespace |
@@ -413,14 +423,31 @@ Dokumente mit jeweils eigener URL.
 
 Auch alle anderen nicht vorhandenen Pfade werden vom Webserver intern an
 `httpdocs/index.php` übergeben. LexNova rendert sie über den zentralen
-`NotFoundHandler` und `templates/error/404.html.twig`; die ursprünglich
+`NotFoundHandler` und die kompilierte Svelte-Fehlerseite; die ursprünglich
 aufgerufene URL bleibt im Browser erhalten und die Antwort hat den echten
 HTTP-Status 404. Es gibt deshalb keine sichtbare Umleitung auf eine technische
 URL wie `index.php?mode=404`.
 
-Die Fehlerseiten 404 und 500 verwenden das gemeinsame Twig-Grundtemplate
-`templates/error/layout.html.twig`. Weitere Fehlerseiten können dieses Template
-erweitern, ohne Gestaltung und Struktur erneut anzulegen.
+Die Fehlerseiten 404 und 500 verwenden dieselbe Svelte-/Skeleton-Anwendungshülle
+wie die übrigen Screens. Ihr serverseitiger Bootstrap enthält nur Status und
+eine allgemeine Meldung; Exception-Details werden protokolliert und nie öffentlich
+ausgegeben.
+
+### Aufbau der Oberfläche
+
+Das kompilierte Frontend ist bewusst in natürliche Arbeitsbereiche getrennt und
+nicht als übergroße einzelne Adminseite aufgebaut:
+
+- `/verwaltung`, `/verwaltung/entities`, `/verwaltung/documents`: Betreiber-
+  und Dokumentarbeit
+- `/user/security`: Passkeys und TOTP-Schlüssel des angemeldeten Kontos
+- `/admin`, `/admin/users`, `/admin/security`, `/admin/audit`, `/admin/system`:
+  instanzweite Administration
+
+PHP/Mezzio bleibt für Routing, Berechtigungen, Validierung, Persistenz, CSRF und
+Weiterleitungen verantwortlich. Svelte 5 und Skeleton 5 rendern die Browser-UX
+aus inerten JSON-Startdaten. Es gibt weder eine allgemeine Anwendungs-API noch
+eine JavaScript-Runtime auf dem Server.
 
 ### SEO und Caching
 
@@ -483,7 +510,6 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `mezzio/mezzio-fastroute` | FastRoute-Adapter für Mezzio |
 | `mezzio/mezzio-session` | Session-Middleware |
 | `mezzio/mezzio-session-ext` | PHP-native Session-Implementierung |
-| `mezzio/mezzio-twigrenderer` | Twig-Template-Renderer für Mezzio |
 | `monolog/monolog` | Logging (Datei-Handler) |
 | `paragonie/sodium_compat` | Bekannter, Symfony-unabhängiger Pure-PHP-Fallback für die verwendeten Sodium-Secretbox-Funktionen |
 | `paragonie/sodium_compat_ext_sodium` | Offizieller Composer-Provider, durch den Sodium Compat `ext-sodium` erfüllen kann |
@@ -499,7 +525,6 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `symfony/polyfill-mbstring` | Fallback für die verwendeten `mb_*`-Funktionen über Iconv |
 | `symfony/property-info` | Typinformationen für den von WebAuthn erzeugten Symfony ObjectNormalizer |
 | `symfony/serializer` | JSON-Serialisierung der WebAuthn-Optionen und Credentials |
-| `twig/twig` | Template-Engine |
 | `web-auth/webauthn-lib` | WebAuthn/FIDO2-Passkeys: Registrierung im Adminbereich und passwortloser Login |
 
 Die Symfony-Komponenten für PropertyInfo und Serializer sind kein zweites

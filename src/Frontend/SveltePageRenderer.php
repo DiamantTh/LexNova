@@ -47,6 +47,7 @@ final class SveltePageRenderer
             $data,
             JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT,
         );
+        $robots = $page === 'public-document' ? 'index, follow' : 'noindex, nofollow';
 
         $headAssets = '';
         foreach (array_values(array_unique([...$styles, ...$imports['styles']])) as $style) {
@@ -62,6 +63,7 @@ final class SveltePageRenderer
             . '    <meta charset="utf-8">\n'
             . '    <meta name="viewport" content="width=device-width, initial-scale=1">\n'
             . '    <meta name="color-scheme" content="light dark">\n'
+            . '    <meta name="robots" content="' . $robots . '">\n'
             . '    <title>' . $this->escape($title) . '</title>'
             . $headAssets . '\n'
             . '</head>\n'

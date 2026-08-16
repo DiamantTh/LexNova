@@ -28,7 +28,7 @@ Erweiterungen.
 
 - SQL wird ausschließlich parametrisiert ausgeführt.
 - Freitext wird bei HTML-Ausgabe kontextgerecht escaped.
-- Als HTML-sicher markierte Twig-Filter dürfen keine ungeprüften Originalzeichen
+- Als HTML-sicher an Svelte übergebene Entity-Ausgaben dürfen keine ungeprüften Originalzeichen
   oder Attribute ausgeben.
 - Requests und alle persistenten Textfelder besitzen serverseitige Größenlimits.
 - Uploads werden erst eingeführt, wenn Typprüfung, Größenlimit, zufällige Namen

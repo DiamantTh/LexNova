@@ -128,8 +128,3 @@ tls         = false       # true for a TLS-protected Valkey connection
 # Project-local absolute path as visible to PHP.
 path  = "/path/to/lexnova/var/log/lexnova.log"
 level = "warning"
-
-[twig]
-# Set to false to disable template caching (e.g. during development).
-# A warning will be shown in the admin panel when cache is disabled.
-cache = true

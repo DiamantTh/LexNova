@@ -34,7 +34,6 @@ $service = new SystemInfoService($db, $cache, $fail2ban, [
     'cache' => ['adapter' => 'filesystem', 'password' => 'cache-secret'],
     'security' => ['totp_app_key' => 'app-secret'],
     'session' => ['secure' => true, 'httponly' => true, 'samesite' => 'Strict'],
-    'twig' => ['cache_dir' => $root . '/var/cache/twig'],
 ], $root);
 
 $status = $service->status([
@@ -51,6 +50,12 @@ if ($status['cache']['effective'] !== 'filesystem'
     || !$status['application']['installed']
 ) {
     throw new RuntimeException('System information did not report the effective runtime state.');
+}
+if (($status['application']['frontend_build'] ?? true) !== false
+    || ($status['security']['frontend_csp_without_unsafe_inline'] ?? false) !== true
+    || ($status['frontend']['node_required_at_runtime'] ?? true) !== false
+) {
+    throw new RuntimeException('Frontend build or CSP state is not reported correctly.');
 }
 if ($status['host']['server_software'] !== 'Apache/2.4 Test'
     || $status['host']['os_family'] === ''

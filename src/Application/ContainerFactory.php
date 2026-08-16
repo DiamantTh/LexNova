@@ -13,6 +13,7 @@ use Laminas\Stratigility\Middleware\ErrorHandler;
 use LexNova\Clock\SystemClock;
 use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
+use LexNova\Frontend\SvelteErrorResponseGenerator;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
@@ -33,6 +34,7 @@ use LexNova\Middleware\SecurityHeadersMiddleware;
 use LexNova\Service\AuditService;
 use LexNova\Service\CacheBackendService;
 use LexNova\Service\DocumentService;
+use LexNova\Service\EmailObfuscator;
 use LexNova\Service\EntityService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\InstallRateLimitService;
@@ -50,14 +52,11 @@ use LexNova\Service\SystemSettingService;
 use LexNova\Service\TotpService;
 use LexNova\Service\TranslationService;
 use LexNova\Service\UserService;
-use LexNova\Twig\EmailExtension;
-use LexNova\Twig\TranslationExtension;
 use Mezzio\Application;
 use Mezzio\Container\ApplicationFactory;
 use Mezzio\Container\ApplicationPipelineFactory;
 use Mezzio\Container\EmitterFactory;
 use Mezzio\Container\ErrorHandlerFactory;
-use Mezzio\Container\ErrorResponseGeneratorFactory;
 use Mezzio\Container\MiddlewareContainerFactory;
 use Mezzio\Container\MiddlewareFactoryFactory;
 use Mezzio\Container\RequestHandlerRunnerFactory;
@@ -83,12 +82,6 @@ use Mezzio\Session\Ext\PhpSessionPersistence;
 use Mezzio\Session\SessionMiddleware;
 use Mezzio\Session\SessionMiddlewareFactory;
 use Mezzio\Session\SessionPersistenceInterface;
-use Mezzio\Template\TemplateRendererInterface;
-use Mezzio\Twig\TwigEnvironmentFactory;
-use Mezzio\Twig\TwigExtension;
-use Mezzio\Twig\TwigExtensionFactory;
-use Mezzio\Twig\TwigRenderer;
-use Mezzio\Twig\TwigRendererFactory;
 use Psr\Clock\ClockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -96,7 +89,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
-use Twig\Environment;
 
 final class ContainerFactory
 {
@@ -140,34 +132,11 @@ final class ContainerFactory
         $config['app']['locale'] ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
-        foreach ([$root . '/var/cache/twig', $root . '/var/log'] as $dir) {
+        foreach ([$root . '/var/cache', $root . '/var/log'] as $dir) {
             if (!is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
         }
-
-        // ── Framework config ──────────────────────────────────────────────────────
-        // twig.cache can be set to false in config.toml to disable template caching
-        $twigCache = (bool) ($config['twig']['cache'] ?? true);
-
-        $config['templates'] = [
-            'extension' => 'html.twig',
-            'paths' => [
-                $root . '/templates',
-                'error' => $root . '/templates/error',
-            ],
-        ];
-        $config['twig'] = [
-            'cache_dir' => $twigCache ? $root . '/var/cache/twig' : false,
-            'debug' => false,
-            'auto_reload' => true,
-            'timezone' => 'UTC',
-            'globals' => ['twig_cache_enabled' => $twigCache],
-            'extensions' => [
-                EmailExtension::class,
-                TranslationExtension::class,
-            ],
-        ];
 
         $builder = new ContainerBuilder();
         $builder->useAutowiring(true);
@@ -206,15 +175,6 @@ final class ContainerFactory
 
             Application::class => fn (ContainerInterface $c) => (new ApplicationFactory())($c),
 
-            // ── Twig ────────────────────────────────────────────────────────────────
-            Environment::class => fn (ContainerInterface $c) => (new TwigEnvironmentFactory())($c),
-
-            TwigExtension::class => fn (ContainerInterface $c) => (new TwigExtensionFactory())($c),
-
-            TwigRenderer::class => fn (ContainerInterface $c) => (new TwigRendererFactory())($c),
-
-            TemplateRendererInterface::class => fn (ContainerInterface $c) => $c->get(TwigRenderer::class),
-
             // ── Session & CSRF ───────────────────────────────────────────────────────
             SessionPersistenceInterface::class => fn (ContainerInterface $c) => PhpSessionPersistence::fromConfigArray([
                 'name' => (string) ($c->get('config')['session']['name'] ?? 'lexnova_session'),
@@ -236,7 +196,9 @@ final class ContainerFactory
 
             DispatchMiddleware::class => fn (ContainerInterface $c) => (new DispatchMiddlewareFactory())($c),
 
-            ErrorResponseGenerator::class => fn (ContainerInterface $c) => (new ErrorResponseGeneratorFactory())($c),
+            ErrorResponseGenerator::class => fn (ContainerInterface $c) => new SvelteErrorResponseGenerator(
+                $c->get(SveltePageRenderer::class),
+            ),
 
             ErrorHandler::class => function (ContainerInterface $c): ErrorHandler {
                 $handler = (new ErrorHandlerFactory())($c);
@@ -273,18 +235,12 @@ final class ContainerFactory
             // ── Clock ────────────────────────────────────────────────────────────────
             ClockInterface::class => fn () => new SystemClock(),
 
-            // ── Twig extensions ──────────────────────────────────────────────────────
             TranslationService::class => fn (ContainerInterface $c) => new TranslationService(
                 $root . '/resources/translations',
                 (string) ($c->get('config')['app']['locale'] ?? 'de'),
             ),
 
-            TranslationExtension::class => fn (ContainerInterface $c) => new TranslationExtension(
-                $c->get(TranslationService::class),
-                (string) ($c->get('config')['app']['locale'] ?? 'de'),
-            ),
-
-            EmailExtension::class => fn (ContainerInterface $c) => new EmailExtension(
+            EmailObfuscator::class => fn (ContainerInterface $c) => new EmailObfuscator(
                 $c->get(ClockInterface::class),
                 (array) ($c->get('config')['security']['email_subject'] ?? []),
             ),
@@ -364,6 +320,7 @@ final class ContainerFactory
             \LexNova\Handler\Public\DocumentHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Public\DocumentHandler(
                 $c->get(EntityService::class),
                 $c->get(DocumentService::class),
+                $c->get(EmailObfuscator::class),
                 $c->get(SveltePageRenderer::class),
                 $c->get(NotFoundHandler::class),
                 (string) ($c->get('config')['app']['base_url'] ?? ''),
@@ -561,9 +518,7 @@ final class ContainerFactory
             ),
 
             // ── Middleware ───────────────────────────────────────────────────────────
-            AdminAuthMiddleware::class => fn (ContainerInterface $c) => new AdminAuthMiddleware(
-                $c->get(ResponseFactoryInterface::class),
-            ),
+            AdminAuthMiddleware::class => fn () => new AdminAuthMiddleware(),
 
             InstalledCheckMiddleware::class => fn (ContainerInterface $c) => new InstalledCheckMiddleware(
                 $c->get(InstallService::class),
@@ -572,7 +527,7 @@ final class ContainerFactory
             SecurityHeadersMiddleware::class => fn () => new SecurityHeadersMiddleware(),
 
             // ── Error handling ───────────────────────────────────────────────────────
-            // Replace Mezzio's default plain-text 404/500 responses with styled templates.
+            // Replace Mezzio's default plain-text 404/500 responses with the Svelte shell.
             NotFoundHandler::class => fn (ContainerInterface $c) => new NotFoundHandler(
                 $c->get(SveltePageRenderer::class),
             ),
@@ -580,8 +535,6 @@ final class ContainerFactory
             ServerRequestErrorResponseGenerator::class => fn (ContainerInterface $c) => new ServerRequestErrorResponseGenerator(
                 $c->get(ResponseFactoryInterface::class),
                 false,
-                $c->get(TemplateRendererInterface::class),
-                'error::500',
             ),
 
             // ── Console commands ─────────────────────────────────────────────────────

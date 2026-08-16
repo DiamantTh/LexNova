@@ -40,6 +40,9 @@ foreach ($expected as $header) {
 if ($response->getHeaderLine('Cache-Control') !== 'no-store') {
     throw new RuntimeException('Administrative response is cacheable.');
 }
+if (str_contains($response->getHeaderLine('Content-Security-Policy'), "'unsafe-inline'")) {
+    throw new RuntimeException('The Svelte CSP still permits unsafe inline code or styles.');
+}
 
 $httpRequest = new ServerRequest([], [], new Uri('http://localhost/admin/login'), 'GET');
 $httpResponse = $middleware->process($httpRequest, $handler);

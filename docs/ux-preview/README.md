@@ -1,15 +1,16 @@
 # UX-Vorschau
 
-`current-admin-source-preview.png` ist eine unverbindliche visuelle Vorschau
-der aktuell implementierten Admin-Struktur. Sie wurde aus
-`templates/layout.html.twig` und `templates/admin/dashboard.html.twig`
-abgeleitet.
+`current-admin-source-preview.png` zeigt den früheren linearen Twig-Prototyp und
+bleibt nur als historischer Vergleich erhalten. Die aktuelle Oberfläche liegt
+als Svelte-Source in `frontend/src/` und als reproduzierbarer Produktionsbuild
+in `httpdocs/assets/app/`.
 
-Sie ist **kein** produktiver Asset und verändert weder die Routen noch die
-Templates. Die Vorschau zeigt die vorhandene lineare Struktur:
+Der Screenshot ist **kein** produktiver Asset. Die damalige Vorschau zeigte:
 
 1. Passkeys
 2. Benutzer anlegen und verwalten
 3. Betreiber-Entities
 4. Rechtliche Dokumente
 
+Die aktuelle UX trennt diese Aufgaben stattdessen auf `/verwaltung`, `/user`
+und `/admin` sowie deren Unterseiten.

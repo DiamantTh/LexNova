@@ -30,10 +30,12 @@ final readonly class SystemInfoService
             'application' => [
                 'version' => $this->version(),
                 'installed' => is_file($this->root . '/data/install.lock'),
+                'frontend_build' => is_file($this->root . '/httpdocs/assets/app/.vite/manifest.json'),
                 'base_url' => (string) ($this->config['app']['base_url'] ?? ''),
                 'locale' => (string) ($this->config['app']['locale'] ?? 'de'),
             ],
             'host' => $this->host($serverParams),
+            'frontend' => $this->frontend(),
             'runtime' => [
                 'php_version' => PHP_VERSION,
                 'zend_version' => zend_version(),
@@ -62,7 +64,7 @@ final readonly class SystemInfoService
                 'session_secure' => (bool) ($this->config['session']['secure'] ?? true),
                 'session_httponly' => (bool) ($this->config['session']['httponly'] ?? true),
                 'session_samesite' => (string) ($this->config['session']['samesite'] ?? 'Strict'),
-                'twig_cache' => (bool) ($this->config['twig']['cache_dir'] ?? false),
+                'frontend_csp_without_unsafe_inline' => true,
                 'fail2ban' => $this->fail2ban->status(),
             ],
             'paths' => [
@@ -78,7 +80,7 @@ final readonly class SystemInfoService
                     'Laminas APCu (optionaler lokaler Webcache)',
                     'Laminas Redis-Adapter mit PhpRedis für Valkey',
                 ],
-                'internal_cache' => ['Twig und Systemdiagnose: Dateisystem', 'Laminas: Dokumente, Systemeinstellungen und HIBP'],
+                'internal_cache' => ['Systemdiagnose: Dateisystem', 'Laminas: Dokumente, Systemeinstellungen und HIBP'],
             ],
         ];
     }
@@ -127,6 +129,40 @@ final readonly class SystemInfoService
                 'name' => null,
             ];
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function frontend(): array
+    {
+        $manifestPath = $this->root . '/httpdocs/assets/app/.vite/manifest.json';
+        $lockPath = $this->root . '/frontend/package-lock.json';
+        $packages = [];
+        if (is_file($lockPath)) {
+            try {
+                $lock = json_decode((string) file_get_contents($lockPath), true, flags: JSON_THROW_ON_ERROR);
+                $packages = is_array($lock['packages'] ?? null) ? $lock['packages'] : [];
+            } catch (\Throwable) {
+                $packages = [];
+            }
+        }
+
+        $version = static function (array $packages, string $package): ?string {
+            $value = $packages['node_modules/' . $package]['version'] ?? null;
+
+            return is_string($value) ? $value : null;
+        };
+
+        return [
+            'build_present' => is_file($manifestPath),
+            'build_time_utc' => is_file($manifestPath) && filemtime($manifestPath) !== false
+                ? gmdate('Y-m-d H:i:s', (int) filemtime($manifestPath)) . ' UTC'
+                : null,
+            'node_required_at_runtime' => false,
+            'svelte' => $version($packages, 'svelte'),
+            'skeleton' => $version($packages, '@skeletonlabs/skeleton'),
+            'tailwindcss' => $version($packages, 'tailwindcss'),
+            'vite' => $version($packages, 'vite'),
+        ];
     }
 
     /**
@@ -259,7 +295,6 @@ final readonly class SystemInfoService
             'symfony/polyfill-ctype' => 'Ctype Polyfill',
             'symfony/polyfill-iconv' => 'Iconv Polyfill',
             'symfony/polyfill-mbstring' => 'Mbstring Polyfill',
-            'twig/twig' => 'Twig',
             'php-di/php-di' => 'PHP-DI',
         ];
         $components = [];

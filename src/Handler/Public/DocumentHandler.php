@@ -8,6 +8,7 @@ use Laminas\Diactoros\Response\HtmlResponse;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Service\DocumentService;
+use LexNova\Service\EmailObfuscator;
 use LexNova\Service\EntityService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -18,6 +19,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
     public function __construct(
         private readonly EntityService $entities,
         private readonly DocumentService $documents,
+        private readonly EmailObfuscator $obfuscator,
         private readonly SveltePageRenderer $renderer,
         private readonly NotFoundHandler $notFound,
         private readonly string $baseUrl,
@@ -63,10 +65,15 @@ final readonly class DocumentHandler implements RequestHandlerInterface
 
         $locale = (string) $doc['language'];
         $title = $type === 'privacy' ? 'Datenschutzerklärung · LexNova' : 'Impressum · LexNova';
+        $publicEntity = $entity;
+        $publicDocument = $doc;
+        unset($publicEntity['contact_data'], $publicDocument['content']);
 
         return (new HtmlResponse($this->renderer->render('public-document', [
-            'entity' => $entity,
-            'document' => $doc,
+            'entity' => $publicEntity,
+            'document' => $publicDocument,
+            'contactHtml' => $this->obfuscator->obfuscate((string) $entity['contact_data']),
+            'documentHtml' => $this->obfuscator->obfuscate((string) $doc['content']),
             'documentType' => $type,
             'canonicalUrl' => $canonicalUrl,
             'variants' => $variants,

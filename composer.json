@@ -20,7 +20,6 @@
         "mezzio/mezzio-fastroute": "^3.11",
         "mezzio/mezzio-session": "^1.10",
         "mezzio/mezzio-session-ext": "^1.6",
-        "mezzio/mezzio-twigrenderer": "^2.14",
         "monolog/monolog": "^3.0",
         "paragonie/sodium_compat": "^1.21 || ^2.5",
         "paragonie/sodium_compat_ext_sodium": "^1.0",
@@ -36,7 +35,6 @@
         "symfony/polyfill-mbstring": "^1.38",
         "symfony/property-info": "^7.4",
         "symfony/serializer": "^7.4",
-        "twig/twig": "^3.0",
         "web-auth/webauthn-lib": "^5.2"
     },
     "require-dev": {
@@ -73,7 +71,7 @@
         ],
         "test:frontend": "@php tests/Frontend/SveltePageRendererTest.php",
         "test:security": [
-            "@php tests/Security/EmailExtensionTest.php",
+            "@php tests/Security/EmailObfuscatorTest.php",
             "@php tests/Security/RateLimitServiceTest.php",
             "@php tests/Security/TotpEncryptionTest.php",
             "@php tests/Security/SecurityHeadersMiddlewareTest.php",

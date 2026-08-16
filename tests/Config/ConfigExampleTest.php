@@ -77,7 +77,6 @@ $expectedTypes = [
     'cache.tls' => 'boolean',
     'log.path' => 'string',
     'log.level' => 'string',
-    'twig.cache' => 'boolean',
 ];
 
 foreach ($expectedTypes as $path => $expectedType) {

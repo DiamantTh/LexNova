@@ -21,8 +21,8 @@ final readonly class SecurityHeadersMiddleware implements MiddlewareInterface
                 "frame-ancestors 'none'",
                 "form-action 'self'",
                 "img-src 'self' data:",
-                "script-src 'self' 'unsafe-inline'",
-                "style-src 'self' 'unsafe-inline'",
+                "script-src 'self'",
+                "style-src 'self'",
                 "connect-src 'self'",
             ]))
             ->withHeader('X-Content-Type-Options', 'nosniff')
@@ -31,7 +31,11 @@ final readonly class SecurityHeadersMiddleware implements MiddlewareInterface
             ->withHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
 
         $path = $request->getUri()->getPath();
-        if ($path === '/admin' || str_starts_with($path, '/admin/') || $path === '/install' || $path === '/install/') {
+        if ($path === '/admin' || str_starts_with($path, '/admin/')
+            || $path === '/user' || str_starts_with($path, '/user/')
+            || $path === '/verwaltung' || str_starts_with($path, '/verwaltung/')
+            || $path === '/install' || $path === '/install/'
+        ) {
             $response = $response->withHeader('Cache-Control', 'no-store');
         }
 

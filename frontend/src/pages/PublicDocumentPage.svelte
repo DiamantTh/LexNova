@@ -25,8 +25,8 @@
       {#if Object.keys(variants).length > 1}<nav class="mt-4 flex flex-wrap gap-3" aria-label={t('Language')}>{#each Object.entries(variants) as [language, url]}{#if language === text(document.language)}<strong aria-current="true">{language}</strong>{:else if typeof url === 'string'}<a class="anchor" href={url}>{language}</a>{/if}{/each}</nav>{/if}
     </header>
     <section class="card bg-white p-6 text-slate-900 shadow-xl md:p-9">
-      <h2 class="document-section">{t('Contact')}</h2><div class="whitespace-pre-wrap leading-7">{text(entity.contact_data)}</div>
-      <h2 class="document-section">{t('Document')}</h2><div class="whitespace-pre-wrap leading-7">{text(document.content)}</div>
+      <h2 class="document-section">{t('Contact')}</h2><div class="whitespace-pre-wrap leading-7">{@html text(data.contactHtml)}</div>
+      <h2 class="document-section">{t('Document')}</h2><div class="whitespace-pre-wrap leading-7">{@html text(data.documentHtml)}</div>
       <p class="mt-8 text-sm opacity-65">Version {String(document.version ?? '')} · {text(document.updated_at)}</p>
     </section>
   </article>

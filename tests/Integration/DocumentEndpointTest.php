@@ -13,7 +13,9 @@ use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Handler\Public\DocumentHandler;
 use LexNova\Service\DocumentService;
+use LexNova\Service\EmailObfuscator;
 use LexNova\Service\EntityService;
+use LexNova\Clock\SystemClock;
 use Mezzio\Application;
 use Mezzio\Router\Middleware\DispatchMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;
@@ -113,6 +115,7 @@ $notFound = new NotFoundHandler($renderer);
 $handler = new DocumentHandler(
     new EntityService($db),
     $documents,
+    new EmailObfuscator(new SystemClock()),
     $renderer,
     $notFound,
     'https://legal.example.test',
@@ -126,6 +129,11 @@ $validResponse = $handler->handle($validRequest);
 $check($validResponse->getStatusCode() === 200, 'Valid type/hash pair was not rendered.');
 $validData = $bootstrap((string) $validResponse->getBody());
 $check(($validData['document']['id'] ?? null) === $documentId, 'Wrong document was rendered.');
+$check(!isset($validData['entity']['contact_data'], $validData['document']['content']), 'Raw public text leaked into bootstrap data.');
+$check(
+    html_entity_decode((string) ($validData['contactHtml'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') === 'Testweg 1',
+    'Public contact obfuscation changed the visible content.',
+);
 $check(
     str_starts_with((string) ($validData['canonicalUrl'] ?? ''), 'https://legal.example.test/out.php?typ=imprint&hash='),
     'Canonical URL does not use the configured base URL.',
