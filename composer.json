@@ -4,16 +4,6 @@
     "description": "LexNova – Legal document management",
     "license": "AGPL-3.0-or-later",
     "require": {
-        "ext-ctype": "*",
-        "ext-fileinfo": "*",
-        "ext-filter": "*",
-        "ext-intl": "*",
-        "ext-json": "*",
-        "ext-mbstring": "*",
-        "ext-openssl": "*",
-        "ext-pdo": "*",
-        "ext-sodium": "*",
-        "php": ">=8.4.1",
         "bjeavons/zxcvbn-php": "^1.4",
         "devium/toml": "^1.0",
         "doctrine/dbal": "^3.7",
@@ -55,7 +45,6 @@
         "phpstan/phpstan": "^2.1"
     },
     "suggest": {
-        "ext-redis": "PhpRedis 6+ enables the optional Valkey cache backend.",
         "laminas/laminas-cache-storage-adapter-redis": "Install ^3.2 together with PhpRedis to enable the optional Valkey cache backend."
     },
     "autoload": {

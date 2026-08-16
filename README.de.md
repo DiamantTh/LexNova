@@ -99,6 +99,13 @@ Der Installer prüft alle Voraussetzungen automatisch und blockiert den
 Fortschritt bei fehlenden Pflichtfähigkeiten. Ein verwendeter Polyfill wird
 orange ausgewiesen, blockiert die Installation aber nicht.
 
+Die Root-`composer.json` von LexNova enthält ausschließlich Packagist-Pakete.
+PHP-, PECL- und Extension-Anforderungen werden im CLI-/Webinstaller gepflegt,
+damit Nutzer verständliche Prüfungen statt Composer-Plattformnamen sehen.
+Packagist-Abhängigkeiten dürfen weiterhin eigene technische
+Plattformanforderungen deklarieren; Composer wertet diese transitiv aus und
+LexNova umgeht oder verfälscht sie nicht.
+
 ## Installation
 
 1. Projektordner oberhalb des Webroots ablegen und den DocumentRoot auf

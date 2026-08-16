@@ -11,45 +11,38 @@ $root = dirname(__DIR__, 2);
 $composer = json_decode((string) file_get_contents($root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
 $requires = $composer['require'] ?? [];
 
-$expectedExtensions = [
-    'ext-ctype' => '*',
-    'ext-fileinfo' => '*',
-    'ext-filter' => '*',
-    'ext-intl' => '*',
-    'ext-json' => '*',
-    'ext-mbstring' => '*',
-    'ext-openssl' => '*',
-    'ext-pdo' => '*',
-    'ext-sodium' => '*',
-];
-$composerExtensions = array_filter(
-    $requires,
-    static fn (string $package): bool => str_starts_with($package, 'ext-'),
-    ARRAY_FILTER_USE_KEY,
-);
-
-if ($composerExtensions !== $expectedExtensions) {
-    throw new RuntimeException('composer.json PHP extension requirements changed without updating the platform test.');
+foreach (['require', 'require-dev', 'suggest'] as $composerSection) {
+    $composerPlatformRequirements = array_filter(
+        $composer[$composerSection] ?? [],
+        static fn (string $package): bool => $package === 'php' || str_starts_with($package, 'ext-'),
+        ARRAY_FILTER_USE_KEY,
+    );
+    if ($composerPlatformRequirements !== []) {
+        throw new RuntimeException('Root Composer dependency sections must contain Packagist packages only.');
+    }
 }
 
-$checkedExtensions = array_keys(PrerequisiteCheck::REQUIRED_EXTENSIONS);
-$composerExtensionNames = array_map(
-    static fn (string $package): string => substr($package, 4),
-    array_keys($composerExtensions),
-);
-if ($checkedExtensions !== $composerExtensionNames) {
-    throw new RuntimeException('Installer extension checks do not match composer.json.');
+$expectedInstallerExtensions = [
+    'ctype',
+    'fileinfo',
+    'filter',
+    'intl',
+    'json',
+    'mbstring',
+    'openssl',
+    'pdo',
+    'sodium',
+];
+if (array_keys(PrerequisiteCheck::REQUIRED_EXTENSIONS) !== $expectedInstallerExtensions
+    || PrerequisiteCheck::MINIMUM_PHP_VERSION !== '8.4.1'
+) {
+    throw new RuntimeException('Installer platform requirements changed unexpectedly.');
 }
 
 if (PrerequisiteCheck::OPTIONAL_EXTENSIONS !== ['redis' => '6.0.0']
-    || ($composer['suggest']['ext-redis'] ?? null) === null
     || ($composer['suggest']['laminas/laminas-cache-storage-adapter-redis'] ?? null) === null
 ) {
     throw new RuntimeException('Optional Valkey requirements are not declared consistently.');
-}
-
-if (($requires['php'] ?? null) !== '>=' . PrerequisiteCheck::MINIMUM_PHP_VERSION) {
-    throw new RuntimeException('Installer PHP version check does not match composer.json.');
 }
 
 if (PrerequisiteCheck::isExtensionSupported('redis', true, '5.3.7')) {

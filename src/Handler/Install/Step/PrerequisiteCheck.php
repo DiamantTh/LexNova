@@ -22,9 +22,9 @@ final class PrerequisiteCheck
     /**
      * A null version means that any loaded version is accepted.
      *
-     * This list is the application-side counterpart of composer.json and is
-     * deliberately public so a regression test can prevent the two lists from
-     * drifting apart.
+     * Platform requirements deliberately live in the installer instead of the
+     * root Composer package list. The constant is public so regression tests
+     * can protect the complete user-facing check independently of Composer.
      *
      * @var array<string, ?string>
      */

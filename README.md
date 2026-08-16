@@ -98,6 +98,12 @@ The installer checks all requirements automatically and blocks progress when a
 required capability is missing. An active polyfill is shown in orange but does
 not block installation.
 
+LexNova's root `composer.json` lists Packagist packages only. PHP, PECL and
+extension requirements are maintained in the CLI/web installer so users see
+clear checks instead of Composer platform names. Packagist dependencies can
+still declare their own technical platform requirements; Composer evaluates
+those transitively and LexNova does not falsify or bypass them.
+
 ## Installation
 
 1. Place the project directory above the web root and set the DocumentRoot to
