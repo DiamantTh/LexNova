@@ -39,10 +39,24 @@ if (array_keys(PrerequisiteCheck::REQUIRED_EXTENSIONS) !== $expectedInstallerExt
     throw new RuntimeException('Installer platform requirements changed unexpectedly.');
 }
 
-if (PrerequisiteCheck::OPTIONAL_EXTENSIONS !== ['redis' => '6.0.0']
+if (PrerequisiteCheck::OPTIONAL_EXTENSIONS !== ['apcu' => '5.1.10', 'redis' => '6.0.0']
+    || ($composer['suggest']['laminas/laminas-cache-storage-adapter-apcu'] ?? null) === null
     || ($composer['suggest']['laminas/laminas-cache-storage-adapter-redis'] ?? null) === null
 ) {
-    throw new RuntimeException('Optional Valkey requirements are not declared consistently.');
+    throw new RuntimeException('Optional cache requirements are not declared consistently.');
+}
+
+if (PrerequisiteCheck::OPTIONAL_PACKAGES !== [
+    'laminas/laminas-cache-storage-adapter-apcu' => 'Laminas APCu cache adapter',
+    'laminas/laminas-cache-storage-adapter-redis' => 'Laminas Valkey/Redis cache adapter',
+]) {
+    throw new RuntimeException('Optional installer package checks are incomplete.');
+}
+
+if (PrerequisiteCheck::isExtensionSupported('apcu', true, '5.1.9')
+    || !PrerequisiteCheck::isExtensionSupported('apcu', true, '5.1.10')
+) {
+    throw new RuntimeException('The APCu minimum version is not enforced.');
 }
 
 if (PrerequisiteCheck::isExtensionSupported('redis', true, '5.3.7')) {

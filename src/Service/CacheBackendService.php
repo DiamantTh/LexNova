@@ -11,6 +11,8 @@ use Psr\SimpleCache\CacheInterface;
 
 final class CacheBackendService
 {
+    private const LAMINAS_APCU_ADAPTER = 'Laminas\\Cache\\Storage\\Adapter\\Apcu';
+    private const LAMINAS_BLACKHOLE_ADAPTER = 'Laminas\\Cache\\Storage\\Adapter\\BlackHole';
     private const LAMINAS_REDIS_ADAPTER = 'Laminas\\Cache\\Storage\\Adapter\\Redis';
     private const LAMINAS_REDIS_OPTIONS = 'Laminas\\Cache\\Storage\\Adapter\\RedisOptions';
     private const LAMINAS_REDIS_RESOURCE_MANAGER = 'Laminas\\Cache\\Storage\\Adapter\\RedisResourceManager';
@@ -39,32 +41,38 @@ final class CacheBackendService
             return $this->caches[$name];
         }
 
-        if (($this->config['adapter'] ?? 'filesystem') === 'valkey') {
+        $adapter = (string) ($this->config['adapter'] ?? 'filesystem');
+        if ($adapter === 'apcu') {
+            try {
+                return $this->caches[$name] = $this->apcuCache($name, $defaultTtl);
+            } catch (\Throwable) {
+                // Every cache consumer must remain available if the optional backend fails.
+            }
+        } elseif ($adapter === 'valkey') {
             try {
                 return $this->caches[$name] = $this->valkeyCache($name, $defaultTtl);
             } catch (\Throwable) {
                 // Every cache consumer must remain available if the optional backend fails.
+            }
+        } elseif ($adapter === 'blackhole') {
+            try {
+                return $this->caches[$name] = $this->blackHoleCache();
+            } catch (\Throwable) {
+                // BlackHole is a development-only dependency; production remains operational.
             }
         }
 
         return $this->caches[$name] = $this->filesystemCache($name, $defaultTtl);
     }
 
-    /**
-     * @return array{
-     *   configured: string, effective: string, product: string, version: ?string,
-     *   client: string, connected: bool, fallback: bool, preferred: bool,
-     *   detection: string, path: ?string, writable: ?bool, endpoint: ?string,
-     *   database: ?int, tls: bool, namespace: string, default_ttl: int
-     * }
-     */
+    /** @return array<string, mixed> */
     public function status(): array
     {
         $statusCacheKey = 'cache_backend_status_' . hash('sha256', json_encode($this->config, JSON_THROW_ON_ERROR));
         try {
             $cached = $this->statusCache->get($statusCacheKey);
             if (is_array($cached)) {
-                /** @var array{configured: string, effective: string, product: string, version: ?string, client: string, connected: bool, fallback: bool, preferred: bool, detection: string, path: ?string, writable: ?bool, endpoint: ?string, database: ?int, tls: bool, namespace: string, default_ttl: int} $cached */
+                /** @var array<string, mixed> $cached */
                 return $cached;
             }
         } catch (\Throwable) {
@@ -107,33 +115,18 @@ final class CacheBackendService
         return ['product' => 'Unbekannt', 'version' => null, 'preferred' => false];
     }
 
-    /**
-     * @return array{configured: string, effective: string, product: string, version: ?string, client: string, connected: bool, fallback: bool, preferred: bool, detection: string, path: ?string, writable: ?bool, endpoint: ?string, database: ?int, tls: bool, namespace: string, default_ttl: int}
-     */
+    /** @return array<string, mixed> */
     private function inspect(): array
     {
         $configured = (string) ($this->config['adapter'] ?? 'filesystem');
+        if ($configured === 'apcu') {
+            return $this->inspectApcu();
+        }
+        if ($configured === 'blackhole') {
+            return $this->inspectBlackHole();
+        }
         if ($configured !== 'valkey') {
-            $path = $this->root . '/var/cache/documents';
-
-            return [
-                'configured' => $configured === 'filesystem' ? 'filesystem' : $configured,
-                'effective' => 'filesystem',
-                'product' => 'Dateisystem',
-                'version' => null,
-                'client' => Filesystem::class,
-                'connected' => true,
-                'fallback' => $configured !== 'filesystem',
-                'preferred' => false,
-                'detection' => $configured === 'filesystem' ? 'configured' : 'unsupported_adapter',
-                'path' => $path,
-                'writable' => is_dir($path) ? is_writable($path) : is_writable(dirname($path)),
-                'endpoint' => null,
-                'database' => null,
-                'tls' => false,
-                'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
-                'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
-            ];
+            return $this->filesystemStatus($configured);
         }
 
         try {
@@ -166,7 +159,9 @@ final class CacheBackendService
                 'database' => max(0, (int) ($this->config['database'] ?? 0)),
                 'tls' => (bool) ($this->config['tls'] ?? false),
                 'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
+                'key_prefix' => (string) ($this->config['namespace'] ?? 'lexnova') . '.<bereich>:',
                 'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
+                'apcu' => null,
             ];
         } catch (\Throwable) {
             $clientAvailable = self::valkeyClientAvailable();
@@ -188,9 +183,228 @@ final class CacheBackendService
                 'database' => max(0, (int) ($this->config['database'] ?? 0)),
                 'tls' => (bool) ($this->config['tls'] ?? false),
                 'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
+                'key_prefix' => (string) ($this->config['namespace'] ?? 'lexnova') . '.<bereich>:',
                 'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
+                'apcu' => null,
             ];
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function filesystemStatus(string $configured, ?string $reason = null): array
+    {
+        $path = $this->root . '/var/cache/documents';
+
+        return [
+            'configured' => $configured,
+            'effective' => 'filesystem',
+            'product' => match ($configured) {
+                'apcu' => 'APCu nicht verfügbar',
+                'blackhole' => 'BlackHole nicht verfügbar',
+                default => 'Dateisystem',
+            },
+            'version' => null,
+            'client' => Filesystem::class,
+            'connected' => $configured === 'filesystem',
+            'fallback' => $configured !== 'filesystem',
+            'preferred' => false,
+            'detection' => $configured === 'filesystem' ? 'configured' : ($reason ?? 'unsupported_adapter'),
+            'path' => $path,
+            'writable' => is_dir($path) ? is_writable($path) : is_writable(dirname($path)),
+            'endpoint' => null,
+            'database' => null,
+            'tls' => false,
+            'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
+            'key_prefix' => (string) ($this->config['namespace'] ?? 'lexnova') . '.<bereich>:',
+            'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
+            'apcu' => $configured === 'apcu' ? $this->apcuDiagnostics() : null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function inspectApcu(): array
+    {
+        $diagnostics = $this->apcuDiagnostics();
+        try {
+            $cache = $this->apcuCache('system-probe', 10);
+            if (!$this->probe($cache)) {
+                throw new \RuntimeException('APCu does not accept cache operations in the current SAPI.');
+            }
+
+            return [
+                'configured' => 'apcu',
+                'effective' => 'apcu',
+                'product' => 'APCu',
+                'version' => phpversion('apcu') ?: null,
+                'client' => self::LAMINAS_APCU_ADAPTER,
+                'connected' => true,
+                'fallback' => false,
+                'preferred' => true,
+                'detection' => 'current_sapi',
+                'path' => null,
+                'writable' => null,
+                'endpoint' => null,
+                'database' => null,
+                'tls' => false,
+                'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
+                'key_prefix' => (string) ($this->config['namespace'] ?? 'lexnova') . '.<bereich>:',
+                'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
+                'apcu' => $diagnostics,
+            ];
+        } catch (\Throwable) {
+            return $this->filesystemStatus('apcu', 'apcu_unavailable');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function inspectBlackHole(): array
+    {
+        if (!class_exists(self::LAMINAS_BLACKHOLE_ADAPTER)) {
+            return $this->filesystemStatus('blackhole', 'adapter_unavailable');
+        }
+
+        return [
+            'configured' => 'blackhole',
+            'effective' => 'blackhole',
+            'product' => 'Cache deaktiviert',
+            'version' => null,
+            'client' => self::LAMINAS_BLACKHOLE_ADAPTER,
+            'connected' => true,
+            'fallback' => false,
+            'preferred' => false,
+            'detection' => 'diagnostic_mode',
+            'path' => null,
+            'writable' => null,
+            'endpoint' => null,
+            'database' => null,
+            'tls' => false,
+            'namespace' => (string) ($this->config['namespace'] ?? 'lexnova'),
+            'key_prefix' => (string) ($this->config['namespace'] ?? 'lexnova') . '.<bereich>:',
+            'default_ttl' => (int) ($this->config['default_ttl'] ?? 3600),
+            'apcu' => null,
+        ];
+    }
+
+    private function apcuCache(string $name, int $defaultTtl): CacheInterface
+    {
+        if (!self::apcuClientAvailable()) {
+            throw new \RuntimeException('APCu requires APCu 5.1.10+, an enabled web SAPI and the Laminas APCu adapter.');
+        }
+
+        $adapter = self::instantiateOptional(self::LAMINAS_APCU_ADAPTER, [[
+            'namespace' => $this->namespace($name),
+            'namespace_separator' => ':',
+            'ttl' => max(0, $defaultTtl),
+        ]]);
+        if (!$adapter instanceof StorageInterface) {
+            throw new \RuntimeException('The optional Laminas APCu adapter returned an incompatible object.');
+        }
+
+        return new SimpleCacheDecorator($adapter);
+    }
+
+    private function blackHoleCache(): CacheInterface
+    {
+        $adapter = self::instantiateOptional(self::LAMINAS_BLACKHOLE_ADAPTER);
+        if (!$adapter instanceof StorageInterface) {
+            throw new \RuntimeException('The optional Laminas BlackHole adapter returned an incompatible object.');
+        }
+
+        return new SimpleCacheDecorator($adapter);
+    }
+
+    public static function apcuClientAvailable(): bool
+    {
+        $version = extension_loaded('apcu') ? phpversion('apcu') : false;
+        $enabledFunction = 'apcu_enabled';
+
+        return is_string($version)
+            && version_compare($version, '5.1.10', '>=')
+            && function_exists($enabledFunction)
+            && $enabledFunction()
+            && class_exists(self::LAMINAS_APCU_ADAPTER);
+    }
+
+    /** @return array<string, int|float|string|bool|null> */
+    private function apcuDiagnostics(): array
+    {
+        $enabledFunction = 'apcu_enabled';
+        $enabled = function_exists($enabledFunction) && $enabledFunction();
+        $cacheInfo = $this->callApcuInfoFunction('apcu_cache_info');
+        $memoryInfo = $this->callApcuInfoFunction('apcu_sma_info');
+        $segments = max(0, (int) ($memoryInfo['num_seg'] ?? 0));
+        $segmentSize = max(0, (int) ($memoryInfo['seg_size'] ?? 0));
+        $total = $segments * $segmentSize;
+        $available = max(0, (int) ($memoryInfo['avail_mem'] ?? 0));
+        $hits = max(0, (int) ($cacheInfo['num_hits'] ?? 0));
+        $misses = max(0, (int) ($cacheInfo['num_misses'] ?? 0));
+        $requests = $hits + $misses;
+        $lexNovaEntries = null;
+        $lexNovaSize = null;
+        $lexNovaHits = null;
+        $iteratorClass = 'APCUIterator';
+
+        if ($enabled && class_exists($iteratorClass)) {
+            try {
+                $pattern = '/^' . preg_quote($this->namespace(), '/') . '\\./D';
+                $iterator = new $iteratorClass($pattern);
+                $lexNovaEntries = $this->optionalIntegerMethod($iterator, 'getTotalCount');
+                $lexNovaSize = $this->optionalIntegerMethod($iterator, 'getTotalSize');
+                $lexNovaHits = $this->optionalIntegerMethod($iterator, 'getTotalHits');
+            } catch (\Throwable) {
+                // Some providers restrict APCu iteration; aggregate diagnostics remain useful.
+            }
+        }
+
+        return [
+            'extension_loaded' => extension_loaded('apcu'),
+            'enabled' => $enabled,
+            'version' => extension_loaded('apcu') ? phpversion('apcu') ?: null : null,
+            'adapter_installed' => class_exists(self::LAMINAS_APCU_ADAPTER),
+            'sapi' => PHP_SAPI,
+            'cli_enabled' => (bool) ini_get('apc.enable_cli'),
+            'shared_memory_ini' => (string) ini_get('apc.shm_size'),
+            'entries_hint' => (string) ini_get('apc.entries_hint'),
+            'serializer' => (string) ini_get('apc.serializer'),
+            'total_memory' => $total > 0 ? $total : null,
+            'available_memory' => $total > 0 ? $available : null,
+            'used_memory' => $total > 0 ? max(0, $total - $available) : null,
+            'entries' => isset($cacheInfo['num_entries']) ? max(0, (int) $cacheInfo['num_entries']) : null,
+            'hits' => isset($cacheInfo['num_hits']) ? $hits : null,
+            'misses' => isset($cacheInfo['num_misses']) ? $misses : null,
+            'hit_rate' => $requests > 0 ? round(($hits / $requests) * 100, 2) : null,
+            'expunges' => isset($cacheInfo['expunges']) ? max(0, (int) $cacheInfo['expunges']) : null,
+            'lexnova_entries' => $lexNovaEntries,
+            'lexnova_size' => $lexNovaSize,
+            'lexnova_hits' => $lexNovaHits,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function callApcuInfoFunction(string $function): array
+    {
+        if (!function_exists($function)) {
+            return [];
+        }
+
+        try {
+            $result = @$function(true);
+
+            return is_array($result) ? $result : [];
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function optionalIntegerMethod(object $target, string $method): ?int
+    {
+        if (!method_exists($target, $method)) {
+            return null;
+        }
+
+        $value = $target->{$method}();
+
+        return is_int($value) ? $value : null;
     }
 
     private function valkeyCache(string $name, int $defaultTtl): CacheInterface
@@ -232,7 +446,7 @@ final class CacheBackendService
         return new SimpleCacheDecorator($adapter);
     }
 
-    private static function valkeyClientAvailable(): bool
+    public static function valkeyClientAvailable(): bool
     {
         $version = extension_loaded('redis') ? phpversion('redis') : false;
 

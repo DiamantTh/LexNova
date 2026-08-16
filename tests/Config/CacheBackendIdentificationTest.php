@@ -71,6 +71,40 @@ if (!$fallbackCache->set('fallback-probe', 'works', 60)
 ) {
     throw new RuntimeException('Missing or unreachable optional Valkey dependencies did not fall back safely.');
 }
+
+$optionalApcu = new CacheBackendService(
+    ['adapter' => 'apcu', 'namespace' => 'lexnova.apcu-test', 'default_ttl' => 60],
+    $temporaryRoot,
+    new SimpleCacheDecorator(new Memory()),
+);
+$apcuCache = $optionalApcu->cache();
+$apcuStatus = $optionalApcu->status();
+if (CacheBackendService::apcuClientAvailable()) {
+    if ($apcuStatus['effective'] !== 'apcu' || !$apcuStatus['connected'] || $apcuStatus['fallback']) {
+        throw new RuntimeException('Available APCu was not activated.');
+    }
+} elseif (!$apcuCache->set('apcu-fallback-probe', 'works', 60)
+    || $apcuCache->get('apcu-fallback-probe') !== 'works'
+    || $apcuStatus['effective'] !== 'filesystem'
+    || !$apcuStatus['fallback']
+    || $apcuStatus['detection'] !== 'apcu_unavailable'
+    || !is_array($apcuStatus['apcu'])
+) {
+    throw new RuntimeException('Unavailable APCu did not expose diagnostics and fall back safely.');
+}
+
+$blackHole = new CacheBackendService(
+    ['adapter' => 'blackhole', 'namespace' => 'lexnova.test', 'default_ttl' => 60],
+    $temporaryRoot,
+    new SimpleCacheDecorator(new Memory()),
+);
+$disabledCache = $blackHole->cache();
+if (!$disabledCache->set('not-stored', 'value', 60)
+    || $disabledCache->get('not-stored') !== null
+    || $blackHole->status()['effective'] !== 'blackhole'
+) {
+    throw new RuntimeException('BlackHole diagnostic mode stored cache data or was not reported.');
+}
 foreach (['documents', 'settings'] as $directory) {
     $path = $temporaryRoot . '/var/cache/' . $directory;
     if (!is_dir($path) || (fileperms($path) & 0777) !== 0700) {
@@ -90,6 +124,9 @@ $removeTree = static function (string $path): void {
 };
 $removeTree($temporaryRoot . '/var/cache/documents');
 $removeTree($temporaryRoot . '/var/cache/settings');
+if (is_dir($temporaryRoot . '/var/cache/system-probe')) {
+    $removeTree($temporaryRoot . '/var/cache/system-probe');
+}
 
 rmdir($temporaryRoot . '/var/cache');
 rmdir($temporaryRoot . '/var');

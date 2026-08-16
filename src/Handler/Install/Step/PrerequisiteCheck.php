@@ -42,7 +42,14 @@ final class PrerequisiteCheck
 
     /** @var array<string, ?string> */
     public const OPTIONAL_EXTENSIONS = [
+        'apcu' => '5.1.10',
         'redis' => '6.0.0',
+    ];
+
+    /** @var array<string, string> */
+    public const OPTIONAL_PACKAGES = [
+        'laminas/laminas-cache-storage-adapter-apcu' => 'Laminas APCu cache adapter',
+        'laminas/laminas-cache-storage-adapter-redis' => 'Laminas Valkey/Redis cache adapter',
     ];
 
     /**
@@ -114,6 +121,18 @@ final class PrerequisiteCheck
             ];
         }
 
+        // ── Optional Composer cache adapters ──────────────────────────────
+        foreach (self::OPTIONAL_PACKAGES as $package => $label) {
+            $installed = InstalledVersions::isInstalled($package);
+            $checks[] = [
+                'label' => $label,
+                'ok' => $installed,
+                'value' => $installed ? InstalledVersions::getPrettyVersion($package) : $package,
+                'required' => false,
+                'fallback' => false,
+            ];
+        }
+
         // ── PDO database driver (at least one) ────────────────────────────
         $pdoDrivers = extension_loaded('pdo')
             ? array_values(array_intersect(['sqlite', 'mysql', 'pgsql'], \PDO::getAvailableDrivers()))
@@ -163,6 +182,44 @@ final class PrerequisiteCheck
         }
 
         return ['checks' => $checks, 'blocked' => $blocked];
+    }
+
+    /**
+     * Reports adapter readiness for the current SAPI. A CLI result must not be
+     * treated as proof that APCu is enabled for PHP-FPM or Apache, and vice versa.
+     *
+     * @return array<string, array{available: bool, reason: string}>
+     */
+    public function cacheAdapterSupport(): array
+    {
+        $apcuEnabled = function_exists('apcu_enabled') && apcu_enabled();
+        $apcuVersion = extension_loaded('apcu') ? phpversion('apcu') : false;
+        $apcuExtension = is_string($apcuVersion) && version_compare($apcuVersion, '5.1.10', '>=');
+        $apcuPackage = InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-apcu');
+        $redisVersion = extension_loaded('redis') ? phpversion('redis') : false;
+        $redisExtension = is_string($redisVersion) && version_compare($redisVersion, '6.0.0', '>=');
+        $redisPackage = InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-redis');
+
+        return [
+            'filesystem' => ['available' => true, 'reason' => 'Ohne zusätzliche Erweiterung verfügbar.'],
+            'apcu' => [
+                'available' => $apcuExtension && $apcuPackage && $apcuEnabled,
+                'reason' => match (true) {
+                    !$apcuExtension => 'APCu 5.1.10 oder neuer fehlt.',
+                    !$apcuPackage => 'Der optionale Laminas-APCu-Adapter fehlt.',
+                    !$apcuEnabled => 'APCu ist im aktuellen Web-SAPI deaktiviert.',
+                    default => 'APCu und Laminas-Adapter sind im aktuellen Web-SAPI einsatzbereit.',
+                },
+            ],
+            'valkey' => [
+                'available' => $redisExtension && $redisPackage,
+                'reason' => match (true) {
+                    !$redisExtension => 'PhpRedis 6.0 oder neuer fehlt.',
+                    !$redisPackage => 'Der optionale Laminas-Redis-Adapter fehlt.',
+                    default => 'Client und Laminas-Adapter sind verfügbar; die Serververbindung wird zur Laufzeit geprüft.',
+                },
+            ],
+        ];
     }
 
     public static function isExtensionSupported(
