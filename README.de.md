@@ -75,15 +75,21 @@ außerhalb des Webzugriffs.
 - Native libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten) wird für
   Leistung und sichere Speicherbereinigung ausdrücklich bevorzugt
 
-**Optional:** PhpRedis 6+ und
-`laminas/laminas-cache-storage-adapter-redis:^3.2` aktivieren den
-Valkey-Cache. Beide sind bewusst keine Installationsvoraussetzung, weil der
-standardmäßige Dateisystemcache sie nicht benötigt. Der Adapter wird nur bei
-ausgewähltem Valkey installiert:
+**Optionale Cache-Backends:** APCu 5.1.10+ zusammen mit
+`laminas/laminas-cache-storage-adapter-apcu:^3.2` aktiviert den schnellen
+lokalen APCu-Cache. PhpRedis 6+ zusammen mit
+`laminas/laminas-cache-storage-adapter-redis:^3.2` aktiviert Valkey. Diese Paare
+sind bewusst keine Installationsvoraussetzung, weil der standardmäßige
+Dateisystemcache sie nicht benötigt. Installiert wird nur der zum Host passende
+ausgewählte Adapter:
 
 ```bash
+composer require laminas/laminas-cache-storage-adapter-apcu:^3.2
 composer require laminas/laminas-cache-storage-adapter-redis:^3.2
 ```
+
+Das APCu-Adapterpaket deklariert seine technische APCu-Plattformanforderung
+selbst. Der erste Befehl wird daher nur auf einem Host mit aktivem APCu ausgeführt.
 
 **Zur Laufzeit:**
 - Schreibzugriff auf `data/` (bei SQLite) und `var/` (Cache und Logging).
@@ -194,11 +200,43 @@ Wichtige Abschnitte in `config/config.example.toml`:
 | `[security.rate_limit]` | `max_attempts`, `block_seconds` für Login-Brute-Force-Schutz |
 | `[security.fail2ban]` | Optionales projektlokales Fail2ban-Signallog und Settings-Cache |
 | `[twig]` | `cache = true` aktiviert Template-Cache (empfohlen für Produktion) |
-| `[cache]` | Anwendungs-Cache: standardmäßig Dateisystem; optional Valkey mit klassischen Verbindungsfeldern |
+| `[cache]` | Anwendungs-Cache: standardmäßig Dateisystem; optional APCu oder Valkey mit klassischen Verbindungsfeldern |
 
 `[app].base_url` muss die öffentliche HTTPS-URL der Instanz enthalten. Sie ist
 für sichere Session-Cookies und Passkeys erforderlich. Nur für lokale Entwicklung
 ist `http://localhost` zulässig.
+
+### APCu
+
+APCu ist der empfohlene schnelle Cache für einen klassischen einzelnen
+PHP-Webspace, wenn es im Web-SAPI verfügbar ist. Er wird im Browserinstaller
+ausgewählt oder ausdrücklich konfiguriert:
+
+```toml
+[cache]
+adapter = "apcu"
+namespace = "lexnova.a83f20c1d942"
+default_ttl = 3600
+```
+
+Der Installer erzeugt die nicht geheime zwölfstellige Instanzkennung einmalig.
+Die benannten Bereiche ergeben erkennbare Schlüssel wie
+`lexnova.a83f20c1d942.documents:<schlüssel>`,
+`lexnova.a83f20c1d942.settings:<schlüssel>` und
+`lexnova.a83f20c1d942.hibp:<schlüssel>`. Jede manuell konfigurierte Installation
+benötigt einen anderen Namespace, wenn sie einen APCu- oder Valkey-Pool teilt.
+
+APCu wird im Browserprozess geprüft. Ein reines CLI-Ergebnis ist nicht
+maßgeblich, weil `apc.enable_cli` standardmäßig deaktiviert ist und CLI,
+PHP-FPM sowie Apache unterschiedliche INI-Dateien laden können. Ist APCu oder
+sein Laminas-Adapter zur Laufzeit nicht verfügbar, verwendet LexNova den
+Dateisystem-Fallback.
+
+`/admin/system` zeigt für das aktuelle Web-SAPI APCu-Verfügbarkeit und Version,
+konfigurierten und gemessenen Speicher, Einträge, Treffer, Fehlschläge,
+Verdrängungen sowie Anzahl, Größe und Treffer der LexNova-Einträge als
+Summenwerte. Cachewerte oder vollständige Schlüssel werden nicht ausgegeben.
+LexNova liefert keine öffentliche `apc.php`-Seite aus.
 
 ### Valkey
 
@@ -214,7 +252,7 @@ database = 0
 username = ""
 password = ""
 tls = false
-namespace = "lexnova"
+namespace = "lexnova.a83f20c1d942"
 ```
 
 Ist Valkey nicht erreichbar, fällt LexNova kontrolliert auf den Dateisystem-Cache
@@ -235,9 +273,9 @@ Produkt wird aber nicht geraten.
 
 LexNova verwendet durchgängig Laminas Cache. `SimpleCacheDecorator` stellt den
 Anwendungsdiensten weiterhin den frameworkneutralen PSR-16-Vertrag bereit. Der
-Dateisystemadapter serialisiert Cachewerte selbst; beim Valkey-Adapter übernimmt
-PhpRedis mit `Redis::SERIALIZER_PHP` die Serialisierung. Ein zusätzliches
-Serializer-Paket ist daher nicht nötig.
+Dateisystem- und APCu-Adapter serialisieren Cachewerte selbst; beim
+Valkey-Adapter übernimmt PhpRedis mit `Redis::SERIALIZER_PHP` die
+Serialisierung. Ein zusätzliches Serializer-Paket ist daher nicht nötig.
 
 `ext-redis` ist trotz seines Namens nur der übliche kompilierte PHP-Client für
 das Redis-Protokoll. Er kann einen Valkey-Server ansprechen und verpflichtet
@@ -250,7 +288,7 @@ Aktuell existieren folgende Cachewege:
 
 | Zweck | Adapter |
 |---|---|
-| öffentliche Rechtsdokumente | Laminas Filesystem (Standard) oder Laminas Redis mit PhpRedis/Valkey |
+| öffentliche Rechtsdokumente | gewählter Laminas-Adapter: Filesystem, APCu oder Redis mit PhpRedis/Valkey |
 | Twig-Templates | Dateisystem |
 | Datenbank-Systemeinstellungen | gewählter Laminas-Adapter, eigener Namespace |
 | Systemdiagnose | Laminas Filesystem über PSR-16, fünf Minuten |
@@ -258,9 +296,11 @@ Aktuell existieren folgende Cachewege:
 | Installer-Rate-Limit vor vorhandener DB | geschützte lokale Dateien |
 
 Dokumente, Systemeinstellungen und HIBP verwenden getrennte Cache-Namespaces.
-Ein nicht erreichbarer Valkey-/Redis-Protokollserver fällt pro Cachebereich auf
-geschützte Verzeichnisse unter `var/cache/` zurück. Datenbank und öffentliche
-Dokumentausgabe bleiben auch bei Cachefehlern funktionsfähig.
+Ist ein optionales APCu- oder Valkey-Backend nicht nutzbar, fällt jeder
+Cachebereich auf geschützte Verzeichnisse unter `var/cache/` zurück. Datenbank
+und öffentliche Dokumentausgabe bleiben auch bei Cachefehlern funktionsfähig.
+Cachedaten sind immer ersetzbar und niemals die maßgebliche Kopie eines
+Rechtsdokuments oder einer Einstellung.
 
 Die admin-geschützte Seite `/admin/system` ist die allgemeine
 Systeminformationsseite der Installation. Sie zeigt LexNova- und
@@ -431,6 +471,7 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `endroid/qr-code` | QR-Code-Generierung (SVG) bei TOTP-Einrichtung |
 | `laminas/laminas-cache` | Cache-Abstraktion mit PSR-16-Decorator |
 | `laminas/laminas-cache-storage-adapter-filesystem` | Geschützter lokaler Cache für Dokumente, Settings, HIBP und Diagnose |
+| `laminas/laminas-cache-storage-adapter-apcu` | Optionales APCu-Backend als schneller lokaler Webcache (unter Composer `suggest` deklariert) |
 | `laminas/laminas-cache-storage-adapter-redis` | Optionaler PhpRedis-basierter Valkey-/Redis-Protokollcache (unter Composer `suggest` deklariert) |
 | `laminas/laminas-diactoros` | PSR-7 HTTP Message Implementierung |
 | `laminas/laminas-filter` | Filter-Chain (StringTrim, Callback) für Input-Validierung |
@@ -481,8 +522,15 @@ Projektvorgabe installiert, ist aber nicht der aktive Cachepfad.
 | Paket | Zweck |
 |---|---|
 | `friendsofphp/php-cs-fixer` | Code-Style-Prüfung und -Formatierung (PSR-12 + Symfony-Preset) |
+| `laminas/laminas-cache-storage-adapter-blackhole` | Ausdrücklicher No-Cache-Diagnosemodus; akzeptiert Schreibvorgänge, speichert aber bewusst nichts |
 | `laminas/laminas-cache-storage-adapter-memory` | Flüchtiger Laminas-Cache für isolierte Tests |
 | `phpstan/phpstan` | Statische Analyse, Level 6 |
+
+Der Memory-Adapter speichert nur im aktuellen PHP-Prozess und wirkt im normalen
+Webbetrieb deshalb wie ein Cache innerhalb einer Anfrage. BlackHole speichert
+gar nichts und prüft das Verhalten bei ausdrücklich deaktiviertem Cache. Beide
+sind keine produktiven Anwendungscache-Backends und werden im Browserinstaller
+nicht angeboten.
 
 ### QA-Skripte
 
