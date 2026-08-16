@@ -59,6 +59,19 @@ if ($status['host']['server_software'] !== 'Apache/2.4 Test'
     throw new RuntimeException('General host, webserver or PHP information is incomplete.');
 }
 
+$extensions = [];
+foreach ($status['runtime']['extensions'] as $extension) {
+    $extensions[$extension['name']] = $extension;
+}
+foreach (['ctype', 'mbstring', 'sodium'] as $extension) {
+    if (!($extensions[$extension]['available'] ?? false)) {
+        throw new RuntimeException('Neither native extension nor declared polyfill is available: ' . $extension);
+    }
+    if (!extension_loaded($extension) && !($extensions[$extension]['fallback'] ?? false)) {
+        throw new RuntimeException('System information did not identify the active polyfill: ' . $extension);
+    }
+}
+
 $serialized = json_encode($status, JSON_THROW_ON_ERROR);
 foreach (['db-secret', 'cache-secret', 'app-secret'] as $secret) {
     if (str_contains($serialized, $secret)) {

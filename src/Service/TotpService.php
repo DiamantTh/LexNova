@@ -122,9 +122,12 @@ final readonly class TotpService
         }
 
         $key = sodium_hex2bin($this->appKey);
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $box = sodium_crypto_secretbox($secret, $nonce, $key);
-        sodium_memzero($key);
+        try {
+            $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+            $box = sodium_crypto_secretbox($secret, $nonce, $key);
+        } finally {
+            $this->clearKey($key);
+        }
 
         return sodium_bin2hex($nonce . $box);
     }
@@ -144,8 +147,11 @@ final readonly class TotpService
             $box = substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
             $key = sodium_hex2bin($this->appKey);
 
-            $plain = sodium_crypto_secretbox_open($box, $nonce, $key);
-            sodium_memzero($key);
+            try {
+                $plain = sodium_crypto_secretbox_open($box, $nonce, $key);
+            } finally {
+                $this->clearKey($key);
+            }
 
             return $plain !== false ? $plain : null;
         } catch (\Throwable) {
@@ -157,5 +163,21 @@ final readonly class TotpService
     private function hasKey(): bool
     {
         return strlen($this->appKey) === 64;
+    }
+
+    /** @param-out string $key */
+    private function clearKey(string &$key): void
+    {
+        if (extension_loaded('sodium')) {
+            $nativeKey = $key;
+            $key = '';
+            sodium_memzero($nativeKey);
+
+            return;
+        }
+
+        // Pure PHP cannot guarantee that every previous copy is wiped, but
+        // replacing the local buffer is still preferable to retaining it.
+        $key = str_repeat("\0", strlen($key));
     }
 }

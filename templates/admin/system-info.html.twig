@@ -83,8 +83,16 @@
         {% for extension in system.runtime.extensions %}
             <tr>
                 <th>{{ extension.name }}</th>
-                <td><span class="status {{ extension.loaded ? 'good' : 'bad' }}">{{ extension.loaded ? 'geladen' : 'fehlt' }}</span></td>
-                <td>{{ extension.version ?? '–' }}</td>
+                <td>
+                    {% if extension.loaded %}
+                        <span class="status good">nativ geladen</span>
+                    {% elseif extension.fallback %}
+                        <span class="status warn">Polyfill</span>
+                    {% else %}
+                        <span class="status bad">fehlt</span>
+                    {% endif %}
+                </td>
+                <td>{{ extension.version ?? extension.provider ?? '–' }}</td>
             </tr>
         {% endfor %}
         </table>

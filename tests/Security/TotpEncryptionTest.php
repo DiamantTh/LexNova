@@ -6,8 +6,8 @@ use LexNova\Service\TotpService;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
-if (!extension_loaded('sodium')) {
-    echo "TOTP encryption security test: SKIPPED (ext-sodium unavailable)\n";
+if (!function_exists('sodium_crypto_secretbox')) {
+    echo "TOTP encryption security test: SKIPPED (Sodium capability unavailable)\n";
 
     exit(0);
 }

@@ -6,6 +6,7 @@ namespace LexNova\Service;
 
 use Composer\InstalledVersions;
 use Doctrine\DBAL\Connection;
+use LexNova\Handler\Install\Step\PrerequisiteCheck;
 
 final readonly class SystemInfoService
 {
@@ -152,7 +153,7 @@ final readonly class SystemInfoService
         ];
     }
 
-    /** @return list<array{name: string, loaded: bool, version: string|null}> */
+    /** @return list<array{name: string, loaded: bool, available: bool, fallback: bool, version: string|null, provider: string|null}> */
     private function extensions(): array
     {
         $extensions = ['ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'];
@@ -161,11 +162,22 @@ final readonly class SystemInfoService
             $extensions[] = 'pdo_' . $driver;
         }
 
-        return array_map(static fn (string $extension): array => [
-            'name' => $extension,
-            'loaded' => extension_loaded($extension),
-            'version' => extension_loaded($extension) ? phpversion($extension) ?: null : null,
-        ], array_values(array_unique($extensions)));
+        return array_map(static function (string $extension): array {
+            $loaded = extension_loaded($extension);
+            $fallback = !$loaded && PrerequisiteCheck::isPolyfillAvailable($extension);
+            $provider = PrerequisiteCheck::EXTENSION_POLYFILLS[$extension]['package'] ?? null;
+
+            return [
+                'name' => $extension,
+                'loaded' => $loaded,
+                'available' => $loaded || $fallback,
+                'fallback' => $fallback,
+                'version' => $loaded ? phpversion($extension) ?: null : null,
+                'provider' => $fallback && $provider !== null
+                    ? $provider . ' ' . (InstalledVersions::getPrettyVersion($provider) ?? 'unbekannt')
+                    : null,
+            ];
+        }, array_values(array_unique($extensions)));
     }
 
     /** @return list<array{name: string, type: string, available: bool, version: string|null, priority: int}> */
@@ -211,6 +223,10 @@ final readonly class SystemInfoService
             'laminas/laminas-cache' => 'Laminas Cache',
             'laminas/laminas-cache-storage-adapter-filesystem' => 'Laminas Filesystem Cache',
             'laminas/laminas-cache-storage-adapter-redis' => 'Laminas Redis Cache',
+            'paragonie/sodium_compat' => 'Sodium Compat',
+            'symfony/polyfill-ctype' => 'Ctype Polyfill',
+            'symfony/polyfill-iconv' => 'Iconv Polyfill',
+            'symfony/polyfill-mbstring' => 'Mbstring Polyfill',
             'twig/twig' => 'Twig',
             'php-di/php-di' => 'PHP-DI',
         ];

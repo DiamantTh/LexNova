@@ -66,11 +66,14 @@ außerhalb des Webzugriffs.
 
 **Pflicht:**
 - PHP 8.4.1+
-- PHP-Extensions: `ctype`, `fileinfo`, `filter`, `intl`, `json`, `mbstring`,
-  `openssl`, `pdo`, `redis` (PhpRedis 6+) und `sodium`
+- Native PHP-Extensions: `fileinfo`, `filter`, `intl`, `json`, `openssl`, `pdo`
+  und `redis` (PhpRedis 6+)
+- Native Extensions empfohlen, geprüfter Composer-Fallback enthalten:
+  `ctype`, `mbstring` und `sodium`
 - PDO-Treiber: `pdo_sqlite`, `pdo_mysql` oder `pdo_pgsql`
 - Relationale SQL-Datenbank (SQLite 3.35+, MySQL 8+, MariaDB 10.10+ oder PostgreSQL 13+)
-- libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten)
+- Native libsodium (`sodium` ist seit PHP 7.2 standardmäßig enthalten) wird für
+  Leistung und sichere Speicherbereinigung ausdrücklich bevorzugt
 
 **Zur Laufzeit:**
 - Schreibzugriff auf `data/` (bei SQLite) und `var/` (Cache und Logging).
@@ -82,7 +85,9 @@ außerhalb des Webzugriffs.
 auf `data/` (bei SQLite) und `var/`; `config/` kann anschließend
 wieder schreibgeschützt werden.
 
-Der Installer prüft alle Voraussetzungen automatisch und blockiert den Fortschritt bei fehlenden Pflicht-Extensions.
+Der Installer prüft alle Voraussetzungen automatisch und blockiert den
+Fortschritt bei fehlenden Pflichtfähigkeiten. Ein verwendeter Polyfill wird
+orange ausgewiesen, blockiert die Installation aber nicht.
 
 ## Installation
 
@@ -418,6 +423,8 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `mezzio/mezzio-session-ext` | PHP-native Session-Implementierung |
 | `mezzio/mezzio-twigrenderer` | Twig-Template-Renderer für Mezzio |
 | `monolog/monolog` | Logging (Datei-Handler) |
+| `paragonie/sodium_compat` | Bekannter, Symfony-unabhängiger Pure-PHP-Fallback für die verwendeten Sodium-Secretbox-Funktionen |
+| `paragonie/sodium_compat_ext_sodium` | Offizieller Composer-Provider, durch den Sodium Compat `ext-sodium` erfüllen kann |
 | `php-di/php-di` | Dependency-Injection-Container |
 | `phpdocumentor/reflection-docblock` | PHPDoc-Typinformationen für die WebAuthn-Deserialisierung |
 | `psr/clock` | PSR-20 Clock-Interface (für testbare Zeitstempel) |
@@ -425,7 +432,9 @@ Erfordert SQLite ≥ 3.35.0 (für `DROP COLUMN`).
 | `spomky-labs/otphp` | TOTP/HOTP-Implementierung (RFC 6238) |
 | `symfony/cache` | Beibehaltene PSR-6/PSR-16-Alternative; der aktive Anwendungscache nutzt Laminas Cache |
 | `symfony/console` | CLI-Framework für `bin/lexnova`-Befehle |
+| `symfony/polyfill-ctype` | Fallback für `ctype_*`; die native Extension bleibt schneller |
 | `symfony/polyfill-iconv` | Automatischer `iconv`-Fallback für eingeschränkte Shared Hosts |
+| `symfony/polyfill-mbstring` | Fallback für die verwendeten `mb_*`-Funktionen über Iconv |
 | `symfony/property-info` | Typinformationen für den von WebAuthn erzeugten Symfony ObjectNormalizer |
 | `symfony/serializer` | JSON-Serialisierung der WebAuthn-Optionen und Credentials |
 | `twig/twig` | Template-Engine |
@@ -469,6 +478,11 @@ composer qa            analyse + cs-check + Tests
 - Dokumente werden als Freitext gespeichert (kein erzwungenes Format).
 - Passwörter werden mit Argon2id gehasht (Parameter in `config/security.toml`).
 - TOTP-Secrets werden mit XSalsa20-Poly1305 (libsodium) verschlüsselt gespeichert.
+- Ohne native Sodium-Extension übernimmt `paragonie/sodium_compat` die
+  verwendeten Secretbox-Funktionen. Pure PHP kann Schlüsselbuffer nicht so
+  zuverlässig wie `sodium_memzero()` löschen; `/install` und `/admin/system`
+  kennzeichnen diesen funktionalen, aber weniger leistungsfähigen Fallback deshalb
+  sichtbar und empfehlen weiterhin die native Extension.
 - Admin-Zugang ist vor der Installation vollständig gesperrt (`InstalledCheckMiddleware`).
 - CSRF-Schutz ist auf allen Formularen aktiv.
 - Zeilenenden in Kontaktdaten und Dokumentinhalten werden serverseitig auf LF normalisiert (Windows-`\r\n` → `\n`).

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LexNova\Handler\Install\Step;
 
+use Composer\InstalledVersions;
+
 /**
  * Checks all server prerequisites before the installer may proceed.
  *
@@ -39,12 +41,41 @@ final class PrerequisiteCheck
         'sodium' => null,
     ];
 
+    /**
+     * Only packages that Composer recognizes as providers for the matching
+     * ext-* capability belong here. Native extensions remain preferred.
+     *
+     * @var array<string, array{package:string, functions:list<string>, constants:list<string>}>
+     */
+    public const EXTENSION_POLYFILLS = [
+        'ctype' => [
+            'package' => 'symfony/polyfill-ctype',
+            'functions' => ['ctype_alnum', 'ctype_alpha', 'ctype_digit', 'ctype_space', 'ctype_xdigit'],
+            'constants' => [],
+        ],
+        'mbstring' => [
+            'package' => 'symfony/polyfill-mbstring',
+            'functions' => ['mb_strlen', 'mb_substr', 'mb_ord'],
+            'constants' => [],
+        ],
+        'sodium' => [
+            'package' => 'paragonie/sodium_compat',
+            'functions' => [
+                'sodium_bin2hex',
+                'sodium_hex2bin',
+                'sodium_crypto_secretbox',
+                'sodium_crypto_secretbox_open',
+            ],
+            'constants' => ['SODIUM_CRYPTO_SECRETBOX_NONCEBYTES'],
+        ],
+    ];
+
     public function __construct(private readonly string $rootDir)
     {
     }
 
     /**
-     * @return array{checks: list<array{label:string, ok:bool, value:?string, required:bool}>, blocked: bool}
+     * @return array{checks: list<array{label:string, ok:bool, value:?string, required:bool, fallback:bool}>, blocked: bool}
      */
     public function run(): array
     {
@@ -57,6 +88,7 @@ final class PrerequisiteCheck
             'ok' => version_compare($phpVersion, self::MINIMUM_PHP_VERSION, '>='),
             'value' => $phpVersion,
             'required' => true,
+            'fallback' => false,
         ];
 
         // ── Required extensions ───────────────────────────────────────────
@@ -64,13 +96,16 @@ final class PrerequisiteCheck
             $loaded = extension_loaded($extension);
             $version = $loaded ? phpversion($extension) : false;
             $displayVersion = is_string($version) && $version !== '' ? $version : null;
+            $polyfillAvailable = !$loaded && self::isPolyfillAvailable($extension);
 
             $checks[] = [
                 'label' => 'ext-' . $extension
                     . ($minimumVersion !== null ? ' ≥ ' . $minimumVersion : ''),
-                'ok' => self::isExtensionSupported($extension, $loaded, $displayVersion),
-                'value' => $displayVersion ?? ($loaded ? 'geladen' : null),
+                'ok' => self::isExtensionSupported($extension, $loaded, $displayVersion, $polyfillAvailable),
+                'value' => $displayVersion
+                    ?? ($polyfillAvailable ? self::polyfillDescription($extension) : ($loaded ? 'geladen' : null)),
                 'required' => true,
+                'fallback' => $polyfillAvailable,
             ];
         }
 
@@ -86,6 +121,7 @@ final class PrerequisiteCheck
                 ? implode(', ', array_map(static fn (string $driver): string => 'pdo_' . $driver, $pdoDrivers))
                 : null,
             'required' => true,
+            'fallback' => false,
         ];
 
         // ── Directory writability ─────────────────────────────────────────
@@ -109,6 +145,7 @@ final class PrerequisiteCheck
                 'ok' => $ok,
                 'value' => null,
                 'required' => $required,
+                'fallback' => false,
             ];
         }
 
@@ -123,10 +160,18 @@ final class PrerequisiteCheck
         return ['checks' => $checks, 'blocked' => $blocked];
     }
 
-    public static function isExtensionSupported(string $extension, bool $loaded, ?string $version): bool
-    {
-        if (!$loaded || !array_key_exists($extension, self::REQUIRED_EXTENSIONS)) {
+    public static function isExtensionSupported(
+        string $extension,
+        bool $loaded,
+        ?string $version,
+        bool $polyfillAvailable = false,
+    ): bool {
+        if (!array_key_exists($extension, self::REQUIRED_EXTENSIONS)) {
             return false;
+        }
+
+        if (!$loaded) {
+            return $polyfillAvailable && array_key_exists($extension, self::EXTENSION_POLYFILLS);
         }
 
         $minimumVersion = self::REQUIRED_EXTENSIONS[$extension] ?? null;
@@ -135,5 +180,36 @@ final class PrerequisiteCheck
         }
 
         return $version !== null && version_compare($version, $minimumVersion, '>=');
+    }
+
+    public static function isPolyfillAvailable(string $extension): bool
+    {
+        $polyfill = self::EXTENSION_POLYFILLS[$extension] ?? null;
+        if ($polyfill === null || !InstalledVersions::isInstalled($polyfill['package'])) {
+            return false;
+        }
+
+        foreach ($polyfill['functions'] as $function) {
+            if (!function_exists($function)) {
+                return false;
+            }
+        }
+        foreach ($polyfill['constants'] as $constant) {
+            if (!defined($constant)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function polyfillDescription(string $extension): ?string
+    {
+        $package = self::EXTENSION_POLYFILLS[$extension]['package'] ?? null;
+        if ($package === null) {
+            return null;
+        }
+
+        return 'Polyfill: ' . $package . ' ' . (InstalledVersions::getPrettyVersion($package) ?? 'unbekannt');
     }
 }

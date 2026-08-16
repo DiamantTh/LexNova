@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use LexNova\Handler\Install\Step\PrerequisiteCheck;
+use Composer\InstalledVersions;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -57,8 +58,31 @@ if (PrerequisiteCheck::isExtensionSupported('redis', false, null)) {
 if (!PrerequisiteCheck::isExtensionSupported('sodium', true, null)) {
     throw new RuntimeException('A loaded extension without a minimum version was rejected.');
 }
+if (!PrerequisiteCheck::isExtensionSupported('sodium', false, null, true)) {
+    throw new RuntimeException('The declared Sodium polyfill was rejected.');
+}
+foreach (['ctype', 'mbstring'] as $polyfilledExtension) {
+    if (!PrerequisiteCheck::isExtensionSupported($polyfilledExtension, false, null, true)) {
+        throw new RuntimeException('The declared polyfill was rejected: ' . $polyfilledExtension);
+    }
+}
+if (PrerequisiteCheck::isExtensionSupported('redis', false, null, true)) {
+    throw new RuntimeException('An undeclared Redis polyfill was accepted.');
+}
 if (PrerequisiteCheck::isExtensionSupported('unknown', true, '99.0.0')) {
     throw new RuntimeException('An extension outside the declared requirement list was accepted.');
+}
+
+$expectedPolyfills = [
+    'symfony/polyfill-ctype' => '^1.37',
+    'symfony/polyfill-mbstring' => '^1.38',
+    'paragonie/sodium_compat' => '^1.21 || ^2.5',
+    'paragonie/sodium_compat_ext_sodium' => '^1.0',
+];
+foreach ($expectedPolyfills as $package => $constraint) {
+    if (($requires[$package] ?? null) !== $constraint || !InstalledVersions::isInstalled($package)) {
+        throw new RuntimeException('Required polyfill package is missing or has an unexpected constraint: ' . $package);
+    }
 }
 
 echo "Platform requirements configuration test: OK\n";

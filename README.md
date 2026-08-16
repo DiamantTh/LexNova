@@ -65,11 +65,14 @@ must never be configured as the DocumentRoot. This keeps `config/`, `data/`,
 **Required:**
 
 - PHP 8.4.1+
-- PHP extensions: `ctype`, `fileinfo`, `filter`, `intl`, `json`, `mbstring`,
-  `openssl`, `pdo`, `redis` (PhpRedis 6+), and `sodium`
+- Native PHP extensions: `fileinfo`, `filter`, `intl`, `json`, `openssl`, `pdo`,
+  and `redis` (PhpRedis 6+)
+- Native extensions recommended, with a verified Composer fallback included:
+  `ctype`, `mbstring`, and `sodium`
 - PDO driver: `pdo_sqlite`, `pdo_mysql`, or `pdo_pgsql`
 - Relational SQL database (SQLite 3.35+, MySQL 8+, MariaDB 10.10+, or PostgreSQL 13+)
-- libsodium (`sodium` has been included with PHP by default since PHP 7.2)
+- Native libsodium (`sodium` has been included with PHP by default since PHP
+  7.2) is explicitly preferred for performance and secure memory clearing
 
 **At runtime:**
 
@@ -82,7 +85,8 @@ mode `0600`. After installation, PHP only needs write access to `data/` (for
 SQLite) and `var/`; `config/` can then be made read-only again.
 
 The installer checks all requirements automatically and blocks progress when a
-required extension is missing.
+required capability is missing. An active polyfill is shown in orange but does
+not block installation.
 
 ## Installation
 
@@ -417,6 +421,8 @@ Requires SQLite ≥ 3.35.0 (for `DROP COLUMN`).
 | `mezzio/mezzio-session-ext` | PHP-native session implementation |
 | `mezzio/mezzio-twigrenderer` | Twig template renderer for Mezzio |
 | `monolog/monolog` | Logging (file handler) |
+| `paragonie/sodium_compat` | Established Symfony-independent pure-PHP fallback for the Sodium secretbox functions used by LexNova |
+| `paragonie/sodium_compat_ext_sodium` | Official Composer provider allowing Sodium Compat to satisfy `ext-sodium` |
 | `php-di/php-di` | Dependency-injection container |
 | `phpdocumentor/reflection-docblock` | PHPDoc type information for WebAuthn deserialization |
 | `psr/clock` | PSR-20 clock interface (for testable timestamps) |
@@ -424,7 +430,9 @@ Requires SQLite ≥ 3.35.0 (for `DROP COLUMN`).
 | `spomky-labs/otphp` | TOTP/HOTP implementation (RFC 6238) |
 | `symfony/cache` | Retained PSR-6/PSR-16 alternative; the active application cache uses Laminas Cache |
 | `symfony/console` | CLI framework for `bin/lexnova` commands |
+| `symfony/polyfill-ctype` | Fallback for `ctype_*`; the native extension remains faster |
 | `symfony/polyfill-iconv` | Automatic `iconv` fallback for restricted shared hosts |
+| `symfony/polyfill-mbstring` | Fallback for the used `mb_*` functions through Iconv |
 | `symfony/property-info` | Type information for the Symfony ObjectNormalizer used by WebAuthn |
 | `symfony/serializer` | JSON serialization of WebAuthn options and credentials |
 | `twig/twig` | Template engine |
@@ -468,6 +476,11 @@ composer qa            Analysis + code-style check + tests
 - Documents are stored as free text (no mandatory format).
 - Passwords are hashed with Argon2id (parameters in `config/security.toml`).
 - TOTP secrets are stored encrypted with XSalsa20-Poly1305 (libsodium).
+- Without the native Sodium extension, `paragonie/sodium_compat` provides the
+  secretbox functions used by LexNova. Pure PHP cannot clear key buffers as
+  reliably as `sodium_memzero()`; `/install` and `/admin/system` therefore mark
+  this functional but slower fallback visibly and continue to recommend the native
+  extension.
 - Administrator access is fully blocked before installation (`InstalledCheckMiddleware`).
 - CSRF protection is active on every form.
 - Line endings in contact data and document content are normalized to LF on the
