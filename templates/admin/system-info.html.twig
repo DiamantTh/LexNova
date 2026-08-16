@@ -96,8 +96,8 @@
             </tr>
         {% endfor %}
         </table>
-        <h3>Valkey-/Redis-Protokoll-Client</h3>
-        <p class="hint">Valkey ist optional. Dafür müssen PhpRedis 6+ und der Laminas-Redis-Adapter gemeinsam verfügbar sein; der Dateisystemcache benötigt beides nicht.</p>
+        <h3>Optionale Cache-Clients</h3>
+        <p class="hint">APCu benötigt Erweiterung und Laminas-Adapter im aktuellen Web-SAPI. Valkey benötigt PhpRedis 6+, Laminas-Redis-Adapter und einen erreichbaren Server. Das Dateisystem benötigt beides nicht.</p>
         <table>
         {% for client in system.runtime.cache_clients %}
             <tr>
@@ -155,6 +155,7 @@
             {% if system.cache.database is not null %}<tr><th>Logische Datenbank</th><td>{{ system.cache.database }}</td></tr>{% endif %}
             <tr><th>TLS</th><td><span class="status {{ system.cache.tls ? 'good' : 'neutral' }}">{{ system.cache.tls ? 'aktiv' : 'inaktiv' }}</span></td></tr>
             <tr><th>Namespace</th><td>{{ system.cache.namespace }}</td></tr>
+            <tr><th>Sichtbares Schlüsselmuster</th><td><code>{{ system.cache.key_prefix }}</code></td></tr>
             <tr><th>Standard-TTL</th><td>{{ system.cache.default_ttl }} Sekunden</td></tr>
             <tr><th>Verbindung</th><td><span class="status {{ system.cache.connected ? 'good' : 'bad' }}">{{ system.cache.connected ? 'verfügbar' : 'fehlgeschlagen' }}</span></td></tr>
             <tr><th>Fallback aktiv</th><td><span class="status {{ system.cache.fallback ? 'warn' : 'good' }}">{{ system.cache.fallback ? 'ja, Dateisystem' : 'nein' }}</span></td></tr>
@@ -162,6 +163,31 @@
         </table>
         {% if system.cache.detection == 'info_unavailable' %}
             <p class="notice warning">Die Verbindung funktioniert, aber <code>INFO server</code> ist nicht erlaubt oder liefert keine Produktkennung. Valkey und Redis können daher nicht sicher unterschieden werden.</p>
+        {% elseif system.cache.detection == 'apcu_unavailable' %}
+            <p class="notice warning">APCu wurde ausgewählt, ist aber im aktuellen Web-SAPI nicht vollständig verfügbar. LexNova nutzt deshalb den geschützten Dateisystemcache.</p>
+        {% endif %}
+        {% if system.cache.apcu %}
+            <h3>APCu im aktuellen Web-SAPI</h3>
+            <table class="system-table">
+                <tr><th>Erweiterung</th><td><span class="status {{ system.cache.apcu.extension_loaded ? 'good' : 'bad' }}">{{ system.cache.apcu.extension_loaded ? 'geladen' : 'fehlt' }}</span></td></tr>
+                <tr><th>Nutzbar</th><td><span class="status {{ system.cache.apcu.enabled ? 'good' : 'bad' }}">{{ system.cache.apcu.enabled ? 'ja' : 'nein' }}</span></td></tr>
+                <tr><th>Laminas-Adapter</th><td><span class="status {{ system.cache.apcu.adapter_installed ? 'good' : 'bad' }}">{{ system.cache.apcu.adapter_installed ? 'installiert' : 'fehlt' }}</span></td></tr>
+                <tr><th>Version</th><td>{{ system.cache.apcu.version ?? 'nicht ermittelbar' }}</td></tr>
+                <tr><th>SAPI</th><td>{{ system.cache.apcu.sapi }}</td></tr>
+                <tr><th>CLI aktiviert</th><td>{{ system.cache.apcu.cli_enabled ? 'ja' : 'nein (normal)' }}</td></tr>
+                <tr><th>Konfigurierter Shared Memory</th><td>{{ system.cache.apcu.shared_memory_ini ?: 'nicht ermittelbar' }}</td></tr>
+                <tr><th>Speicher gesamt</th><td>{{ system.cache.apcu.total_memory is not null ? (system.cache.apcu.total_memory / 1048576)|number_format(2, ',', '.') ~ ' MiB' : 'nicht ermittelbar' }}</td></tr>
+                <tr><th>Speicher verwendet</th><td>{{ system.cache.apcu.used_memory is not null ? (system.cache.apcu.used_memory / 1048576)|number_format(2, ',', '.') ~ ' MiB' : 'nicht ermittelbar' }}</td></tr>
+                <tr><th>Speicher frei</th><td>{{ system.cache.apcu.available_memory is not null ? (system.cache.apcu.available_memory / 1048576)|number_format(2, ',', '.') ~ ' MiB' : 'nicht ermittelbar' }}</td></tr>
+                <tr><th>Einträge gesamt</th><td>{{ system.cache.apcu.entries ?? 'nicht ermittelbar' }}</td></tr>
+                <tr><th>Treffer / Fehlschläge</th><td>{{ system.cache.apcu.hits ?? '–' }} / {{ system.cache.apcu.misses ?? '–' }}</td></tr>
+                <tr><th>Trefferquote</th><td>{{ system.cache.apcu.hit_rate is not null ? system.cache.apcu.hit_rate|number_format(2, ',', '.') ~ ' %' : 'noch keine Zugriffe' }}</td></tr>
+                <tr><th>Verdrängungen</th><td><span class="status {{ (system.cache.apcu.expunges ?? 0) > 0 ? 'warn' : 'good' }}">{{ system.cache.apcu.expunges ?? 'nicht ermittelbar' }}</span></td></tr>
+                <tr><th>LexNova-Einträge</th><td>{{ system.cache.apcu.lexnova_entries ?? 'nicht ermittelbar' }}</td></tr>
+                <tr><th>LexNova-Speicher</th><td>{{ system.cache.apcu.lexnova_size is not null ? (system.cache.apcu.lexnova_size / 1024)|number_format(2, ',', '.') ~ ' KiB' : 'nicht ermittelbar' }}</td></tr>
+                <tr><th>LexNova-Treffer</th><td>{{ system.cache.apcu.lexnova_hits ?? 'nicht ermittelbar' }}</td></tr>
+            </table>
+            <p class="hint">Es werden nur aggregierte Werte für den LexNova-Präfix angezeigt, niemals Cachewerte oder vollständige Schlüssel.</p>
         {% endif %}
     </section>
 

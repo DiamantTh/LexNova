@@ -73,7 +73,11 @@ final readonly class SystemInfoService
             ],
             'supported' => [
                 'database' => ['SQLite (PDO)', 'MySQL/MariaDB (PDO)', 'PostgreSQL (PDO)'],
-                'application_cache' => ['Laminas Dateisystem', 'Laminas Redis-Adapter mit PhpRedis für Valkey'],
+                'document_cache' => [
+                    'Laminas Dateisystem (Standard und Fallback)',
+                    'Laminas APCu (optionaler lokaler Webcache)',
+                    'Laminas Redis-Adapter mit PhpRedis für Valkey',
+                ],
                 'internal_cache' => ['Twig und Systemdiagnose: Dateisystem', 'Laminas: Dokumente, Systemeinstellungen und HIBP'],
             ],
         ];
@@ -156,7 +160,7 @@ final readonly class SystemInfoService
     /** @return list<array{name: string, loaded: bool, available: bool, fallback: bool, version: string|null, provider: string|null}> */
     private function extensions(): array
     {
-        $extensions = ['ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'];
+        $extensions = ['apcu', 'ctype', 'fileinfo', 'filter', 'intl', 'json', 'mbstring', 'openssl', 'pdo', 'redis', 'sodium'];
         $driver = (string) ($this->config['db']['driver'] ?? '');
         if ($driver !== '') {
             $extensions[] = 'pdo_' . $driver;
@@ -185,11 +189,27 @@ final readonly class SystemInfoService
     {
         return [
             [
+                'name' => 'APCu',
+                'type' => 'optionale PHP-Erweiterung',
+                'available' => extension_loaded('apcu') && function_exists('apcu_enabled') && apcu_enabled(),
+                'version' => extension_loaded('apcu') ? phpversion('apcu') ?: null : null,
+                'priority' => 1,
+            ],
+            [
+                'name' => 'Laminas APCu Cache',
+                'type' => 'optionaler Composer-Adapter',
+                'available' => InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-apcu'),
+                'version' => InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-apcu')
+                    ? InstalledVersions::getPrettyVersion('laminas/laminas-cache-storage-adapter-apcu')
+                    : null,
+                'priority' => 2,
+            ],
+            [
                 'name' => 'PhpRedis',
                 'type' => 'PHP-Erweiterung ext-redis',
                 'available' => extension_loaded('redis'),
                 'version' => extension_loaded('redis') ? phpversion('redis') ?: null : null,
-                'priority' => 1,
+                'priority' => 3,
             ],
             [
                 'name' => 'Laminas Redis Cache',
@@ -198,7 +218,7 @@ final readonly class SystemInfoService
                 'version' => InstalledVersions::isInstalled('laminas/laminas-cache-storage-adapter-redis')
                     ? InstalledVersions::getPrettyVersion('laminas/laminas-cache-storage-adapter-redis')
                     : null,
-                'priority' => 2,
+                'priority' => 4,
             ],
         ];
     }
@@ -231,6 +251,9 @@ final readonly class SystemInfoService
             'doctrine/dbal' => 'Doctrine DBAL',
             'laminas/laminas-cache' => 'Laminas Cache',
             'laminas/laminas-cache-storage-adapter-filesystem' => 'Laminas Filesystem Cache',
+            'laminas/laminas-cache-storage-adapter-apcu' => 'Laminas APCu Cache',
+            'laminas/laminas-cache-storage-adapter-blackhole' => 'Laminas BlackHole Cache',
+            'laminas/laminas-cache-storage-adapter-memory' => 'Laminas Memory Cache',
             'laminas/laminas-cache-storage-adapter-redis' => 'Laminas Redis Cache',
             'paragonie/sodium_compat' => 'Sodium Compat',
             'symfony/polyfill-ctype' => 'Ctype Polyfill',

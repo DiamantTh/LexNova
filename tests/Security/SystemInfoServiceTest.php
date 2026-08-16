@@ -46,18 +46,28 @@ $status = $service->status([
 if (!$status['database']['connected'] || $status['database']['product'] !== 'SQLite') {
     throw new RuntimeException('System information did not report the active SQLite database.');
 }
-if ($status['cache']['effective'] !== 'filesystem' || !$status['application']['installed']) {
+if ($status['cache']['effective'] !== 'filesystem'
+    || $status['cache']['key_prefix'] !== 'lexnova.<bereich>:'
+    || !$status['application']['installed']
+) {
     throw new RuntimeException('System information did not report the effective runtime state.');
 }
 if ($status['host']['server_software'] !== 'Apache/2.4 Test'
     || $status['host']['os_family'] === ''
     || $status['runtime']['php_version'] !== PHP_VERSION
     || $status['runtime']['pdo_drivers'] === []
-    || count($status['runtime']['cache_clients']) !== 2
-    || $status['runtime']['cache_clients'][0]['name'] !== 'PhpRedis'
-    || $status['runtime']['cache_clients'][1]['name'] !== 'Laminas Redis Cache'
+    || count($status['runtime']['cache_clients']) !== 4
+    || $status['runtime']['cache_clients'][0]['name'] !== 'APCu'
+    || $status['runtime']['cache_clients'][1]['name'] !== 'Laminas APCu Cache'
+    || $status['runtime']['cache_clients'][2]['name'] !== 'PhpRedis'
+    || $status['runtime']['cache_clients'][3]['name'] !== 'Laminas Redis Cache'
 ) {
     throw new RuntimeException('General host, webserver or PHP information is incomplete.');
+}
+if (count($status['supported']['document_cache'] ?? []) !== 3
+    || !str_contains((string) $status['supported']['document_cache'][1], 'APCu')
+) {
+    throw new RuntimeException('Supported application cache backends are not reported completely.');
 }
 
 $extensions = [];
