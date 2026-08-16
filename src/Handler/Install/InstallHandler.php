@@ -59,6 +59,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'generatedPassword' => null,
                 'installReady' => true,
                 'formData' => [],
+                'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
                 'csrf_token' => $guard->generateToken(),
             ]));
         }
@@ -114,6 +115,13 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'appLocale' => trim((string) ($body['app_locale'] ?? 'de')),
                 'operatorName' => trim((string) ($body['operator_name'] ?? '')),
                 'operatorContact' => trim((string) ($body['operator_contact'] ?? '')),
+                'cacheAdapter' => trim((string) ($body['cache_adapter'] ?? 'filesystem')),
+                'cacheHost' => trim((string) ($body['cache_host'] ?? '127.0.0.1')),
+                'cachePort' => trim((string) ($body['cache_port'] ?? '6379')),
+                'cacheDatabase' => trim((string) ($body['cache_database'] ?? '0')),
+                'cacheUsername' => trim((string) ($body['cache_username'] ?? '')),
+                'cachePassword' => (string) ($body['cache_password'] ?? ''),
+                'cacheTls' => isset($body['cache_tls']) ? '1' : '0',
             ];
 
             // ── Step: Unlock ──────────────────────────────────────────────
@@ -155,6 +163,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'generatedPassword' => null,
                         'installReady' => true,
                         'formData' => [],
+                        'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
                         'operator_name' => $configure['operator_name'] ?? null,
                         'csrf_token' => $guard->generateToken(),
                     ]));
@@ -174,6 +183,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
             'installReady' => $installReady,
             'formData' => $formData,
             'prereq' => $prereq,
+            'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
             'csrf_token' => $guard->generateToken(),
         ]));
     }

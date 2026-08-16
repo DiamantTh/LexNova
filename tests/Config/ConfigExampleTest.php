@@ -135,4 +135,10 @@ if (array_key_exists('dsn', $instance['db']) || array_key_exists('dsn', $instanc
     throw new RuntimeException('User-facing configuration must not expose DSN URLs.');
 }
 
+if ($instance['cache']['namespace'] === 'lexnova'
+    || !str_starts_with((string) $instance['cache']['namespace'], 'lexnova.')
+) {
+    throw new RuntimeException('The example must prevent cache namespace collisions between installations.');
+}
+
 echo "Configuration example contract test: OK\n";

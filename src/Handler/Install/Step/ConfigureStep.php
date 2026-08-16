@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LexNova\Handler\Install\Step;
 
+use LexNova\Service\CacheBackendService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
 use Locale;
@@ -208,6 +209,36 @@ final class ConfigureStep
             $errors[] = 'Operator contact data must not exceed 65535 bytes.';
         }
 
+        // ── Application cache ─────────────────────────────────────────────
+        $cacheAdapter = $formData['cacheAdapter'] ?? 'filesystem';
+        if (!in_array($cacheAdapter, ['filesystem', 'apcu', 'valkey'], true)) {
+            $errors[] = 'Unsupported cache adapter.';
+        } elseif ($cacheAdapter === 'apcu' && !CacheBackendService::apcuClientAvailable()) {
+            $errors[] = 'APCu is not usable in the current web SAPI or the optional Laminas APCu adapter is missing.';
+        } elseif ($cacheAdapter === 'valkey' && !CacheBackendService::valkeyClientAvailable()) {
+            $errors[] = 'Valkey requires PhpRedis 6+ and the optional Laminas Redis adapter.';
+        }
+
+        if ($cacheAdapter === 'valkey') {
+            $cacheHost = $formData['cacheHost'] ?? '';
+            $cachePort = $formData['cachePort'] ?? '';
+            $cacheDatabase = $formData['cacheDatabase'] ?? '';
+            if (preg_match('/^[a-zA-Z0-9_.:-]{1,255}$/D', $cacheHost) !== 1) {
+                $errors[] = 'Valkey host contains unsupported characters.';
+            }
+            if (filter_var($cachePort, FILTER_VALIDATE_INT) === false
+                || (int) $cachePort < 1 || (int) $cachePort > 65535
+            ) {
+                $errors[] = 'Valkey port must be between 1 and 65535.';
+            }
+            if (filter_var($cacheDatabase, FILTER_VALIDATE_INT) === false || (int) $cacheDatabase < 0) {
+                $errors[] = 'Valkey database must be a non-negative integer.';
+            }
+            if (strlen($formData['cacheUsername'] ?? '') > 255) {
+                $errors[] = 'Valkey username must not exceed 255 characters.';
+            }
+        }
+
         return $errors;
     }
 
@@ -312,6 +343,25 @@ final class ConfigureStep
             $database['charset'] = 'utf8mb4';
         }
 
+        $cacheAdapter = $formData['cacheAdapter'] ?? 'filesystem';
+        $cache = [
+            'adapter' => $cacheAdapter,
+            // Random, non-secret installation identifier prevents collisions
+            // when several LexNova instances share one APCu/Valkey namespace.
+            'namespace' => 'lexnova.' . bin2hex(random_bytes(6)),
+            'default_ttl' => 3600,
+        ];
+        if ($cacheAdapter === 'valkey') {
+            $cache += [
+                'host' => $formData['cacheHost'] ?? '127.0.0.1',
+                'port' => (int) ($formData['cachePort'] ?? 6379),
+                'database' => (int) ($formData['cacheDatabase'] ?? 0),
+                'username' => $formData['cacheUsername'] ?? '',
+                'password' => $formData['cachePassword'] ?? '',
+                'tls' => ($formData['cacheTls'] ?? '0') === '1',
+            ];
+        }
+
         return toml_encode([
             'app' => [
                 'base_url' => rtrim($appBaseUrl, '/'),
@@ -345,11 +395,7 @@ final class ConfigureStep
                 'cookie_lifetime' => 0,
                 'cookie_path' => '/',
             ],
-            'cache' => [
-                'adapter' => 'filesystem',
-                'namespace' => 'lexnova',
-                'default_ttl' => 3600,
-            ],
+            'cache' => $cache,
         ]);
     }
 }

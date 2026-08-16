@@ -86,6 +86,16 @@ if (PrerequisiteCheck::isExtensionSupported('unknown', true, '99.0.0')) {
     throw new RuntimeException('An extension outside the declared requirement list was accepted.');
 }
 
+$cacheSupport = (new PrerequisiteCheck($root))->cacheAdapterSupport();
+if (array_keys($cacheSupport) !== ['filesystem', 'apcu', 'valkey']
+    || !$cacheSupport['filesystem']['available']
+    || $cacheSupport['filesystem']['reason'] === ''
+    || $cacheSupport['apcu']['reason'] === ''
+    || $cacheSupport['valkey']['reason'] === ''
+) {
+    throw new RuntimeException('Installer cache adapter readiness is incomplete.');
+}
+
 $expectedPolyfills = [
     'symfony/polyfill-ctype' => '^1.37',
     'symfony/polyfill-mbstring' => '^1.38',

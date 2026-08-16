@@ -58,6 +58,7 @@ $generatedToml = $buildConfig->invoke(
         'dbPath' => '',
         'dbUser' => 'lexnova_user',
         'dbPassword' => 'secret',
+        'cacheAdapter' => 'apcu',
     ],
     'https://legal.example.test',
     'de',
@@ -70,8 +71,42 @@ if (!is_array($generated)
     || ($generated['db']['host'] ?? null) !== 'db.example.test'
     || ($generated['db']['port'] ?? null) !== 3307
     || array_key_exists('dsn', (array) ($generated['db'] ?? []))
+    || ($generated['cache']['adapter'] ?? null) !== 'apcu'
+    || preg_match('/^lexnova\.[a-f0-9]{12}$/D', (string) ($generated['cache']['namespace'] ?? '')) !== 1
+    || isset($generated['cache']['host'], $generated['cache']['password'])
 ) {
-    throw new RuntimeException('Browser installer did not generate classic database fields.');
+    throw new RuntimeException('Browser installer did not generate classic database fields and an isolated cache namespace.');
+}
+
+$generatedValkeyToml = $buildConfig->invoke(
+    new ConfigureStep(),
+    [
+        'dbType' => 'sqlite',
+        'dbPath' => '/srv/lexnova/data/lexnova.sqlite',
+        'cacheAdapter' => 'valkey',
+        'cacheHost' => 'cache.example.test',
+        'cachePort' => '6380',
+        'cacheDatabase' => '2',
+        'cacheUsername' => 'lexnova',
+        'cachePassword' => 'secret',
+        'cacheTls' => '1',
+    ],
+    'https://legal.example.test',
+    'de',
+    str_repeat('a', 64),
+    '/srv/lexnova',
+);
+$generatedValkey = toml_decode((string) $generatedValkeyToml, asArray: true);
+if (!is_array($generatedValkey)
+    || ($generatedValkey['cache']['host'] ?? null) !== 'cache.example.test'
+    || ($generatedValkey['cache']['port'] ?? null) !== 6380
+    || ($generatedValkey['cache']['database'] ?? null) !== 2
+    || ($generatedValkey['cache']['username'] ?? null) !== 'lexnova'
+    || ($generatedValkey['cache']['password'] ?? null) !== 'secret'
+    || ($generatedValkey['cache']['tls'] ?? null) !== true
+    || array_key_exists('dsn', (array) ($generatedValkey['cache'] ?? []))
+) {
+    throw new RuntimeException('Browser installer did not generate classic Valkey connection fields.');
 }
 
 try {

@@ -105,14 +105,17 @@ cookie_path = "/"
 cookie_domain = "" # empty = current host; do not broaden unless explicitly required
 
 # Application cache for documents, settings and HIBP results. Each area uses
-# its own namespace. "filesystem" needs no external service. Valkey is
-# Redis-protocol compatible; with adapter = "valkey" the PhpRedis extension
-# ext-redis 6+, the optional Laminas Redis adapter and a reachable server are
-# required only when this adapter is selected.
-# On connection failure LexNova falls back to filesystem caching.
+# its own namespace. "filesystem" needs no external service. "apcu" is a fast
+# local web cache and requires APCu 5.1.10+ plus the optional Laminas APCu
+# adapter. Valkey is Redis-protocol compatible; with adapter = "valkey" the
+# PhpRedis extension 6+, the optional Laminas Redis adapter and a reachable
+# server are required only when this adapter is selected.
+# On adapter or connection failure LexNova falls back to filesystem caching.
 [cache]
-adapter     = "filesystem" # "filesystem" | "valkey"
-namespace   = "lexnova"
+adapter     = "filesystem" # "filesystem" | "apcu" | "valkey"
+# The installer generates this non-secret ID once. Give every manual instance
+# a different value so shared APCu/Valkey pools cannot mix their cache keys.
+namespace   = "lexnova.change-this-instance-id"
 default_ttl = 3600
 host        = "127.0.0.1" # Valkey only
 port        = 6379        # Valkey only

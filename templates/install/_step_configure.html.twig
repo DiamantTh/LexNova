@@ -90,6 +90,65 @@
         </div>
 
         <hr class="section-sep">
+        <h2>Anwendungs-Cache</h2>
+        <p style="color:#4a4a4a;font-size:14px;margin-bottom:14px;">
+            Der Cache enthält ausschließlich ersetzbare Kopien; die Datenbank bleibt maßgeblich.
+            APCu ist für einen klassischen einzelnen PHP-Webspace empfohlen, sofern es im hier
+            verwendeten Web-SAPI verfügbar ist. Dateisystem funktioniert ohne Zusatzdienst.
+        </p>
+        <div class="grid" style="margin-bottom:14px;">
+            <div>
+                <label for="cache_adapter">Adapter</label>
+                <select id="cache_adapter" name="cache_adapter">
+                    <option value="filesystem"{{ (formData.cacheAdapter ?? 'filesystem') == 'filesystem' ? ' selected' : '' }}>
+                        Dateisystem · universeller Standard
+                    </option>
+                    <option value="apcu"
+                        {{ (formData.cacheAdapter ?? '') == 'apcu' ? ' selected' : '' }}
+                        {{ not cacheSupport.apcu.available ? ' disabled' : '' }}>
+                        APCu · schneller lokaler Webcache{{ not cacheSupport.apcu.available ? ' (nicht verfügbar)' : '' }}
+                    </option>
+                    <option value="valkey"
+                        {{ (formData.cacheAdapter ?? '') == 'valkey' ? ' selected' : '' }}
+                        {{ not cacheSupport.valkey.available ? ' disabled' : '' }}>
+                        Valkey · externer zentraler Cache{{ not cacheSupport.valkey.available ? ' (Client fehlt)' : '' }}
+                    </option>
+                </select>
+                <small id="cache-adapter-status" style="color:#666;display:block;margin-top:5px;">
+                    APCu: {{ cacheSupport.apcu.reason }} Valkey: {{ cacheSupport.valkey.reason }}
+                </small>
+            </div>
+        </div>
+        <div id="valkey-fields" class="grid" style="margin-bottom:14px;display:none;">
+            <div>
+                <label for="cache_host">Valkey-Host</label>
+                <input type="text" id="cache_host" name="cache_host" value="{{ formData.cacheHost ?? '127.0.0.1' }}">
+            </div>
+            <div>
+                <label for="cache_port">Port</label>
+                <input type="number" id="cache_port" name="cache_port" min="1" max="65535" value="{{ formData.cachePort ?? '6379' }}">
+            </div>
+            <div>
+                <label for="cache_database">Logische Datenbank</label>
+                <input type="number" id="cache_database" name="cache_database" min="0" value="{{ formData.cacheDatabase ?? '0' }}">
+            </div>
+            <div>
+                <label for="cache_username">ACL-Benutzername (optional)</label>
+                <input type="text" id="cache_username" name="cache_username" value="{{ formData.cacheUsername ?? '' }}" autocomplete="off">
+            </div>
+            <div>
+                <label for="cache_password">Passwort (optional)</label>
+                <input type="password" id="cache_password" name="cache_password" autocomplete="new-password">
+            </div>
+            <div>
+                <label for="cache_tls">
+                    <input type="checkbox" id="cache_tls" name="cache_tls" value="1"{{ (formData.cacheTls ?? '0') == '1' ? ' checked' : '' }}>
+                    TLS verwenden
+                </label>
+            </div>
+        </div>
+
+        <hr class="section-sep">
         <h2>Betreiber dieser LexNova-Instanz</h2>
         <p style="color:#4a4a4a;font-size:14px;margin-bottom:14px;">
             LexNova stellt öffentlich erreichbare Impressums- und Datenschutzseiten bereit.
@@ -122,7 +181,8 @@
     <script>
     (function(){
         const sel = document.getElementById('db_type');
-        if (!sel) return;
+        const cacheSel = document.getElementById('cache_adapter');
+        if (!sel || !cacheSel) return;
 
         function toggle() {
             const isSqlite = sel.value === 'sqlite';
@@ -132,7 +192,12 @@
         }
 
         sel.addEventListener('change', toggle);
+        function toggleCache() {
+            document.getElementById('valkey-fields').style.display = cacheSel.value === 'valkey' ? '' : 'none';
+        }
+        cacheSel.addEventListener('change', toggleCache);
         toggle();
+        toggleCache();
     })();
     </script>
 </div>
