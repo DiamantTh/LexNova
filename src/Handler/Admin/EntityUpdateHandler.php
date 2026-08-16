@@ -32,11 +32,11 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
         if ($this->entities->findById($id) === null) {
             $session->set('flash_errors', ['Entity not found.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/entities');
         }
 
         if ($request->getMethod() === 'GET') {
-            return new RedirectResponse('/admin?entity_id=' . $id);
+            return new RedirectResponse('/verwaltung/entities?entity_id=' . $id);
         }
 
         // POST
@@ -46,7 +46,7 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/entities');
         }
 
         $filter = new EntityInputFilter();
@@ -59,7 +59,7 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
             }
             $session->set('flash_errors', $messages);
 
-            return new RedirectResponse('/admin?entity_id=' . $id);
+            return new RedirectResponse('/verwaltung/entities?entity_id=' . $id);
         }
 
         $values = $filter->getValues();
@@ -79,6 +79,6 @@ final readonly class EntityUpdateHandler implements RequestHandlerInterface
 
         $session->set('flash_messages', ['Entity updated.']);
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/verwaltung/entities');
     }
 }

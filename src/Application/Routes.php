@@ -39,7 +39,15 @@ final class Routes
         $app->route('/install[/]', InstallHandler::class, ['GET', 'POST'], 'install');
 
         // ── Admin ────────────────────────────────────────────────────────────────
+        $app->get('/verwaltung[/]', [AdminAuthMiddleware::class, DashboardHandler::class], 'workspace.dashboard');
+        $app->get('/verwaltung/entities', [AdminAuthMiddleware::class, DashboardHandler::class], 'workspace.entities');
+        $app->get('/verwaltung/documents', [AdminAuthMiddleware::class, DashboardHandler::class], 'workspace.documents');
+        $app->get('/user/security', [AdminAuthMiddleware::class, DashboardHandler::class], 'user.security');
+
         $app->get('/admin[/]', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.dashboard');
+        $app->get('/admin/users', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.users');
+        $app->get('/admin/security', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.security');
+        $app->get('/admin/audit', [AdminAuthMiddleware::class, DashboardHandler::class], 'admin.audit');
 
         $app->get('/admin/system', [AdminAuthMiddleware::class, SystemInfoHandler::class], 'admin.system');
 
@@ -100,6 +108,20 @@ final class Routes
             [AdminAuthMiddleware::class, EntityCreateHandler::class],
             'admin.entities.create',
         );
+
+        $app->post('/verwaltung/entities/create',
+            [AdminAuthMiddleware::class, EntityCreateHandler::class],
+            'workspace.entities.create',
+        );
+        $app->route('/verwaltung/entities/{id:\d+}/edit',
+            [AdminAuthMiddleware::class, EntityUpdateHandler::class],
+            ['GET', 'POST'],
+            'workspace.entities.edit',
+        );
+        $app->post('/verwaltung/entities/{id:\d+}/delete',
+            [AdminAuthMiddleware::class, EntityDeleteHandler::class],
+            'workspace.entities.delete',
+        );
         $app->route('/admin/entities/{id:\d+}/edit',
             [AdminAuthMiddleware::class, EntityUpdateHandler::class],
             ['GET', 'POST'],
@@ -122,6 +144,20 @@ final class Routes
         $app->post('/admin/documents/{id:\d+}/delete',
             [AdminAuthMiddleware::class, DocumentDeleteHandler::class],
             'admin.documents.delete',
+        );
+
+        $app->post('/verwaltung/documents/create',
+            [AdminAuthMiddleware::class, DocumentCreateHandler::class],
+            'workspace.documents.create',
+        );
+        $app->route('/verwaltung/documents/{id:\d+}/edit',
+            [AdminAuthMiddleware::class, DocumentUpdateHandler::class],
+            ['GET', 'POST'],
+            'workspace.documents.edit',
+        );
+        $app->post('/verwaltung/documents/{id:\d+}/delete',
+            [AdminAuthMiddleware::class, DocumentDeleteHandler::class],
+            'workspace.documents.delete',
         );
 
         // ── Public document display ──────────────────────────────────────────────

@@ -27,10 +27,12 @@ final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $body = (array) ($request->getParsedBody() ?? []);
+        $userId = (int) ($request->getAttribute('userId') ?? 0);
+        $redirect = (int) ($session->get('user_id') ?? 0) === $userId ? '/user/security' : '/admin/users';
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
 
         $input = new PasskeyLabelInputFilter();
@@ -38,16 +40,15 @@ final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
         if (!$input->isValid()) {
             $session->set('flash_errors', $input->getErrorMessages());
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
 
-        $userId = (int) ($request->getAttribute('userId') ?? 0);
         $credentialId = (int) ($request->getAttribute('credentialId') ?? 0);
         $label = $input->getValues()['label'];
         if (!$this->passkeys->renameForUser($credentialId, $userId, $label)) {
             $session->set('flash_errors', ['Passkey not found.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
 
         $this->audit->log(
@@ -60,6 +61,6 @@ final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
         );
         $session->set('flash_messages', ['Passkey name updated.']);
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse($redirect);
     }
 }

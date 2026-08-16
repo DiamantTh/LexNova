@@ -30,29 +30,30 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $body = (array) ($request->getParsedBody() ?? []);
+        $userId = (int) ($request->getAttribute('userId') ?? 0);
+        $redirect = (int) ($session->get('user_id') ?? 0) === $userId ? '/user/security' : '/admin/users';
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
 
-        $userId = (int) ($request->getAttribute('userId') ?? 0);
         $credentialId = (int) ($request->getAttribute('credentialId') ?? 0);
         $user = $this->users->findById($userId);
         if ($user === null || $credentialId <= 0) {
             $session->set('flash_errors', ['Passkey not found.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
         if ($user['password_login_enabled'] !== true && $this->users->countPasskeys($userId) <= 1) {
             $session->set('flash_errors', ['The last Passkey cannot be deleted while password login is disabled.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
         if (!$this->passkeys->deleteForUser($credentialId, $userId)) {
             $session->set('flash_errors', ['Passkey not found.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse($redirect);
         }
 
         $this->audit->log(
@@ -65,6 +66,6 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
         );
         $session->set('flash_messages', ['Passkey deleted.']);
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse($redirect);
     }
 }

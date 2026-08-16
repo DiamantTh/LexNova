@@ -74,7 +74,7 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
             $session->set('role', $user['role']);
             $this->audit->log($user['id'], $user['username'], 'auth.passkey_success', 'user:' . $user['id'], null, $ip);
 
-            return new JsonResponse(['redirect' => '/admin']);
+            return new JsonResponse(['redirect' => '/verwaltung']);
         } catch (\Throwable) {
             $this->rateLimit->recordFailure($ip, 'passkey');
             $this->fail2ban->record($ip);

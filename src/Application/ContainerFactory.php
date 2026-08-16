@@ -453,7 +453,7 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(PasskeyService::class),
                 $c->get(AuditService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
                 (array) ($c->get('config')['security']['generator'] ?? []),
             ),
@@ -492,7 +492,7 @@ final class ContainerFactory
 
             SystemInfoHandler::class => fn (ContainerInterface $c) => new SystemInfoHandler(
                 $c->get(SystemInfoService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
             ),
 
             TotpEnrollHandler::class => fn (ContainerInterface $c) => new TotpEnrollHandler(

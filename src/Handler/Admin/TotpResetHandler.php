@@ -40,7 +40,7 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/users');
         }
 
         if ($id > 0 && $this->users->findById($id) !== null) {
@@ -61,6 +61,6 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
             $session->set('flash_errors', ['User not found.']);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/users');
     }
 }

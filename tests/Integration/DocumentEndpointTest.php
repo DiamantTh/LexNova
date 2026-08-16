@@ -155,6 +155,24 @@ $routeResult = $container->get(RouterInterface::class)->match(new ServerRequest(
 $check($routeResult->isSuccess(), 'The virtual /out.php route does not match.');
 $check($routeResult->getMatchedRouteName() === 'document.view', 'The wrong route matched /out.php.');
 
+$uiRoutes = [
+    '/verwaltung' => 'workspace.dashboard',
+    '/verwaltung/entities' => 'workspace.entities',
+    '/verwaltung/documents' => 'workspace.documents',
+    '/user/security' => 'user.security',
+    '/admin' => 'admin.dashboard',
+    '/admin/users' => 'admin.users',
+    '/admin/security' => 'admin.security',
+    '/admin/audit' => 'admin.audit',
+    '/admin/system' => 'admin.system',
+];
+foreach ($uiRoutes as $path => $routeName) {
+    $request = new ServerRequest([], [], new Uri('https://example.test' . $path), 'GET');
+    $result = $container->get(RouterInterface::class)->match($request);
+    $check($result->isSuccess(), "The UI route {$path} does not match.");
+    $check($result->getMatchedRouteName() === $routeName, "The UI route {$path} matched the wrong handler.");
+}
+
 $missingUri = new Uri('https://example.test/nothing-here');
 $missingRequest = new ServerRequest([], [], $missingUri, 'GET');
 $missingRoute = $container->get(RouterInterface::class)->match($missingRequest);

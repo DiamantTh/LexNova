@@ -34,7 +34,7 @@ final readonly class Fail2BanSettingHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/security');
         }
 
         $input = new Fail2BanSettingInputFilter();
@@ -42,7 +42,7 @@ final readonly class Fail2BanSettingHandler implements RequestHandlerInterface
         if (!$input->isValid()) {
             $session->set('flash_errors', $input->getErrorMessages());
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/security');
         }
         $mode = $input->getValues()['mode'];
 
@@ -63,6 +63,6 @@ final readonly class Fail2BanSettingHandler implements RequestHandlerInterface
         );
         $session->set('flash_messages', ['Fail2ban logging setting updated.']);
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/security');
     }
 }

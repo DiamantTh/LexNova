@@ -33,7 +33,7 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/entities');
         }
 
         $filter = new EntityInputFilter();
@@ -58,7 +58,7 @@ final readonly class EntityCreateHandler implements RequestHandlerInterface
             $session->set('flash_messages', ["Entity created. Hash: {$entity['hash']}"]);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/verwaltung/entities');
     }
 
     /**

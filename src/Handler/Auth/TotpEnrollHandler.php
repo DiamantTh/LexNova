@@ -47,7 +47,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
         $user = $this->users->findById($userId);
 
         if ($user === null) {
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/user/security');
         }
 
         $existingKeyCount = $this->users->countActiveKeys($userId);
@@ -83,7 +83,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
                         : 'Additional TOTP key enrolled successfully.';
                     $session->set('flash_messages', [$msg]);
 
-                    return new RedirectResponse('/admin');
+                    return new RedirectResponse('/user/security');
                 } else {
                     $errors[] = 'Invalid code — please wait for the next 30-second window and try again.';
                 }

@@ -27,7 +27,7 @@ final readonly class DocumentDeleteHandler implements RequestHandlerInterface
         $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/documents');
         }
 
         $id = (int) ($request->getAttribute('id') ?? 0);
@@ -46,6 +46,6 @@ final readonly class DocumentDeleteHandler implements RequestHandlerInterface
             $ip,
         );
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/verwaltung/documents');
     }
 }

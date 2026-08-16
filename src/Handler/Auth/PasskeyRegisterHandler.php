@@ -93,7 +93,9 @@ final readonly class PasskeyRegisterHandler implements RequestHandlerInterface
                 (string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''),
             );
 
-            return new JsonResponse(['redirect' => '/admin', 'credential_id' => $id]);
+            $redirect = (int) ($session->get('user_id') ?? 0) === $userId ? '/user/security' : '/admin/users';
+
+            return new JsonResponse(['redirect' => $redirect, 'credential_id' => $id]);
         } catch (\Throwable) {
             return new JsonResponse(['error' => 'Passkey registration failed.'], 400);
         }

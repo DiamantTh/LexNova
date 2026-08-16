@@ -37,7 +37,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         // Already logged in → go to dashboard
         if ($session->has('user_id')) {
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung');
         }
 
         $errors = [];
@@ -86,7 +86,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
                     $session->set('username', (string) $user['username']);
                     $session->set('role', (string) $user['role']);
 
-                    return new RedirectResponse('/admin');
+                    return new RedirectResponse('/verwaltung');
                 }
 
                 $this->rateLimit->recordFailure($ip, 'login');

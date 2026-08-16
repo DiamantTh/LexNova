@@ -27,7 +27,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         $body = (array) ($request->getParsedBody() ?? []);
 
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/users');
         }
 
         $id = (int) ($request->getAttribute('id') ?? 0);
@@ -36,7 +36,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         // Prevent deleting yourself
         $actorId = (int) ($session?->get('user_id') ?? 0);
         if ($id === $actorId) {
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/users');
         }
 
         $target = $this->users->findById($id);
@@ -52,6 +52,6 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
             $ip,
         );
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/users');
     }
 }

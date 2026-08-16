@@ -35,7 +35,7 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/users');
         }
 
         $userId = (int) ($request->getAttribute('id') ?? 0);
@@ -79,6 +79,6 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
             $session->set('flash_messages', ['User updated.']);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/users');
     }
 }

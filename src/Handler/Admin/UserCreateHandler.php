@@ -35,7 +35,7 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/admin/users');
         }
 
         $body['authentication'] ??= 'password';
@@ -75,6 +75,6 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
             $session->set('flash_messages', [$message]);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/admin/users');
     }
 }

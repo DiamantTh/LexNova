@@ -35,7 +35,7 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/documents');
         }
 
         $filter = new DocumentInputFilter();
@@ -81,6 +81,6 @@ final readonly class DocumentCreateHandler implements RequestHandlerInterface
             $session->set('flash_messages', ['Document created.']);
         }
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/verwaltung/documents');
     }
 }

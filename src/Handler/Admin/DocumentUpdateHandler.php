@@ -35,11 +35,11 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         if ($doc === null) {
             $session->set('flash_errors', ['Document not found.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/documents');
         }
 
         if ($request->getMethod() === 'GET') {
-            return new RedirectResponse('/admin?doc_id=' . $id);
+            return new RedirectResponse('/verwaltung/documents?doc_id=' . $id);
         }
 
         // POST
@@ -49,7 +49,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/documents');
         }
 
         $filter = new DocumentInputFilter();
@@ -75,7 +75,7 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         if ($errors !== []) {
             $session->set('flash_errors', $errors);
 
-            return new RedirectResponse('/admin');
+            return new RedirectResponse('/verwaltung/documents');
         }
 
         $values = $filter->getValues();
@@ -91,6 +91,6 @@ final readonly class DocumentUpdateHandler implements RequestHandlerInterface
         );
         $session->set('flash_messages', ['Document updated.']);
 
-        return new RedirectResponse('/admin');
+        return new RedirectResponse('/verwaltung/documents');
     }
 }

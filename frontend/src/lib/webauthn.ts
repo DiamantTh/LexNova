@@ -61,8 +61,51 @@ export async function loginWithPasskey(csrfToken: string): Promise<string> {
   return finish.redirect;
 }
 
+export async function registerPasskey(userId: number, label: string, csrfToken: string): Promise<string> {
+  const result = await post('/admin/passkeys/register/options', csrfToken, { user_id: String(userId) });
+  if (typeof result.error === 'string') throw new Error(result.error);
+
+  const options = result as unknown as PublicKeyCredentialCreationOptionsJSON;
+  const publicKey: PublicKeyCredentialCreationOptions = {
+    ...options,
+    challenge: fromBase64Url(options.challenge),
+    user: { ...options.user, id: fromBase64Url(options.user.id) },
+    excludeCredentials: options.excludeCredentials?.map((credential) => ({ ...credential, id: fromBase64Url(credential.id) })),
+  };
+  const credential = await navigator.credentials.create({ publicKey });
+  if (!(credential instanceof PublicKeyCredential) || !(credential.response instanceof AuthenticatorAttestationResponse)) {
+    throw new Error('Der Browser hat keinen gültigen Passkey erstellt.');
+  }
+
+  const response = credential.response;
+  const payload = {
+    id: credential.id,
+    rawId: toBase64Url(credential.rawId),
+    type: credential.type,
+    response: {
+      clientDataJSON: toBase64Url(response.clientDataJSON),
+      attestationObject: toBase64Url(response.attestationObject),
+      transports: response.getTransports?.() ?? [],
+    },
+  };
+  const finish = await post('/admin/passkeys/register/finish', csrfToken, {
+    label,
+    credential: JSON.stringify(payload),
+    attachment: credential.authenticatorAttachment ?? '',
+  });
+  if (typeof finish.error === 'string') throw new Error(finish.error);
+  if (typeof finish.redirect !== 'string') throw new Error('Die Registrierung lieferte kein Weiterleitungsziel.');
+  return finish.redirect;
+}
+
 interface PublicKeyCredentialDescriptorJSON extends Omit<PublicKeyCredentialDescriptor, 'id'> { id: string; }
 interface PublicKeyCredentialRequestOptionsJSON extends Omit<PublicKeyCredentialRequestOptions, 'challenge' | 'allowCredentials'> {
   challenge: string;
   allowCredentials?: PublicKeyCredentialDescriptorJSON[];
+}
+interface PublicKeyCredentialUserEntityJSON extends Omit<PublicKeyCredentialUserEntity, 'id'> { id: string; }
+interface PublicKeyCredentialCreationOptionsJSON extends Omit<PublicKeyCredentialCreationOptions, 'challenge' | 'user' | 'excludeCredentials'> {
+  challenge: string;
+  user: PublicKeyCredentialUserEntityJSON;
+  excludeCredentials?: PublicKeyCredentialDescriptorJSON[];
 }

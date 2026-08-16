@@ -91,7 +91,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                         $ip,
                     );
 
-                    return new RedirectResponse('/admin');
+                    return new RedirectResponse('/verwaltung');
                 }
 
                 $this->rateLimit->recordFailure($ip, 'totp_verify');
