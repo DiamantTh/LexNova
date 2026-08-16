@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LexNova\Handler\Install;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Install\Step\ConfigureStep;
 use LexNova\Handler\Install\Step\InitStep;
 use LexNova\Handler\Install\Step\PrerequisiteCheck;
@@ -14,7 +15,6 @@ use LexNova\Service\InstallRateLimitService;
 use LexNova\Service\InstallService;
 use LexNova\Service\PasswordService;
 use Mezzio\Csrf\CsrfMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,7 +36,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         private readonly InstallService $install,
         private readonly InstallRateLimitService $rateLimit,
         private readonly PasswordService $passwords,
-        private readonly TemplateRendererInterface $renderer,
+        private readonly SveltePageRenderer $renderer,
         private readonly LoggerInterface $logger,
         private readonly Fail2BanLogService $fail2ban,
         private readonly PrerequisiteCheck $prerequisites,
@@ -52,7 +52,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
         // Already installed — render the "done" step so the user gets a helpful
         // message instead of a hard 404.
         if ($this->install->isLocked()) {
-            return new HtmlResponse($this->renderer->render('install/index', [
+            return new HtmlResponse($this->renderer->render('install', [
                 'step' => 'done',
                 'errors' => [],
                 'messages' => [],
@@ -60,8 +60,8 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'installReady' => true,
                 'formData' => [],
                 'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
-                'csrf_token' => $guard->generateToken(),
-            ]));
+                'csrfToken' => $guard->generateToken(),
+            ], 'Installation · LexNova'));
         }
 
         $security = $this->config['security']['password'] ?? [];
@@ -153,7 +153,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 );
 
                 if ($configure['completed']) {
-                    return new HtmlResponse($this->renderer->render('install/index', [
+                    return new HtmlResponse($this->renderer->render('install', [
                         'step' => 'done',
                         'errors' => [],
                         'messages' => [
@@ -164,9 +164,9 @@ final readonly class InstallHandler implements RequestHandlerInterface
                         'installReady' => true,
                         'formData' => [],
                         'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
-                        'operator_name' => $configure['operator_name'] ?? null,
-                        'csrf_token' => $guard->generateToken(),
-                    ]));
+                        'operatorName' => $configure['operator_name'] ?? null,
+                        'csrfToken' => $guard->generateToken(),
+                    ], 'Installation abgeschlossen · LexNova'));
                 }
 
                 $errors = array_merge($errors, $configure['errors']);
@@ -175,16 +175,16 @@ final readonly class InstallHandler implements RequestHandlerInterface
 
         $step = $installerUnlocked ? 'configure' : 'unlock';
 
-        return new HtmlResponse($this->renderer->render('install/index', [
+        return new HtmlResponse($this->renderer->render('install', [
             'step' => $step,
             'errors' => $errors,
             'messages' => $messages,
             'generatedPassword' => $generatedPassword,
             'installReady' => $installReady,
             'formData' => $formData,
-            'prereq' => $prereq,
+            'prerequisites' => $prereq,
             'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
-            'csrf_token' => $guard->generateToken(),
-        ]));
+            'csrfToken' => $guard->generateToken(),
+        ], 'Installation · LexNova'));
     }
 }

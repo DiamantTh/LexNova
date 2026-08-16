@@ -34,3 +34,23 @@ body {
   background: color-mix(in srgb, Canvas 96%, transparent);
   box-shadow: 0 1rem 3rem rgb(15 23 42 / 10%);
 }
+
+.page-container { width: min(100%, 92rem); margin-inline: auto; }
+.page-container.page-narrow { max-width: 36rem; }
+.skip-link { position: fixed; left: 1rem; top: -5rem; z-index: 100; border-radius: .5rem; background: #111827; color: white; padding: .75rem 1rem; }
+.skip-link:focus { top: 1rem; }
+.label { display: grid; gap: .4rem; font-weight: 600; }
+.label small { font-weight: 400; opacity: .7; }
+.input, .select, .textarea { width: 100%; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: .55rem; background: color-mix(in srgb, Canvas 96%, transparent); padding: .7rem .8rem; color: inherit; }
+.input:focus, .select:focus, .textarea:focus { outline: 3px solid color-mix(in srgb, var(--color-primary-500, #6366f1) 40%, transparent); outline-offset: 1px; }
+.install-form { display: grid; gap: 2rem; }
+.install-form fieldset { display: grid; gap: 1rem; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-top: 1.5rem; }
+.install-form legend { padding-right: 1rem; font-size: 1.25rem; font-weight: 700; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.status-pill { display: inline-flex; border-radius: 999px; padding: .2rem .65rem; font-size: .75rem; font-weight: 700; }
+.status-good { background: #dcfce7; color: #166534; }
+.status-warn { background: #fef3c7; color: #92400e; }
+.status-bad { background: #fee2e2; color: #991b1b; }
+.qr-code svg { width: min(100%, 16rem); height: auto; background: white; padding: .5rem; }
+.public-document { background: #f4f1ea; color: #1f2937; }
+.document-section { margin: 2rem 0 .75rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .875rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #6b4f2c; }

@@ -3,12 +3,16 @@
 declare(strict_types=1);
 
 use LexNova\Frontend\SveltePageRenderer;
+use LexNova\Service\TranslationService;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 $root = dirname(__DIR__, 2);
 $manifest = $root . '/httpdocs/assets/app/.vite/manifest.json';
-$renderer = new SveltePageRenderer($manifest);
+$renderer = new SveltePageRenderer(
+    $manifest,
+    translations: new TranslationService($root . '/resources/translations', 'de'),
+);
 $html = $renderer->render(
     'renderer-test',
     ['payload' => '</script><script>alert(1)</script>'],
@@ -30,6 +34,9 @@ if (!str_contains($html, 'Renderer &lt;Test&gt;')) {
 }
 if (!str_contains($html, '/assets/app/assets/app-')) {
     throw new RuntimeException('The built frontend entry is not linked.');
+}
+if (!str_contains($html, '"Imprint":"Impressum"')) {
+    throw new RuntimeException('The frontend translation catalogue is missing.');
 }
 
 echo "Svelte page renderer test: OK\n";

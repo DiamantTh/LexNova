@@ -17,5 +17,8 @@ if ($translator->translate('Unknown message') !== 'Unknown message') {
 if ($translator->translate('Imprint', '../../de') !== 'Imprint') {
     throw new RuntimeException('Invalid locale input reached a translation catalogue.');
 }
+if (($translator->messages('de-DE')['Imprint'] ?? null) !== 'Impressum') {
+    throw new RuntimeException('The frontend translation catalogue does not use locale fallback.');
+}
 
 echo "Translation service integration test: OK\n";

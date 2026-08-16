@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace LexNova\Frontend;
 
-use JsonException;
-use RuntimeException;
+use LexNova\Service\TranslationService;
 
 final class SveltePageRenderer
 {
@@ -16,13 +15,14 @@ final class SveltePageRenderer
         private readonly string $manifestPath,
         private readonly string $assetBaseUrl = '/assets/app/',
         private readonly string $entry = 'src/main.ts',
+        private readonly ?TranslationService $translations = null,
     ) {
     }
 
     /**
      * @param array<string, mixed> $bootstrap
      *
-     * @throws JsonException
+     * @throws \JsonException
      */
     public function render(
         string $page,
@@ -40,6 +40,7 @@ final class SveltePageRenderer
             'page' => $page,
             'locale' => $locale,
             'title' => $title,
+            'translations' => $this->translations?->messages($locale) ?? [],
         ];
 
         $json = json_encode(
@@ -78,7 +79,7 @@ final class SveltePageRenderer
         $manifest = $this->manifest();
         $entry = $manifest[$this->entry] ?? null;
         if (!is_array($entry) || ($entry['isEntry'] ?? false) !== true) {
-            throw new RuntimeException("Frontend entry '{$this->entry}' is missing from the Vite manifest.");
+            throw new \RuntimeException("Frontend entry '{$this->entry}' is missing from the Vite manifest.");
         }
 
         return $entry;
@@ -91,17 +92,17 @@ final class SveltePageRenderer
             return $this->manifest;
         }
         if (!is_file($this->manifestPath) || !is_readable($this->manifestPath)) {
-            throw new RuntimeException('The built LexNova frontend manifest is missing. Run npm run build in frontend/.');
+            throw new \RuntimeException('The built LexNova frontend manifest is missing. Run npm run build in frontend/.');
         }
 
         $content = file_get_contents($this->manifestPath);
         if ($content === false) {
-            throw new RuntimeException('The LexNova frontend manifest cannot be read.');
+            throw new \RuntimeException('The LexNova frontend manifest cannot be read.');
         }
 
         $decoded = json_decode($content, true, flags: JSON_THROW_ON_ERROR);
         if (!is_array($decoded)) {
-            throw new RuntimeException('The LexNova frontend manifest must contain a JSON object.');
+            throw new \RuntimeException('The LexNova frontend manifest must contain a JSON object.');
         }
 
         return $this->manifest = $decoded;
@@ -128,7 +129,7 @@ final class SveltePageRenderer
             $seen[$key] = true;
             $import = $manifest[$key] ?? null;
             if (!is_array($import)) {
-                throw new RuntimeException("Frontend import '{$key}' is missing from the Vite manifest.");
+                throw new \RuntimeException("Frontend import '{$key}' is missing from the Vite manifest.");
             }
             $scripts[] = $this->requiredAsset($import, 'file');
             $styles = [...$styles, ...$this->assetList($import['css'] ?? [])];
@@ -146,7 +147,7 @@ final class SveltePageRenderer
     {
         $asset = $entry[$key] ?? null;
         if (!is_string($asset) || $asset === '' || str_contains($asset, '..') || str_starts_with($asset, '/')) {
-            throw new RuntimeException("Vite manifest field '{$key}' contains an invalid asset path.");
+            throw new \RuntimeException("Vite manifest field '{$key}' contains an invalid asset path.");
         }
 
         return $asset;
@@ -156,13 +157,13 @@ final class SveltePageRenderer
     private function assetList(mixed $assets): array
     {
         if (!is_array($assets)) {
-            throw new RuntimeException('A Vite manifest asset list is invalid.');
+            throw new \RuntimeException('A Vite manifest asset list is invalid.');
         }
 
         $result = [];
         foreach ($assets as $asset) {
             if (!is_string($asset) || $asset === '' || str_contains($asset, '..') || str_starts_with($asset, '/')) {
-                throw new RuntimeException('A Vite manifest asset path is invalid.');
+                throw new \RuntimeException('A Vite manifest asset path is invalid.');
             }
             $result[] = $asset;
         }

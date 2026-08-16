@@ -9,13 +9,13 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\SvgWriter;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\TotpEnrollmentInputFilter;
 use LexNova\Service\TotpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -35,7 +35,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
     public function __construct(
         private readonly TotpService $totp,
         private readonly UserService $users,
-        private readonly TemplateRendererInterface $renderer,
+        private readonly SveltePageRenderer $renderer,
     ) {
     }
 
@@ -105,14 +105,14 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             );
         }
 
-        return new HtmlResponse($this->renderer->render('admin/totp_enroll', [
+        return new HtmlResponse($this->renderer->render('totp-enroll', [
             'errors' => $errors,
-            'csrf_token' => $guard->generateToken(),
-            'qr_svg' => $this->buildQrSvg($uri),
+            'csrfToken' => $guard->generateToken(),
+            'qrSvg' => $this->buildQrSvg($uri),
             'secret' => $enrollSecret,
             'uri' => $uri,
-            'existing_key_count' => $existingKeyCount,
-        ]));
+            'existingKeyCount' => $existingKeyCount,
+        ], 'TOTP einrichten · LexNova'));
     }
 
     private function buildQrSvg(string $uri): string

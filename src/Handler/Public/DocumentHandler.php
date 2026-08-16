@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace LexNova\Handler\Public;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -18,7 +18,7 @@ final readonly class DocumentHandler implements RequestHandlerInterface
     public function __construct(
         private readonly EntityService $entities,
         private readonly DocumentService $documents,
-        private readonly TemplateRendererInterface $renderer,
+        private readonly SveltePageRenderer $renderer,
         private readonly NotFoundHandler $notFound,
         private readonly string $baseUrl,
     ) {
@@ -61,15 +61,16 @@ final readonly class DocumentHandler implements RequestHandlerInterface
             'hash' => $hash,
         ]);
 
-        return (new HtmlResponse($this->renderer->render('public/document', [
-            'error' => null,
+        $locale = (string) $doc['language'];
+        $title = $type === 'privacy' ? 'Datenschutzerklärung · LexNova' : 'Impressum · LexNova';
+
+        return (new HtmlResponse($this->renderer->render('public-document', [
             'entity' => $entity,
-            'doc' => $doc,
-            'type' => $type,
-            'locale' => $doc['language'],
-            'canonical_url' => $canonicalUrl,
+            'document' => $doc,
+            'documentType' => $type,
+            'canonicalUrl' => $canonicalUrl,
             'variants' => $variants,
-        ])))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+        ], $title, $locale)))->withHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
     }
 
     /** @param array{typ: string, hash: string} $query */

@@ -6,6 +6,7 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\LoginInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
@@ -14,7 +15,6 @@ use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -25,7 +25,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private readonly UserService $users,
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
-        private readonly TemplateRendererInterface $renderer,
+        private readonly SveltePageRenderer $renderer,
         private readonly Fail2BanLogService $fail2ban,
     ) {
     }
@@ -101,9 +101,9 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
-        return new HtmlResponse($this->renderer->render('admin/login', [
+        return new HtmlResponse($this->renderer->render('login', [
             'errors' => $errors,
-            'csrf_token' => $guard->generateToken(),
-        ]));
+            'csrfToken' => $guard->generateToken(),
+        ], 'Anmeldung · LexNova'));
     }
 }

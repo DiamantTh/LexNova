@@ -6,6 +6,7 @@ namespace LexNova\Handler\Auth;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\TotpVerificationInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
@@ -15,7 +16,6 @@ use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -36,7 +36,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         private readonly UserService $users,
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
-        private readonly TemplateRendererInterface $renderer,
+        private readonly SveltePageRenderer $renderer,
         private readonly Fail2BanLogService $fail2ban,
     ) {
     }
@@ -104,9 +104,9 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
             }
         }
 
-        return new HtmlResponse($this->renderer->render('auth/totp_verify', [
+        return new HtmlResponse($this->renderer->render('totp-verify', [
             'errors' => $errors,
-            'csrf_token' => $guard->generateToken(),
-        ]));
+            'csrfToken' => $guard->generateToken(),
+        ], 'Zwei-Faktor-Anmeldung · LexNova'));
     }
 }

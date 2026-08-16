@@ -32,6 +32,17 @@ final class TranslationService
         return $message;
     }
 
+    /** @return array<string, string> */
+    public function messages(?string $locale = null): array
+    {
+        $messages = [];
+        foreach (array_reverse($this->localeChain($locale ?? $this->defaultLocale)) as $candidate) {
+            $messages = array_replace($messages, $this->catalogue($candidate));
+        }
+
+        return $messages;
+    }
+
     /** @return list<string> */
     private function localeChain(string $locale): array
     {

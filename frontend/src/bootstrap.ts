@@ -2,6 +2,7 @@ export interface BootstrapData {
   page: string;
   locale?: string;
   title?: string;
+  translations?: Record<string, string>;
   [key: string]: unknown;
 }
 

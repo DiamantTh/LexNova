@@ -265,8 +265,9 @@ final class ContainerFactory
 
             LoggerInterface::class => fn (ContainerInterface $c) => (new LoggerFactory())($c),
 
-            SveltePageRenderer::class => fn () => new SveltePageRenderer(
+            SveltePageRenderer::class => fn (ContainerInterface $c) => new SveltePageRenderer(
                 $root . '/httpdocs/assets/app/.vite/manifest.json',
+                translations: $c->get(TranslationService::class),
             ),
 
             // ── Clock ────────────────────────────────────────────────────────────────
@@ -363,7 +364,7 @@ final class ContainerFactory
             \LexNova\Handler\Public\DocumentHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Public\DocumentHandler(
                 $c->get(EntityService::class),
                 $c->get(DocumentService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
                 $c->get(NotFoundHandler::class),
                 (string) ($c->get('config')['app']['base_url'] ?? ''),
             ),
@@ -429,7 +430,7 @@ final class ContainerFactory
                 $c->get(InstallService::class),
                 $c->get(InstallRateLimitService::class),
                 $c->get(PasswordService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
                 $c->get(LoggerInterface::class),
                 $c->get(Fail2BanLogService::class),
                 $c->get(PrerequisiteCheck::class),
@@ -441,7 +442,7 @@ final class ContainerFactory
                 $c->get(UserService::class),
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
             ),
 
@@ -463,7 +464,7 @@ final class ContainerFactory
                 $c->get(UserService::class),
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
             ),
 
@@ -497,7 +498,7 @@ final class ContainerFactory
             TotpEnrollHandler::class => fn (ContainerInterface $c) => new TotpEnrollHandler(
                 $c->get(TotpService::class),
                 $c->get(UserService::class),
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
             ),
 
             TotpResetHandler::class => fn (ContainerInterface $c) => new TotpResetHandler(
@@ -573,7 +574,7 @@ final class ContainerFactory
             // ── Error handling ───────────────────────────────────────────────────────
             // Replace Mezzio's default plain-text 404/500 responses with styled templates.
             NotFoundHandler::class => fn (ContainerInterface $c) => new NotFoundHandler(
-                $c->get(TemplateRendererInterface::class),
+                $c->get(SveltePageRenderer::class),
             ),
 
             ServerRequestErrorResponseGenerator::class => fn (ContainerInterface $c) => new ServerRequestErrorResponseGenerator(

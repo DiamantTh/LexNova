@@ -9,6 +9,7 @@ use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\Uri;
 use LexNova\Application\ContainerFactory;
 use LexNova\Application\Routes;
+use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Handler\Error\NotFoundHandler;
 use LexNova\Handler\Public\DocumentHandler;
 use LexNova\Service\DocumentService;
@@ -17,8 +18,6 @@ use Mezzio\Application;
 use Mezzio\Router\Middleware\DispatchMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;
 use Mezzio\Router\RouterInterface;
-use Mezzio\Template\TemplatePath;
-use Mezzio\Template\TemplateRendererInterface;
 use Psr\SimpleCache\CacheInterface;
 
 $root = dirname(__DIR__, 2);
@@ -96,32 +95,18 @@ $uncachedDocuments = new DocumentService($db, $failingCache);
 $uncached = $uncachedDocuments->findByPublicHashAndType($publicHash, 'imprint');
 $check($uncached !== null && (int) $uncached['id'] === $documentId, 'A cache outage blocked document reads.');
 
-$renderer = new class implements TemplateRendererInterface {
-    /** @var array<string, mixed> */
-    public array $lastParams = [];
-    public string $lastTemplate = '';
-
-    public function render(string $name, $params = []): string
-    {
-        $this->lastTemplate = $name;
-        $this->lastParams = (array) $params;
-
-        return $name;
+$renderer = new SveltePageRenderer($root . '/httpdocs/assets/app/.vite/manifest.json');
+$bootstrap = static function (string $html): array {
+    if (preg_match('/<script id="lexnova-bootstrap" type="application\/json">(.*?)<\/script>/s', $html, $matches) !== 1) {
+        throw new RuntimeException('Svelte bootstrap data is missing.');
     }
 
-    public function addPath(string $path, ?string $namespace = null): void
-    {
+    $data = json_decode($matches[1], true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($data)) {
+        throw new RuntimeException('Svelte bootstrap data is invalid.');
     }
 
-    /** @return list<TemplatePath> */
-    public function getPaths(): array
-    {
-        return [];
-    }
-
-    public function addDefaultParam(string $templateName, string $param, mixed $value): void
-    {
-    }
+    return $data;
 };
 
 $notFound = new NotFoundHandler($renderer);
@@ -139,9 +124,10 @@ $validRequest = (new ServerRequest([], [], $uri, 'GET'))->withQueryParams([
 ]);
 $validResponse = $handler->handle($validRequest);
 $check($validResponse->getStatusCode() === 200, 'Valid type/hash pair was not rendered.');
-$check($renderer->lastParams['doc']['id'] === $documentId, 'Wrong document was rendered.');
+$validData = $bootstrap((string) $validResponse->getBody());
+$check(($validData['document']['id'] ?? null) === $documentId, 'Wrong document was rendered.');
 $check(
-    str_starts_with((string) $renderer->lastParams['canonical_url'], 'https://legal.example.test/out.php?typ=imprint&hash='),
+    str_starts_with((string) ($validData['canonicalUrl'] ?? ''), 'https://legal.example.test/out.php?typ=imprint&hash='),
     'Canonical URL does not use the configured base URL.',
 );
 
@@ -150,7 +136,8 @@ $wrongTypeRequest = $validRequest->withQueryParams([
     'hash' => $publicHash,
 ]);
 $check($handler->handle($wrongTypeRequest)->getStatusCode() === 404, 'Hash was accepted for the wrong type.');
-$check($renderer->lastTemplate === 'error::404', 'Wrong document type did not use the central 404 template.');
+$wrongTypeData = $bootstrap((string) $handler->handle($wrongTypeRequest)->getBody());
+$check(($wrongTypeData['page'] ?? null) === 'not-found', 'Wrong document type did not use the central 404 page.');
 
 $invalidHashRequest = $validRequest->withQueryParams([
     'typ' => 'imprint',
@@ -177,9 +164,7 @@ $app->pipe(DispatchMiddleware::class);
 $app->pipe(NotFoundHandler::class);
 $renderedNotFound = $app->handle($missingRequest);
 $check($renderedNotFound->getStatusCode() === 404, 'Unknown URL did not return HTTP 404.');
-$check(
-    str_contains((string) $renderedNotFound->getBody(), 'Hier gibt es nichts zu finden.'),
-    'The styled Twig 404 template was not rendered.',
-);
+$notFoundData = $bootstrap((string) $renderedNotFound->getBody());
+$check(($notFoundData['page'] ?? null) === 'not-found', 'The Svelte 404 page was not rendered.');
 
 fwrite(STDOUT, "Document endpoint integration test: OK\n");
