@@ -9,7 +9,9 @@ use Mezzio\Session\Session;
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 $db = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
-$db->executeStatement('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT NOT NULL)');
+$db->executeStatement('CREATE TABLE users (
+    id INTEGER PRIMARY KEY, role TEXT NOT NULL, activation_required INTEGER NOT NULL DEFAULT 0
+)');
 $db->executeStatement('CREATE TABLE user_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, session_hash CHAR(64) NOT NULL UNIQUE,
     auth_method VARCHAR(20) NOT NULL, auth_strength VARCHAR(20) NOT NULL,
@@ -29,6 +31,26 @@ if (!$service->isValid($session, 1) || $row['auth_method'] !== 'webauthn' || $ro
 ) {
     throw new RuntimeException('Authenticated session metadata or validity check failed.');
 }
+$db->update('users', ['activation_required' => 1], ['id' => 1]);
+if ($service->isValid($session, 1)) {
+    throw new RuntimeException('A normal session remained valid after the account entered recovery.');
+}
+try {
+    $service->establish($session, 1, 'webauthn', 'uv');
+    throw new RuntimeException('A normal session was created while recovery was required.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'Account activation or recovery is required before sign-in.') {
+        throw $error;
+    }
+}
+if ((int) $db->fetchOne('SELECT COUNT(*) FROM user_sessions WHERE user_id = ?', [1]) !== 1) {
+    throw new RuntimeException('A rejected recovery-gated session was persisted.');
+}
+$revokedAt = $db->fetchOne('SELECT revoked_at FROM user_sessions WHERE id = ?', [$sessionId]);
+if ($revokedAt === null) {
+    throw new RuntimeException('A session was not revoked after activation became required.');
+}
+$db->update('users', ['activation_required' => 0], ['id' => 1]);
 $service->revokeUser(1);
 if ($service->isValid($session, 1)) {
     throw new RuntimeException('A revoked session remained valid.');

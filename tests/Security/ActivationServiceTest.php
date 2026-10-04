@@ -6,13 +6,16 @@ use Doctrine\DBAL\DriverManager;
 use LexNova\Service\ActivationService;
 use LexNova\Service\AuditService;
 use LexNova\Service\AuthSessionService;
+use LexNova\Service\PasswordService;
+use LexNova\Service\UserService;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 $db = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
 $db->executeStatement('CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, activation_required INTEGER NOT NULL,
-    mfa_required INTEGER NOT NULL DEFAULT 0
+    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, password_hash TEXT NOT NULL,
+    password_login_enabled INTEGER NOT NULL DEFAULT 1, activation_required INTEGER NOT NULL DEFAULT 0,
+    mfa_required INTEGER NOT NULL DEFAULT 0, role TEXT NOT NULL DEFAULT \'admin\', created_at DATETIME NOT NULL
 )');
 $db->executeStatement('CREATE TABLE user_activation_tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, token_hash CHAR(64) NOT NULL UNIQUE,
@@ -28,49 +31,233 @@ $db->executeStatement('CREATE TABLE audit_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, actor_user_id INTEGER NULL, effective_user_id INTEGER NULL,
     actor_name TEXT NULL, action TEXT NOT NULL, target TEXT NULL, detail TEXT NULL, ip TEXT NULL, created_at DATETIME NOT NULL
 )');
-$db->executeStatement('CREATE TABLE user_authenticators (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL, credential_id TEXT, credential_data TEXT, secret_enc TEXT, label TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at DATETIME NOT NULL, last_used_at DATETIME NULL)');
-$db->insert('users', ['username' => 'pending', 'activation_required' => 1]);
+$db->executeStatement('CREATE TABLE user_authenticators (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, kind TEXT NOT NULL,
+    credential_id TEXT NULL, credential_data TEXT NULL, secret_enc TEXT NULL, label TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1, created_at DATETIME NOT NULL, last_used_at DATETIME NULL
+)');
+
+$now = gmdate('Y-m-d H:i:s');
+$testPassword = 'recovery-test-password';
+$db->insert('users', [
+    'username' => 'recovery-target',
+    'password_hash' => password_hash($testPassword, PASSWORD_BCRYPT, ['cost' => 4]),
+    'password_login_enabled' => 1,
+    'activation_required' => 0,
+    'mfa_required' => 0,
+    'role' => 'admin',
+    'created_at' => $now,
+]);
 $userId = (int) $db->lastInsertId();
+$db->insert('users', [
+    'username' => 'recovery-operator',
+    'password_hash' => password_hash('operator-password', PASSWORD_BCRYPT, ['cost' => 4]),
+    'password_login_enabled' => 1,
+    'activation_required' => 0,
+    'mfa_required' => 0,
+    'role' => 'admin',
+    'created_at' => $now,
+]);
+$actorId = (int) $db->lastInsertId();
+$db->insert('users', [
+    'username' => 'different-account',
+    'password_hash' => password_hash('different-password', PASSWORD_BCRYPT, ['cost' => 4]),
+    'password_login_enabled' => 1,
+    'activation_required' => 1,
+    'mfa_required' => 0,
+    'role' => 'admin',
+    'created_at' => $now,
+]);
+$otherUserId = (int) $db->lastInsertId();
+$db->insert('user_authenticators', [
+    'user_id' => $userId,
+    'kind' => 'webauthn',
+    'credential_id' => 'old-credential-id',
+    'credential_data' => 'old-credential-data',
+    'label' => 'Existing key',
+    'created_at' => $now,
+]);
+$db->insert('user_sessions', [
+    'user_id' => $userId,
+    'session_hash' => hash('sha256', 'existing-session'),
+    'auth_method' => 'webauthn',
+    'auth_strength' => 'uv',
+    'created_at' => $now,
+    'last_activity_at' => $now,
+    'absolute_expires_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+]);
+
 $audit = new AuditService($db);
-$service = new ActivationService($db, $audit, new AuthSessionService($db));
-$ticket = $service->issue($userId, 77, false);
+$sessions = new AuthSessionService($db);
+$service = new ActivationService($db, $audit, $sessions);
+$userService = new UserService($db, new PasswordService([
+    'security' => ['password' => ['algo' => PASSWORD_BCRYPT, 'options' => ['cost' => 4]]],
+]));
+
+// Recovery issuance hashes the one-time ticket, preserves existing credentials,
+// puts the account into the recovery gate, and revokes prior sessions atomically.
+$ticket = $service->issue($userId, $actorId, true);
 $ticketHash = hash('sha256', $ticket);
 $issued = $service->userForTicketHash($ticketHash);
-if (($issued['purpose'] ?? null) !== 'activation') {
-    throw new RuntimeException('Activation ticket metadata or hash was not persisted.');
+if (($issued['purpose'] ?? null) !== 'recovery' || $service->latestTicketPurpose($userId) !== 'recovery') {
+    throw new RuntimeException('Recovery ticket metadata or purpose was not retained.');
 }
 $storedHash = (string) $db->fetchOne('SELECT token_hash FROM user_activation_tickets WHERE user_id = ?', [$userId]);
-if (hash_equals($storedHash, $ticket)) {
-    throw new RuntimeException('Activation ticket was stored without hashing.');
+$expiry = (string) $db->fetchOne('SELECT expires_at FROM user_activation_tickets WHERE user_id = ?', [$userId]);
+if (hash_equals($storedHash, $ticket) || strtotime($expiry) - strtotime($now) < 86390 || strtotime($expiry) - strtotime($now) > 86410) {
+    throw new RuntimeException('Ticket was not stored as a SHA-256 hash with a 24-hour lifetime.');
 }
-$registerCalls = 0;
-$credentialId = $service->complete($userId, $ticketHash, static function () use (&$registerCalls, $db, $userId): int {
-    ++$registerCalls;
-    $db->insert('user_authenticators', [
-        'user_id' => $userId,
-        'kind' => 'webauthn',
-        'credential_id' => 'credential-one',
-        'credential_data' => 'serialized-source',
-        'label' => 'First key',
-        'created_at' => gmdate('Y-m-d H:i:s'),
-    ]);
+if ((int) $db->fetchOne('SELECT revoked_at IS NOT NULL FROM user_sessions WHERE user_id = ?', [$userId]) !== 1
+    || (int) $db->fetchOne('SELECT activation_required FROM users WHERE id = ?', [$userId]) !== 1
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 1
+) {
+    throw new RuntimeException('Recovery did not gate the account, revoke sessions, and retain credentials.');
+}
+if ($userService->verifyCredentials('recovery-target', $testPassword) !== null) {
+    throw new RuntimeException('Password login remained available while recovery was required.');
+}
+// Reissuing a ticket invalidates its predecessor but retains the recovery purpose.
+$replacement = $service->issue($userId, $actorId, true);
+$replacementHash = hash('sha256', $replacement);
+if ($service->userForTicketHash($ticketHash) !== null
+    || ($service->userForTicketHash($replacementHash)['purpose'] ?? null) !== 'recovery'
+    || $service->latestTicketPurpose($userId) !== 'recovery'
+) {
+    throw new RuntimeException('A replacement recovery ticket did not supersede and retain the purpose of its predecessor.');
+}
 
-    return 23;
-});
-if ($credentialId !== 23 || $registerCalls !== 1 || (int) $db->fetchOne('SELECT activation_required FROM users WHERE id = ?', [$userId]) !== 0) {
-    throw new RuntimeException('Ticket completion did not activate the account and credential atomically.');
+// Expiry and account binding are checked server-side before a ticket is consumed.
+$db->executeStatement('UPDATE user_activation_tickets SET expires_at = ? WHERE token_hash = ?', [gmdate('Y-m-d H:i:s', time() - 1), $replacementHash]);
+if ($service->userForTicketHash($replacementHash) !== null) {
+    throw new RuntimeException('An expired ticket remained usable.');
 }
 try {
-    $service->complete($userId, $ticketHash, static fn (): int => 24);
-    throw new RuntimeException('A consumed activation ticket was reusable.');
+    $service->complete($otherUserId, $replacementHash, static fn (): int => 55);
+    throw new RuntimeException('A ticket was usable for a different account.');
 } catch (RuntimeException $error) {
     if ($error->getMessage() !== 'Activation ticket expired or already used.') {
         throw $error;
     }
 }
-$auditText = json_encode($audit->recent(10), JSON_THROW_ON_ERROR);
-if (str_contains($auditText, $ticket) || !str_contains($auditText, 'auth.activation_ticket_issued')) {
-    throw new RuntimeException('Activation audit event is missing or contains the ticket.');
+
+$completionTicket = $service->issue($userId, $actorId, true);
+$completionHash = hash('sha256', $completionTicket);
+try {
+    $service->complete($otherUserId, $completionHash, static fn (): int => 55);
+    throw new RuntimeException('A ticket was usable for a different account.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'Activation ticket expired or already used.') {
+        throw $error;
+    }
+}
+try {
+    $service->complete($userId, $completionHash, static function (): int {
+        throw new RuntimeException('simulated registration verification failure');
+    });
+    throw new RuntimeException('An unsuccessful enrollment completed recovery.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'simulated registration verification failure') {
+        throw $error;
+    }
+}
+if ($userService->findById($userId)['activation_required'] !== true
+    || $db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 1
+) {
+    throw new RuntimeException('Failed enrollment was not rolled back atomically.');
+}
+try {
+    $service->complete($userId, $completionHash, static fn (): int => 999);
+    throw new RuntimeException('Recovery completed without a persisted FIDO2 authenticator.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'A verified FIDO2 credential was not persisted for this account.') {
+        throw $error;
+    }
+}
+if ($userService->findById($userId)['activation_required'] !== true
+    || $db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
+) {
+    throw new RuntimeException('A missing FIDO2 credential consumed the recovery ticket.');
 }
 
-echo "Activation ticket security test: OK\n";
+// Completion requires a persisted WebAuthn credential and audits the ticket's
+// recovery purpose without recording credential bytes or the ticket itself.
+$credentialId = $service->complete($userId, $completionHash, static function () use ($db, $userId): int {
+    $db->insert('user_authenticators', [
+        'user_id' => $userId,
+        'kind' => 'webauthn',
+        'credential_id' => 'credential-raw-marker',
+        'credential_data' => 'serialized-credential-raw-marker',
+        'label' => 'New key',
+        'created_at' => gmdate('Y-m-d H:i:s'),
+    ]);
+
+    return (int) $db->lastInsertId();
+}, '192.0.2.20');
+if ($credentialId <= 0 || $userService->findById($userId)['activation_required'] !== false
+    || $userService->findById($userId)['mfa_required'] !== true
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 2
+) {
+    throw new RuntimeException('Recovery did not complete after verified FIDO2 persistence.');
+}
+$actions = array_column($audit->recent(20), 'action');
+if (!in_array('auth.recovery_activation_completed', $actions, true)
+    || in_array('auth.activation_completed', $actions, true)
+) {
+    throw new RuntimeException('Recovery purpose was not preserved in the completion audit.');
+}
+if ($db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) === null
+    || $service->userForTicketHash($completionHash) !== null
+) {
+    throw new RuntimeException('A successful recovery ticket was not consumed exactly once.');
+}
+try {
+    $service->complete($userId, $completionHash, static fn (): int => 99);
+    throw new RuntimeException('A consumed recovery ticket was reusable.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'Account is not awaiting activation or recovery.') {
+        throw $error;
+    }
+}
+$auditText = json_encode($audit->recent(20), JSON_THROW_ON_ERROR);
+if (str_contains($auditText, $ticket)
+    || str_contains($auditText, $replacement)
+    || str_contains($auditText, $completionTicket)
+    || str_contains($auditText, 'credential-raw-marker')
+    || str_contains($auditText, 'serialized-credential-raw-marker')
+    || str_contains($auditText, 'auth.recovery_activation_ticket_issued') === false
+) {
+    throw new RuntimeException('Recovery audit event is missing or contains ticket/credential material.');
+}
+
+// First enrollment remains a distinct purpose and audit event.
+$db->insert('users', [
+    'username' => 'first-activation',
+    'password_hash' => password_hash('unused', PASSWORD_BCRYPT, ['cost' => 4]),
+    'password_login_enabled' => 0,
+    'activation_required' => 1,
+    'mfa_required' => 0,
+    'role' => 'admin',
+    'created_at' => gmdate('Y-m-d H:i:s'),
+]);
+$activationUserId = (int) $db->lastInsertId();
+$activationTicket = $service->issue($activationUserId, null, false);
+$activationHash = hash('sha256', $activationTicket);
+$service->complete($activationUserId, $activationHash, static function () use ($db, $activationUserId): int {
+    $db->insert('user_authenticators', [
+        'user_id' => $activationUserId,
+        'kind' => 'webauthn',
+        'credential_id' => 'first-activation-credential',
+        'credential_data' => 'verified-credential-persisted-by-registration-callback',
+        'label' => 'First key',
+        'created_at' => gmdate('Y-m-d H:i:s'),
+    ]);
+
+    return (int) $db->lastInsertId();
+});
+$actions = array_column($audit->recent(20), 'action');
+if (!in_array('auth.activation_completed', $actions, true)) {
+    throw new RuntimeException('Ordinary first enrollment lost its activation audit purpose.');
+}
+
+echo "Activation and recovery ticket security test: OK\n";

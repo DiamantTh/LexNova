@@ -18,20 +18,20 @@ final readonly class ActivationService
 
     public function issue(int $userId, ?int $actorId = null, bool $recovery = false): string
     {
-        $user = $this->db->fetchAssociative('SELECT id, username, activation_required FROM users WHERE id = ?', [$userId]);
-        if (!$user) {
-            throw new \RuntimeException('User not found.');
-        }
-        if (!$recovery && !in_array($user['activation_required'], [true, 1, '1', 't', 'true'], true)) {
-            throw new \RuntimeException('An activation ticket can only be issued for a pending account.');
-        }
-
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $tokenHash = hash('sha256', $token);
         $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
         $createdAt = $now->format('Y-m-d H:i:s');
         $purpose = $recovery ? 'recovery' : 'activation';
-        $this->db->transactional(function (Connection $db) use ($userId, $actorId, $purpose, $tokenHash, $createdAt, $now): void {
+        $this->db->transactional(function (Connection $db) use ($userId, $actorId, $purpose, $tokenHash, $createdAt, $now, $recovery): void {
+            $db->executeStatement('UPDATE users SET activation_required = activation_required WHERE id = ?', [$userId]);
+            $user = $db->fetchAssociative('SELECT id, username, activation_required FROM users WHERE id = ?', [$userId]);
+            if (!$user) {
+                throw new \RuntimeException('User not found.');
+            }
+            if (!$recovery && !$this->databaseBool($user['activation_required'])) {
+                throw new \RuntimeException('An activation ticket can only be issued for a pending account.');
+            }
             $db->executeStatement(
                 'UPDATE user_activation_tickets SET revoked_at = ? WHERE user_id = ? AND consumed_at IS NULL AND revoked_at IS NULL',
                 [$createdAt, $userId],
@@ -45,17 +45,20 @@ final readonly class ActivationService
                 'created_at' => $createdAt,
                 'expires_at' => $now->modify('+24 hours')->format('Y-m-d H:i:s'),
             ]);
+            $this->sessions->revokeUser($userId);
+            $actorName = $actorId !== null
+                ? (string) ($db->fetchOne('SELECT username FROM users WHERE id = ?', [$actorId]) ?: '')
+                : null;
+            $this->audit->log(
+                $actorId,
+                $actorName,
+                $recovery ? 'auth.recovery_activation_ticket_issued' : 'auth.activation_ticket_issued',
+                'user:' . $userId,
+                $recovery ? 'recovery;expires:24h' : 'activation;expires:24h',
+                null,
+                $userId,
+            );
         });
-        $this->sessions->revokeUser($userId);
-        $this->audit->log(
-            $actorId,
-            $actorId !== null ? (string) ($this->db->fetchOne('SELECT username FROM users WHERE id = ?', [$actorId]) ?: '') : null,
-            $recovery ? 'auth.recovery_activation_ticket_issued' : 'auth.activation_ticket_issued',
-            'user:' . $userId,
-            $recovery ? 'recovery;expires:24h' : 'activation;expires:24h',
-            null,
-            $userId,
-        );
 
         return $token;
     }
@@ -80,11 +83,36 @@ final readonly class ActivationService
         ] : null;
     }
 
-    /** @param callable(): int $registerCredential */
-    public function complete(int $userId, string $tokenHash, callable $registerCredential): int
+    /** Keep the intent of a pending flow when its ticket is reissued. */
+    public function latestTicketPurpose(int $userId): ?string
     {
-        return $this->db->transactional(function (Connection $db) use ($userId, $tokenHash, $registerCredential): int {
+        $purpose = $this->db->fetchOne(
+            'SELECT purpose FROM user_activation_tickets WHERE user_id = ? ORDER BY id DESC',
+            [$userId],
+        );
+
+        return in_array($purpose, ['activation', 'recovery'], true) ? (string) $purpose : null;
+    }
+
+    /**
+     * @param callable(): int $registerCredential must verify and persist a new FIDO2 credential using this connection
+     */
+    public function complete(int $userId, string $tokenHash, callable $registerCredential, ?string $ip = null): int
+    {
+        return $this->db->transactional(function (Connection $db) use ($userId, $tokenHash, $registerCredential, $ip): int {
             $consumedAt = gmdate('Y-m-d H:i:s');
+            $db->executeStatement('UPDATE users SET activation_required = activation_required WHERE id = ?', [$userId]);
+            $user = $db->fetchAssociative('SELECT username, activation_required FROM users WHERE id = ?', [$userId]);
+            if (!$user || !$this->databaseBool($user['activation_required'])) {
+                throw new \RuntimeException('Account is not awaiting activation or recovery.');
+            }
+            $ticket = $db->fetchAssociative(
+                'SELECT purpose FROM user_activation_tickets WHERE user_id = ? AND token_hash = ? AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+                [$userId, $tokenHash, $consumedAt],
+            );
+            if (!$ticket) {
+                throw new \RuntimeException('Activation ticket expired or already used.');
+            }
             $affected = $db->executeStatement(
                 'UPDATE user_activation_tickets SET consumed_at = ? WHERE user_id = ? AND token_hash = ? AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
                 [$consumedAt, $userId, $tokenHash, $consumedAt],
@@ -93,9 +121,36 @@ final readonly class ActivationService
                 throw new \RuntimeException('Activation ticket expired or already used.');
             }
             $credentialId = $registerCredential();
-            $db->update('users', ['activation_required' => false, 'mfa_required' => true], ['id' => $userId]);
+            if ($credentialId <= 0 || (int) $db->fetchOne(
+                "SELECT COUNT(*) FROM user_authenticators WHERE id = ? AND user_id = ? AND kind = 'webauthn'",
+                [$credentialId, $userId],
+            ) !== 1) {
+                throw new \RuntimeException('A verified FIDO2 credential was not persisted for this account.');
+            }
+            $updated = $db->update('users', ['activation_required' => false, 'mfa_required' => true], ['id' => $userId]);
+            if ($updated !== 1) {
+                throw new \RuntimeException('Account recovery could not be completed.');
+            }
+            $purpose = (string) $ticket['purpose'];
+            if (!in_array($purpose, ['activation', 'recovery'], true)) {
+                throw new \RuntimeException('Activation ticket purpose is invalid.');
+            }
+            $this->audit->log(
+                $userId,
+                (string) $user['username'],
+                $purpose === 'recovery' ? 'auth.recovery_activation_completed' : 'auth.activation_completed',
+                'user:' . $userId,
+                'webauthn:' . $credentialId,
+                $ip,
+                $userId,
+            );
 
             return $credentialId;
         });
+    }
+
+    private function databaseBool(mixed $value): bool
+    {
+        return in_array($value, [true, 1, '1', 't', 'true'], true);
     }
 }

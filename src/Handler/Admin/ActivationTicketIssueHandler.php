@@ -53,7 +53,7 @@ final readonly class ActivationTicketIssueHandler implements RequestHandlerInter
             return new RedirectResponse('/admin/users');
         }
 
-        $recovery = !$user['activation_required'];
+        $recovery = !$user['activation_required'] || $this->activation->latestTicketPurpose($targetUserId) === 'recovery';
         try {
             $ticket = $this->activation->issue($targetUserId, $actorId, $recovery);
         } catch (\Throwable) {

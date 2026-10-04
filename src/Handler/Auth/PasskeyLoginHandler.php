@@ -67,7 +67,7 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
                 $user = $username !== '' ? $this->users->findByUsername($username) : null;
                 $userId = (int) ($user['id'] ?? 0);
             }
-            if ($user === null || $userId <= 0 || !$this->users->hasPasskey($userId)) {
+            if ($user === null || $user['activation_required'] === true || $userId <= 0 || !$this->users->hasPasskey($userId)) {
                 return new JsonResponse(['error' => 'No eligible FIDO2 authenticator was found for this account.'], 400);
             }
             try {
@@ -101,6 +101,15 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
 
             return new JsonResponse(['error' => 'The pending authentication expired. Sign in again.'], 400);
         }
+        $pendingUserId = (int) ($pending['user_id'] ?? 0);
+        $pendingUser = $pendingUserId > 0 ? $this->users->findById($pendingUserId) : null;
+        if ($pendingUser === null || $pendingUser['activation_required'] === true) {
+            $session->unset('totp_pending_user_id');
+            $session->unset('totp_pending_created_at');
+            $session->unset('totp_pending_mfa');
+
+            return new JsonResponse(['error' => 'This account requires activation or recovery before sign-in.'], 401);
+        }
 
         try {
             $input = new PasskeyCredentialInputFilter(false);
@@ -113,15 +122,19 @@ final readonly class PasskeyLoginHandler implements RequestHandlerInterface
                 $input->getValues()['credential'],
                 (int) $pending['user_id'],
             );
+            $account = $this->users->findById((int) $user['id']);
+            if ($account === null || $account['activation_required'] === true) {
+                throw new \RuntimeException('Account activation or recovery is required before sign-in.');
+            }
             $this->rateLimit->recordSuccess($ip, 'passkey');
             $session->regenerate();
             $session->unset('totp_pending_user_id');
             $session->unset('totp_pending_created_at');
             $session->unset('totp_pending_mfa');
+            $this->sessions->establish($session, (int) $user['id'], ($pending['mode'] ?? '') === 'mfa' ? 'password+webauthn' : 'webauthn', 'uv');
             $session->set('user_id', $user['id']);
             $session->set('username', $user['username']);
             $session->set('role', $user['role']);
-            $this->sessions->establish($session, $user['id'], ($pending['mode'] ?? '') === 'mfa' ? 'password+webauthn' : 'webauthn', 'uv');
             $this->audit->log($user['id'], $user['username'], 'auth.passkey_success', 'user:' . $user['id'], null, $ip);
 
             return new JsonResponse(['redirect' => '/verwaltung']);

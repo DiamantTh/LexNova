@@ -58,6 +58,14 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         }
 
         $userId = (int) $session->get('totp_pending_user_id');
+        $user = $this->users->findById($userId);
+        if ($user === null || $user['activation_required'] === true) {
+            $session->unset('totp_pending_user_id');
+            $session->unset('totp_pending_created_at');
+            $session->unset('totp_pending_mfa');
+
+            return new RedirectResponse('/admin/login');
+        }
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $errors = [];
 
@@ -76,8 +84,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                 $input->setData($body);
                 $validInput = $input->isValid();
                 $code = $input->getValues()['code'] ?? '';
-                $user = $this->users->findById($userId);
-                $keys = $user !== null ? $this->users->getActiveTotpKeys($userId) : [];
+                $keys = $this->users->getActiveTotpKeys($userId);
                 $matched = $validInput && $keys !== [] ? $this->totp->verifyAny($keys, $code) : null;
 
                 if ($matched !== null) {
@@ -87,11 +94,11 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                     $session->unset('totp_pending_created_at');
                     $session->unset('totp_pending_mfa');
                     $session->regenerate();
+                    $this->sessions->establish($session, $userId, 'password+totp', 'mfa');
                     $session->set('user_id', $userId);
                     $session->set('username', (string) ($user['username'] ?? ''));
                     $session->set('role', (string) ($user['role'] ?? 'admin'));
                     $session->set('auth_setup_required', false);
-                    $this->sessions->establish($session, $userId, 'password+totp', 'mfa');
 
                     $this->audit->log(
                         $userId,

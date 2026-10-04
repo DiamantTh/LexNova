@@ -81,11 +81,12 @@ final readonly class LoginHandler implements RequestHandlerInterface
                             return new RedirectResponse('/admin/totp/verify');
                         }
                     } else {
-                        $session->set('auth_setup_required', !$this->users->hasPasskey($userId) && !$this->users->hasActiveTotpKey($userId));
+                        $authSetupRequired = !$this->users->hasPasskey($userId) && !$this->users->hasActiveTotpKey($userId);
+                        $this->sessions->establish($session, $userId, 'password', 'single-factor');
                         $session->set('user_id', $userId);
                         $session->set('username', (string) $user['username']);
                         $session->set('role', (string) $user['role']);
-                        $this->sessions->establish($session, $userId, 'password', 'single-factor');
+                        $session->set('auth_setup_required', $authSetupRequired);
                         $this->audit->log(
                             $userId,
                             (string) $user['username'],

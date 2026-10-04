@@ -9,7 +9,6 @@ use Laminas\Diactoros\Response\JsonResponse;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\PasskeyCredentialInputFilter;
 use LexNova\Service\ActivationService;
-use LexNova\Service\AuditService;
 use LexNova\Service\AuthSessionService;
 use LexNova\Service\PasskeyService;
 use LexNova\Service\RateLimitService;
@@ -29,7 +28,6 @@ final readonly class ActivationHandler implements RequestHandlerInterface
         private UserService $users,
         private AuthSessionService $sessions,
         private RateLimitService $rateLimit,
-        private AuditService $audit,
         private SveltePageRenderer $renderer,
     ) {
     }
@@ -77,7 +75,8 @@ final readonly class ActivationHandler implements RequestHandlerInterface
         $ticketHash = (string) ($session->get('activation_ticket_hash') ?? '');
         $userId = (int) ($session->get('activation_user_id') ?? 0);
         $user = $ticketHash !== '' ? $this->activation->userForTicketHash($ticketHash) : null;
-        if ($user === null || $user['id'] !== $userId || time() - (int) ($session->get('activation_verified_at') ?? 0) > 900) {
+        $verifiedAt = (int) ($session->get('activation_verified_at') ?? 0);
+        if ($user === null || $user['id'] !== $userId || $verifiedAt <= 0 || $verifiedAt > time() || time() - $verifiedAt > 900) {
             $session->unset('activation_ticket_hash');
             $session->unset('activation_user_id');
             $session->unset('activation_verified_at');
@@ -106,10 +105,14 @@ final readonly class ActivationHandler implements RequestHandlerInterface
         }
 
         if ($path === '/activate/finish') {
+            $ticketPurpose = $user['purpose'];
             $pending = $session->get('activation_registration');
             $session->unset('activation_registration');
+            $challengeCreatedAt = is_array($pending) ? (int) ($pending['created_at'] ?? 0) : 0;
             if (!is_array($pending)
-                || time() - (int) ($pending['created_at'] ?? 0) > 120
+                || $challengeCreatedAt <= 0
+                || $challengeCreatedAt > time()
+                || time() - $challengeCreatedAt > 120
                 || (int) ($pending['user_id'] ?? 0) !== $userId
                 || !hash_equals((string) ($pending['ticket_hash'] ?? ''), $ticketHash)
             ) {
@@ -124,38 +127,50 @@ final readonly class ActivationHandler implements RequestHandlerInterface
 
             try {
                 $values = $input->getValues();
-                $credentialId = $this->activation->complete($userId, $ticketHash, fn (): int => $this->passkeys->finishRegistration(
+                $this->activation->complete($userId, $ticketHash, fn (): int => $this->passkeys->finishRegistration(
                     $userId,
                     (string) $pending['options'],
                     $values['credential'],
                     $values['label'],
                     $values['attachment'] !== '' ? $values['attachment'] : null,
-                ));
-                $user = $this->users->findById($userId);
-                if ($user === null) {
-                    throw new \RuntimeException('Activated account disappeared.');
-                }
-                $session->unset('activation_ticket_hash');
-                $session->unset('activation_user_id');
-                $session->unset('activation_verified_at');
-                $session->regenerate();
-                $session->set('user_id', $userId);
-                $session->set('username', $user['username']);
-                $session->set('role', $user['role']);
-                $session->set('auth_setup_required', false);
-                $this->sessions->establish($session, $userId, 'activation+webauthn', 'uv');
-                $this->rateLimit->recordSuccess($ip, 'activation');
-                $completedAction = ($user['purpose'] ?? 'activation') === 'recovery'
-                    ? 'auth.recovery_activation_completed'
-                    : 'auth.activation_completed';
-                $this->audit->log($userId, $user['username'], $completedAction, 'user:' . $userId, 'webauthn:' . $credentialId, $ip, $userId);
-
-                return new JsonResponse(['redirect' => '/verwaltung']);
+                ), $ip);
             } catch (\Throwable) {
                 $this->rateLimit->recordFailure($ip, 'activation');
 
                 return new JsonResponse(['error' => 'FIDO2 activation failed. The ticket can be retried if it remains valid.'], 400);
             }
+
+            $user = $this->users->findById($userId);
+            if ($user === null) {
+                return new JsonResponse(['error' => 'Enrollment completed. Sign in with the new FIDO2 credential.'], 400);
+            }
+            $session->unset('activation_ticket_hash');
+            $session->unset('activation_user_id');
+            $session->unset('activation_verified_at');
+            $session->unset('activation_registration');
+            $session->regenerate();
+            try {
+                // Only this freshly verified enrollment may create the first
+                // normal session after recovery; ticket possession alone cannot.
+                $this->sessions->establish($session, $userId, 'activation+webauthn', 'uv');
+            } catch (\Throwable) {
+                return new JsonResponse(['error' => 'Enrollment completed. Sign in with the new FIDO2 credential.'], 400);
+            }
+            $session->set('user_id', $userId);
+            $session->set('username', $user['username']);
+            $session->set('role', $user['role']);
+            $session->set('auth_setup_required', false);
+            $this->rateLimit->recordSuccess($ip, 'activation');
+
+            if ($ticketPurpose === 'recovery') {
+                $session->set('flash_messages', [
+                    'Recovery completed. Remove any FIDO2 credentials you no longer have on the security page.',
+                ]);
+
+                return new JsonResponse(['redirect' => '/user/security']);
+            }
+
+            return new JsonResponse(['redirect' => '/verwaltung']);
         }
 
         return new JsonResponse(['error' => 'Not found.'], 404);

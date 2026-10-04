@@ -83,6 +83,8 @@
             "@php tests/Security/AuthenticationPolicyServiceTest.php",
             "@php tests/Security/AuthSessionServiceTest.php",
             "@php tests/Security/ActivationServiceTest.php",
+            "@php tests/Security/ActivationHandlerChallengeTest.php",
+            "@php tests/Security/RecoveryLoginGateTest.php",
             "@php tests/Security/StepUpServiceTest.php"
         ],
         "test": ["@test:config", "@test:integration", "@test:frontend", "@test:security"],
