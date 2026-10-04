@@ -16,6 +16,21 @@
   let pending = $state(false);
   const supported = passkeysSupported();
 
+  function removalMessage(value: unknown, fallback = ''): string {
+    const message = text(value);
+    const translations: Record<string, string> = {
+      'Only one FIDO2 credential will remain. Confirm with the other FIDO2 credential.': 'Es bleibt nur noch ein FIDO2-Credential. Bestätige mit dem anderen FIDO2-Credential.',
+      'This removes the last TOTP credential. Confirm with FIDO2.': 'Dies entfernt das letzte TOTP-Credential. Bestätige die Entfernung mit FIDO2.',
+      'Only one TOTP authenticator will remain. Confirm with the other TOTP authenticator or FIDO2.': 'Es bleibt nur noch ein TOTP-Credential. Bestätige mit einem anderen TOTP-Credential oder FIDO2.',
+      'The only FIDO2 credential cannot be removed in self-service. Use the authorized admin or recovery path.': 'Der einzige FIDO2-Schlüssel kann nicht im Self-Service entfernt werden. Nutze den autorisierten Admin-/Recovery-Pfad.',
+      'The last TOTP credential requires a FIDO2 credential for removal. Use the authorized admin or recovery path.': 'Das letzte TOTP-Credential kann nur mit FIDO2 entfernt werden. Nutze sonst den autorisierten Admin-/Recovery-Pfad.',
+      'Removing this credential would leave no valid sign-in path. Use the authorized admin or recovery path.': 'Danach bliebe kein gültiger Anmeldeweg. Nutze den autorisierten Admin-/Recovery-Pfad.',
+      'Removing this TOTP would leave no valid sign-in path. Use FIDO2 or the authorized admin/recovery path.': 'Danach bliebe kein gültiger Anmeldeweg. Verwende FIDO2 oder den autorisierten Admin-/Recovery-Pfad.',
+    };
+
+    return (translations[message] ?? message) || fallback;
+  }
+
   async function register(mode: 'hardware' | 'any'): Promise<void> {
     pending = true;
     status = 'FIDO2 wird vorbereitet …';
@@ -80,7 +95,7 @@
     {:else}<div class="credential-list mt-4">{#each passkeys as passkey}
       <article class="credential-row"><div class="min-w-0 grow"><strong>{text(passkey.label, 'Passkey')}</strong><span class="ml-2 text-sm opacity-70">{text(passkey.kind, 'Authenticator')}</span>
         <details class="mt-1 text-sm"><summary class="cursor-pointer opacity-70">Details</summary><dl class="detail-list compact"><div><dt>Attachment</dt><dd>{text(passkey.attachment, 'nicht gemeldet')}</dd></div><div><dt>Transports</dt><dd>{Array.isArray(passkey.transports) && passkey.transports.length ? passkey.transports.join(', ') : 'nicht gemeldet'}</dd></div><div><dt>Backup Eligible / State</dt><dd>{passkey.backup_eligible === true ? `ja / ${passkey.backup_status === true ? 'ja' : 'nein'}` : passkey.backup_eligible === false ? 'nein' : 'nicht gemeldet'}</dd></div><div><dt>Erstellt</dt><dd>{text(passkey.created_at)}</dd></div><div><dt>Zuletzt benutzt</dt><dd>{text(passkey.last_used_at, 'noch nicht verwendet')}</dd></div>{#if passkey.aaguid}<div><dt>AAGUID</dt><dd><code>{text(passkey.aaguid)}</code></dd></div>{/if}<div><dt>Hersteller</dt><dd>nicht kryptographisch verifiziert</dd></div></dl></details>
-      </div><div class="flex flex-col items-end gap-2">{#if passkey.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{text(passkey.removal_warning)}</p>{/if}{#if passkey.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/passkeys/${String(passkey.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, text(passkey.label, 'Passkey'), 'auth.webauthn.delete', `user:${userId}/passkey:${String(passkey.id)}`, false, text(passkey.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{text(passkey.removal_reason, 'Der letzte FIDO2-Schlüssel kann nur über den autorisierten Admin-/Recovery-Pfad entfernt werden.')}</p>{/if}</div></article>
+      </div><div class="flex flex-col items-end gap-2">{#if passkey.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{removalMessage(passkey.removal_warning)}</p>{/if}{#if passkey.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/passkeys/${String(passkey.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, text(passkey.label, 'Passkey'), 'auth.webauthn.delete', `user:${userId}/passkey:${String(passkey.id)}`, false, removalMessage(passkey.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{removalMessage(passkey.removal_reason, 'Der letzte FIDO2-Schlüssel kann nur über den autorisierten Admin-/Recovery-Pfad entfernt werden.')}</p>{/if}</div></article>
     {/each}</div>{/if}
   </section>
 
@@ -88,7 +103,7 @@
     <h2 class="h2">TOTP-Authenticatoren</h2>
     {#if totpKeys.length === 0}<p class="mt-3 opacity-70">Noch kein TOTP-Authenticator registriert.</p>
     {:else}<div class="credential-list mt-4">{#each totpKeys as key}
-      <div class="credential-row"><div class="grow"><strong>{text(key.label, 'Authenticator')}</strong><span class="ml-2 text-sm opacity-70">Erstellt {text(key.created_at)} · zuletzt benutzt {text(key.last_used_at, 'nie')}</span></div><div class="flex flex-col items-end gap-2">{#if key.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{text(key.removal_warning)}</p>{/if}{#if key.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/totp-keys/${String(key.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, `TOTP ${text(key.label)}`, 'auth.totp.delete', `user:${userId}/totp:${String(key.id)}`, Array.isArray(key.removal_methods) && key.removal_methods.includes('totp'), text(key.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{text(key.removal_reason, 'Ohne FIDO2-Bestätigung ist diese Entfernung nicht möglich. Verwende den autorisierten Admin-/Recovery-Pfad.')}</p>{/if}</div></div>
+      <div class="credential-row"><div class="grow"><strong>{text(key.label, 'Authenticator')}</strong><span class="ml-2 text-sm opacity-70">Erstellt {text(key.created_at)} · zuletzt benutzt {text(key.last_used_at, 'nie')}</span></div><div class="flex flex-col items-end gap-2">{#if key.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{removalMessage(key.removal_warning)}</p>{/if}{#if key.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/totp-keys/${String(key.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, `TOTP ${text(key.label)}`, 'auth.totp.delete', `user:${userId}/totp:${String(key.id)}`, Array.isArray(key.removal_methods) && key.removal_methods.includes('totp'), removalMessage(key.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{removalMessage(key.removal_reason, 'Ohne FIDO2-Bestätigung ist diese Entfernung nicht möglich. Verwende den autorisierten Admin-/Recovery-Pfad.')}</p>{/if}</div></div>
     {/each}</div>{/if}
   </section>
 
