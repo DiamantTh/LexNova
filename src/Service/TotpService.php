@@ -35,11 +35,10 @@ final readonly class TotpService
      */
     public function generate(string $issuer, string $account): array
     {
-        $totp = TOTP::generate(
-            digest: $this->algorithm,
-            digits: $this->digits,
-            period: $this->period,
-        );
+        $totp = TOTP::generate();
+        $totp->setDigest($this->algorithm);
+        $totp->setDigits($this->digits);
+        $totp->setPeriod($this->period);
         $totp->setLabel($account);
         $totp->setIssuer($issuer);
 
@@ -108,8 +107,17 @@ final readonly class TotpService
         $totp->setDigest($this->algorithm);
         $totp->setPeriod($this->period);
 
-        // leeway in seconds: window * period allows for clock drift
-        return $totp->verify($code, null, $this->window * $this->period);
+        // OTPHP's leeway must be shorter than one period. Check adjacent
+        // counters explicitly so a configured window of one means current,
+        // previous, and next 30-second codes.
+        $timestamp = time();
+        for ($offset = -max(0, $this->window); $offset <= max(0, $this->window); ++$offset) {
+            if ($totp->verify($code, max(0, $timestamp + ($offset * $this->period)))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

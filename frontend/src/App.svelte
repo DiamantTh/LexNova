@@ -14,12 +14,15 @@
   import AdminSecurityPage from './pages/AdminSecurityPage.svelte';
   import AdminAuditPage from './pages/AdminAuditPage.svelte';
   import SystemInfoPage from './pages/SystemInfoPage.svelte';
+  import ActivationPage from './pages/ActivationPage.svelte';
 
   let { bootstrap }: { bootstrap: BootstrapData } = $props();
 </script>
 
 {#if bootstrap.page === 'install'}
   <InstallPage data={bootstrap} />
+{:else if bootstrap.page === 'activation'}
+  <ActivationPage data={bootstrap} />
 {:else if bootstrap.page === 'login'}
   <LoginPage data={bootstrap} />
 {:else if bootstrap.page === 'totp-verify'}

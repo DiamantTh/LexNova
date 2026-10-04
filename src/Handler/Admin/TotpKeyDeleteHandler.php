@@ -6,6 +6,9 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
+use LexNova\Service\AuthSessionService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -27,6 +30,9 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private readonly UserService $users,
         private readonly AuditService $audit,
+        private readonly AuthenticationPolicyService $policy,
+        private readonly StepUpService $stepUp,
+        private readonly AuthSessionService $sessions,
     ) {
     }
 
@@ -52,6 +58,32 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin');
         }
 
+        $keys = $this->users->getTotpKeys($userId);
+        $key = null;
+        foreach ($keys as $candidate) {
+            if ((int) $candidate['id'] === $keyId) {
+                $key = $candidate;
+                break;
+            }
+        }
+        $active = $key !== null && in_array($key['is_active'], [true, 1, '1', 't', 'true'], true);
+        $actorId = (int) ($session->get('user_id') ?? 0);
+        $isSelfService = $actorId === $userId;
+        $action = $isSelfService ? 'auth.totp.delete' : 'auth.recovery';
+        $target = 'user:' . $userId . '/totp:' . $keyId;
+        $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
+
+        if ($key === null || !$this->policy->canRemoveTotpKey($userId, $active)) {
+            $session->set('flash_errors', ['This is the last valid authentication path and cannot be removed.']);
+
+            return new RedirectResponse('/admin/users');
+        }
+        if (!$this->stepUp->consume($session, $action, $stepUpTarget)) {
+            $session->set('flash_errors', ['Verify with your own authenticator before changing credentials.']);
+
+            return new RedirectResponse('/admin/users');
+        }
+
         $deleted = $this->users->deleteTotpKey($keyId, $userId);
 
         if ($deleted) {
@@ -59,11 +91,17 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),
                 (string) ($session->get('username') ?? ''),
-                'totp.key_delete',
-                'user:' . $userId,
-                'key:' . $keyId,
+                $isSelfService ? 'auth.totp_deleted' : 'auth.admin_credential_recovery',
+                $target,
+                'totp key removed',
                 $ip,
+                $userId,
             );
+            if ($isSelfService) {
+                $this->sessions->revokeOtherSessions($userId, (int) $session->get('auth_session_id'));
+            } else {
+                $this->sessions->revokeUser($userId);
+            }
             $session->set('flash_messages', ['TOTP key deleted.']);
         } else {
             $session->set('flash_errors', ['Key not found or does not belong to this user.']);

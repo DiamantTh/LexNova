@@ -6,6 +6,7 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionMiddleware;
@@ -18,6 +19,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private readonly UserService $users,
         private readonly AuditService $audit,
+        private readonly StepUpService $stepUp,
     ) {
     }
 
@@ -40,6 +42,14 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         }
 
         $target = $this->users->findById($id);
+        if ($target === null || ($target['role'] === 'admin' && $this->users->countAdministrators() <= 1)) {
+            return new RedirectResponse('/admin/users');
+        }
+        if (!$this->stepUp->consume($session, 'auth.recovery', 'user:' . $id . '/delete/actor:' . $actorId)) {
+            $session->set('flash_errors', ['Verify with your own authenticator before deleting an account.']);
+
+            return new RedirectResponse('/admin/users');
+        }
         $this->users->delete($id);
 
         $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
@@ -50,6 +60,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
             'user:' . $id . ':' . ($target['username'] ?? '?'),
             null,
             $ip,
+            $id,
         );
 
         return new RedirectResponse('/admin/users');

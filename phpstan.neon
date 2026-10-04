@@ -24,10 +24,6 @@ parameters:
         # a function file — PHPStan cannot see them without a stub extension.
         - '#Function toml_(encode|decode) not found#'
 
-        # spomky-labs/otphp TOTP::generate() uses named constructor parameters
-        # that PHPStan's stubs do not reflect correctly.
-        - '#Unknown parameter \$(digest|digits|period) in call to static method OTPHP\\TOTP::generate\(\)#'
-
         # password_hash() in PHP 8 never returns false (signature changed from
         # string|false to string), so === false is always false. The checks are
         # intentionally kept as forward-compatible defensive guards.

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace LexNova\Console;
 
+use LexNova\Service\ActivationService;
+use LexNova\Service\AuditService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\UserService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -21,8 +24,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class UserTotpResetCommand extends Command
 {
-    public function __construct(private readonly UserService $users)
-    {
+    public function __construct(
+        private readonly UserService $users,
+        private readonly AuditService $audit,
+        private readonly AuthSessionService $sessions,
+        private readonly ActivationService $activation,
+    ) {
         parent::__construct();
     }
 
@@ -76,8 +83,18 @@ final class UserTotpResetCommand extends Command
             }
         }
 
+        $recoveryTicket = $this->users->countPasskeys($userId) === 0
+            ? $this->activation->issue($userId, recovery: true)
+            : null;
         $removed = $this->users->deleteAllTotpKeys($userId);
-        $io->success("Removed {$removed} TOTP key(s) for '{$username}'. The user can re-enroll via /admin/totp/enroll.");
+        $this->sessions->revokeUser($userId);
+        $this->audit->log(null, null, 'auth.recovery_totp_reset_cli', 'user:' . $userId, 'removed:' . $removed, null, $userId);
+        $io->success("Removed {$removed} TOTP key(s) for '{$username}'.");
+        if ($recoveryTicket !== null) {
+            $io->warning('No FIDO2 credential remained. The account requires passkey recovery.');
+            $io->writeln('Open /activate and enter this one-time ticket (expires in 24 hours):');
+            $io->writeln($recoveryTicket);
+        }
 
         return Command::SUCCESS;
     }

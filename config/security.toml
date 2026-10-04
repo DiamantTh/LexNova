@@ -78,6 +78,18 @@ algorithm = "sha256"
 period    = 30
 window    = 1
 
+# A database override in system_settings takes precedence. Values are clamped
+# to 1..100 and lowering them never deletes credentials.
+[authenticator_limits]
+webauthn = 10
+totp = 5
+
+# Leave empty to derive RP ID from app.base_url and Origin from its scheme,
+# hostname and port. After the first credential, both resolved values are pinned.
+[webauthn]
+rp_id = ""
+origin = ""
+
 # ── Brute-force rate limiting ────────────────────────────────────────────────
 # max_attempts  : failed attempts allowed before the IP is blocked
 # block_seconds : block duration in seconds (300 = 5 minutes)

@@ -12,6 +12,7 @@ use LexNova\Service\EntityService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\PasskeyService;
 use LexNova\Service\PasswordService;
+use LexNova\Service\SystemSettingService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -32,6 +33,9 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private readonly AuditService $audit,
         private readonly SveltePageRenderer $renderer,
         private readonly Fail2BanLogService $fail2ban,
+        private readonly SystemSettingService $settings,
+        private readonly int $webauthnLimit = 10,
+        private readonly int $totpLimit = 5,
         private readonly array $generatorConfig = [],
     ) {
     }
@@ -98,10 +102,15 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'errors' => $errors,
             'messages' => $messages,
             'currentUserId' => $currentUserId,
+            'authSetupRequired' => $session->get('auth_setup_required') === true,
             'currentPasskeys' => $passkeys[$currentUserId] ?? [],
             'currentTotpKeys' => $totpKeys[$currentUserId] ?? [],
             'auditLog' => $this->audit->recent(50),
             'fail2ban' => $this->fail2ban->status(),
+            'authLimits' => [
+                'webauthn' => $this->settings->int('auth.limit.webauthn', $this->webauthnLimit, 100, 1)['value'],
+                'totp' => $this->settings->int('auth.limit.totp', $this->totpLimit, 100, 1)['value'],
+            ],
             'section' => $section,
         ], $this->title($page)));
     }

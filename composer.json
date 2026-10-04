@@ -54,9 +54,9 @@
     },
     "bin": ["bin/lexnova"],
     "scripts": {
-        "analyse": "phpstan analyse --memory-limit=512M",
-        "cs-check": "php-cs-fixer check --diff",
-        "cs-fix": "php-cs-fixer fix",
+        "analyse": "phpstan analyse --memory-limit=512M --debug --no-progress",
+        "cs-check": "php-cs-fixer check --diff --sequential",
+        "cs-fix": "php-cs-fixer fix --sequential",
         "test:config": [
             "@php tests/Config/ConfigExampleTest.php",
             "@php tests/Config/DatabaseConfigurationTest.php",
@@ -65,6 +65,7 @@
         ],
         "test:integration": [
             "@php tests/Integration/DocumentEndpointTest.php",
+            "@php tests/Integration/AuthenticationMigrationTest.php",
             "@php tests/Integration/InputFilterTest.php",
             "@php tests/Integration/PasskeyServiceTest.php",
             "@php tests/Integration/TranslationServiceTest.php"
@@ -77,7 +78,12 @@
             "@php tests/Security/SecurityHeadersMiddlewareTest.php",
             "@php tests/Security/InstallRateLimitServiceTest.php",
             "@php tests/Security/Fail2BanLogServiceTest.php",
-            "@php tests/Security/SystemInfoServiceTest.php"
+            "@php tests/Security/SystemInfoServiceTest.php",
+            "@php tests/Security/CredentialLimitServiceTest.php",
+            "@php tests/Security/AuthenticationPolicyServiceTest.php",
+            "@php tests/Security/AuthSessionServiceTest.php",
+            "@php tests/Security/ActivationServiceTest.php",
+            "@php tests/Security/StepUpServiceTest.php"
         ],
         "test": ["@test:config", "@test:integration", "@test:frontend", "@test:security"],
         "qa": ["@analyse", "@cs-check", "@test"]

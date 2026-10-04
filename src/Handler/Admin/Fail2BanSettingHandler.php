@@ -8,6 +8,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\InputFilter\Fail2BanSettingInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\Fail2BanLogService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\SystemSettingService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -21,6 +22,7 @@ final readonly class Fail2BanSettingHandler implements RequestHandlerInterface
     public function __construct(
         private SystemSettingService $settings,
         private AuditService $audit,
+        private StepUpService $stepUp,
     ) {
     }
 
@@ -45,6 +47,12 @@ final readonly class Fail2BanSettingHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin/security');
         }
         $mode = $input->getValues()['mode'];
+
+        if (!$this->stepUp->consume($session, 'auth.policy.change', 'instance:fail2ban')) {
+            $session->set('flash_errors', ['Verify with your own authenticator before changing authentication security settings.']);
+
+            return new RedirectResponse('/admin/security');
+        }
 
         if ($mode === 'config') {
             $this->settings->remove(Fail2BanLogService::SETTING_KEY);

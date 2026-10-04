@@ -9,6 +9,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\TotpVerificationInputFilter;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
 use LexNova\Service\TotpService;
@@ -34,6 +35,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
     public function __construct(
         private readonly TotpService $totp,
         private readonly UserService $users,
+        private readonly AuthSessionService $sessions,
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
         private readonly SveltePageRenderer $renderer,
@@ -46,7 +48,12 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         /** @var SessionInterface $session */
         $session = $request->getAttribute(SessionMiddleware::SESSION_ATTRIBUTE);
 
-        if (!$session->has('totp_pending_user_id')) {
+        if (!$session->has('totp_pending_user_id')
+            || time() - (int) ($session->get('totp_pending_created_at') ?? 0) > 300
+        ) {
+            $session->unset('totp_pending_user_id');
+            $session->unset('totp_pending_created_at');
+
             return new RedirectResponse('/admin/login');
         }
 
@@ -77,10 +84,14 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
                     $this->rateLimit->recordSuccess($ip, 'totp_verify');
                     $this->users->touchTotpKey($matched);
                     $session->unset('totp_pending_user_id');
+                    $session->unset('totp_pending_created_at');
+                    $session->unset('totp_pending_mfa');
                     $session->regenerate();
                     $session->set('user_id', $userId);
                     $session->set('username', (string) ($user['username'] ?? ''));
                     $session->set('role', (string) ($user['role'] ?? 'admin'));
+                    $session->set('auth_setup_required', false);
+                    $this->sessions->establish($session, $userId, 'password+totp', 'mfa');
 
                     $this->audit->log(
                         $userId,
@@ -107,6 +118,7 @@ final readonly class TotpVerifyHandler implements RequestHandlerInterface
         return new HtmlResponse($this->renderer->render('totp-verify', [
             'errors' => $errors,
             'csrfToken' => $guard->generateToken(),
+            'passkeyAvailable' => $this->users->hasPasskey($userId),
         ], 'Zwei-Faktor-Anmeldung · LexNova'));
     }
 }

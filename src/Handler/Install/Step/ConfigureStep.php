@@ -20,9 +20,9 @@ use Psr\Log\LoggerInterface;
 final class ConfigureStep
 {
     /**
-     * @param  array<string, string>                                                $formData
-     * @param  array<string, mixed>                                                 $securityConfig
-     * @return array{errors: list<string>, completed: bool, operator_name?: string}
+     * @param  array<string, string>                                                                            $formData
+     * @param  array<string, mixed>                                                                             $securityConfig
+     * @return array{errors: list<string>, completed: bool, operator_name?: string, activation_ticket?: string}
      */
     public function handle(
         InstallService $install,
@@ -68,8 +68,10 @@ final class ConfigureStep
 
             $this->runSchema($pdo, $root . '/sql/schema.' . $formData['dbType'] . '.sql');
 
+            $passkeyOnly = ($formData['adminAuthentication'] ?? 'passkey') === 'passkey';
+            $initialPassword = $passkeyOnly ? bin2hex(random_bytes(32)) : $formData['adminPassword'];
             $hash = password_hash(
-                $formData['adminPassword'],
+                $initialPassword,
                 $securityConfig['algo'] ?? PASSWORD_ARGON2ID,
                 $securityConfig['options'] ?? [],
             );
@@ -79,9 +81,44 @@ final class ConfigureStep
             }
 
             $stmt = $pdo->prepare(
-                'INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)',
+                'INSERT INTO users (username, password_hash, password_login_enabled, mfa_required, activation_required, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             );
-            $stmt->execute([$formData['adminUsername'], $hash, 'admin', date('Y-m-d H:i:s')]);
+            $stmt->bindValue(1, $formData['adminUsername'], \PDO::PARAM_STR);
+            $stmt->bindValue(2, $hash, \PDO::PARAM_STR);
+            $stmt->bindValue(3, !$passkeyOnly, \PDO::PARAM_BOOL);
+            $stmt->bindValue(4, false, \PDO::PARAM_BOOL);
+            $stmt->bindValue(5, $passkeyOnly, \PDO::PARAM_BOOL);
+            $stmt->bindValue(6, 'admin', \PDO::PARAM_STR);
+            $stmt->bindValue(7, gmdate('Y-m-d H:i:s'), \PDO::PARAM_STR);
+            $stmt->execute();
+            $adminId = (int) $pdo->query('SELECT id FROM users WHERE username = ' . $pdo->quote($formData['adminUsername']))->fetchColumn();
+            $activationTicket = null;
+            if ($passkeyOnly) {
+                $activationTicket = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+                $ticketHash = hash('sha256', $activationTicket);
+                $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+                $ticket = $pdo->prepare('INSERT INTO user_activation_tickets (user_id, token_hash, purpose, created_at, expires_at) VALUES (?, ?, ?, ?, ?)');
+                $ticket->execute([
+                    $adminId,
+                    $ticketHash,
+                    'activation',
+                    $now->format('Y-m-d H:i:s'),
+                    $now->modify('+24 hours')->format('Y-m-d H:i:s'),
+                ]);
+                $audit = $pdo->prepare('INSERT INTO audit_events (actor_user_id, actor_name, action, target, detail, created_at) VALUES (NULL, NULL, ?, ?, ?, ?)');
+                $audit->execute(['auth.activation_ticket_issued', 'user:' . $adminId, 'installer-bootstrap;expires:24h', $now->format('Y-m-d H:i:s')]);
+            }
+
+            $base = parse_url($formData['appBaseUrl']);
+            $originPort = isset($base['port']) ? (int) $base['port'] : null;
+            if ($originPort === (($base['scheme'] ?? '') === 'https' ? 443 : 80)) {
+                $originPort = null;
+            }
+            $origin = strtolower((string) $base['scheme']) . '://' . strtolower((string) $base['host'])
+                . ($originPort !== null ? ':' . $originPort : '');
+            $settings = $pdo->prepare('INSERT INTO system_settings (setting_key, setting_value, updated_at) VALUES (?, ?, ?)');
+            $settings->execute(['auth.webauthn.rp_id', strtolower((string) $base['host']), gmdate('Y-m-d H:i:s')]);
+            $settings->execute(['auth.webauthn.origin', $origin, gmdate('Y-m-d H:i:s')]);
 
             // ── Operator entity ───────────────────────────────────────────
             $operatorHash = bin2hex(random_bytes(16)); // 32 hex chars
@@ -121,6 +158,7 @@ final class ConfigureStep
             'errors' => [],
             'completed' => true,
             'operator_name' => $formData['operatorName'],
+            ...isset($activationTicket) ? ['activation_ticket' => $activationTicket] : [],
         ];
     }
 
@@ -161,6 +199,7 @@ final class ConfigureStep
 
         // ── Admin account ──────────────────────────────────────────────────
         $adminUsername = $formData['adminUsername'] ?? '';
+        $adminAuthentication = $formData['adminAuthentication'] ?? 'passkey';
         $adminPassword = $formData['adminPassword'] ?? '';
         $adminConfirm = $formData['adminConfirm'] ?? '';
 
@@ -168,14 +207,18 @@ final class ConfigureStep
             $errors[] = 'Admin username must be 3–100 characters and may contain letters, digits, ., _, @, + and -.';
         }
 
-        if ($adminPassword === '') {
-            $errors[] = 'Admin password is required.';
-        } elseif ($adminPassword !== $adminConfirm) {
-            $errors[] = 'Admin passwords do not match.';
-        } else {
-            $pwError = $passwords->validate($adminPassword);
-            if ($pwError !== null) {
-                $errors[] = $pwError;
+        if (!in_array($adminAuthentication, ['passkey', 'password'], true)) {
+            $errors[] = 'Unsupported administrator authentication mode.';
+        } elseif ($adminAuthentication === 'password') {
+            if ($adminPassword === '') {
+                $errors[] = 'Admin password is required when password login is selected.';
+            } elseif ($adminPassword !== $adminConfirm) {
+                $errors[] = 'Admin passwords do not match.';
+            } else {
+                $pwError = $passwords->validate($adminPassword);
+                if ($pwError !== null) {
+                    $errors[] = $pwError;
+                }
             }
         }
 

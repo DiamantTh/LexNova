@@ -109,6 +109,7 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 'dbUser' => trim((string) ($body['db_user'] ?? '')),
                 'dbPassword' => (string) ($body['db_password'] ?? ''),
                 'adminUsername' => trim((string) ($body['admin_username'] ?? '')),
+                'adminAuthentication' => trim((string) ($body['admin_authentication'] ?? 'passkey')),
                 'adminPassword' => (string) ($body['admin_password'] ?? ''),
                 'adminConfirm' => (string) ($body['admin_password_confirm'] ?? ''),
                 'appBaseUrl' => trim((string) ($body['app_base_url'] ?? '')),
@@ -153,18 +154,27 @@ final readonly class InstallHandler implements RequestHandlerInterface
                 );
 
                 if ($configure['completed']) {
+                    $messages = [
+                        'Installation complete. The installer is now locked.',
+                        'Remove data/install.pw after verifying access.',
+                    ];
+                    if (isset($configure['activation_ticket'])) {
+                        $messages[] = 'Open /activate and enter the one-time administrator enrollment ticket shown below.';
+                    } else {
+                        $messages[] = 'Use the administrator password once, then enroll a FIDO2 key or TOTP before normal use.';
+                    }
+
                     return new HtmlResponse($this->renderer->render('install', [
                         'step' => 'done',
                         'errors' => [],
-                        'messages' => [
-                            'Installation complete. You can now log in at /admin.',
-                            'Remove data/install.pw after verifying access.',
-                        ],
+                        'messages' => $messages,
                         'generatedPassword' => null,
                         'installReady' => true,
                         'formData' => [],
                         'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
                         'operatorName' => $configure['operator_name'] ?? null,
+                        'activationTicket' => $configure['activation_ticket'] ?? null,
+                        'activationUsername' => $formData['adminUsername'],
                         'csrfToken' => $guard->generateToken(),
                     ], 'Installation abgeschlossen · LexNova'));
                 }
@@ -175,13 +185,16 @@ final readonly class InstallHandler implements RequestHandlerInterface
 
         $step = $installerUnlocked ? 'configure' : 'unlock';
 
+        $safeFormData = $formData;
+        unset($safeFormData['dbPassword'], $safeFormData['adminPassword'], $safeFormData['adminConfirm'], $safeFormData['cachePassword']);
+
         return new HtmlResponse($this->renderer->render('install', [
             'step' => $step,
             'errors' => $errors,
             'messages' => $messages,
             'generatedPassword' => $generatedPassword,
             'installReady' => $installReady,
-            'formData' => $formData,
+            'formData' => $safeFormData,
             'prerequisites' => $prereq,
             'cacheSupport' => $this->prerequisites->cacheAdapterSupport(),
             'csrfToken' => $guard->generateToken(),

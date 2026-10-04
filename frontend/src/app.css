@@ -71,7 +71,10 @@ body {
 .actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 .credential-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; }
 .credential-card { border: 1px solid color-mix(in srgb, currentColor 15%, transparent); border-radius: .75rem; padding: 1rem; }
+.credential-list { display: grid; gap: .5rem; }
+.credential-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; border: 1px solid color-mix(in srgb, currentColor 15%, transparent); border-radius: .65rem; padding: .7rem .85rem; }
 .detail-list { display: grid; gap: .5rem; margin-top: 1rem; font-size: .875rem; }
+.detail-list.compact { gap: .25rem; margin-top: .5rem; font-size: .8rem; }
 .detail-list div { display: grid; grid-template-columns: 7rem 1fr; gap: .5rem; }
 .detail-list dt { font-weight: 700; }
 @media (max-width: 56rem) { .app-layout { grid-template-columns: 1fr; } .app-sidebar { position: static; height: auto; } .app-sidebar nav { grid-template-columns: repeat(3, 1fr); } .app-content { padding: 1rem; } .content-grid { grid-template-columns: 1fr; } }

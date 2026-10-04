@@ -6,7 +6,10 @@ namespace LexNova\Handler\Auth;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\PasskeyService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -21,6 +24,9 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
         private PasskeyService $passkeys,
         private UserService $users,
         private AuditService $audit,
+        private AuthenticationPolicyService $policy,
+        private StepUpService $stepUp,
+        private AuthSessionService $sessions,
     ) {
     }
 
@@ -45,8 +51,18 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
 
             return new RedirectResponse($redirect);
         }
-        if ($user['password_login_enabled'] !== true && $this->users->countPasskeys($userId) <= 1) {
-            $session->set('flash_errors', ['The last Passkey cannot be deleted while password login is disabled.']);
+        if (!$this->policy->canRemovePasskey($userId)) {
+            $session->set('flash_errors', ['This is the last valid authentication path and cannot be removed.']);
+
+            return new RedirectResponse($redirect);
+        }
+        $actorId = (int) ($session->get('user_id') ?? 0);
+        $isSelfService = $actorId === $userId;
+        $action = $isSelfService ? 'auth.webauthn.delete' : 'auth.recovery';
+        $target = 'user:' . $userId . '/passkey:' . $credentialId;
+        $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
+        if (!$this->stepUp->consume($session, $action, $stepUpTarget)) {
+            $session->set('flash_errors', ['Verify with your own authenticator before changing credentials.']);
 
             return new RedirectResponse($redirect);
         }
@@ -55,14 +71,20 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
 
             return new RedirectResponse($redirect);
         }
+        if ($isSelfService) {
+            $this->sessions->revokeOtherSessions($userId, (int) $session->get('auth_session_id'));
+        } else {
+            $this->sessions->revokeUser($userId);
+        }
 
         $this->audit->log(
             (int) ($session->get('user_id') ?? 0),
             (string) ($session->get('username') ?? ''),
-            'auth.passkey_deleted',
-            'passkey:' . $credentialId,
+            $isSelfService ? 'auth.passkey_deleted' : 'auth.admin_credential_recovery',
+            $target,
             'user:' . $userId,
             (string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''),
+            $userId,
         );
         $session->set('flash_messages', ['Passkey deleted.']);
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LexNova\Application;
 
+use LexNova\Handler\Admin\ActivationTicketIssueHandler;
+use LexNova\Handler\Admin\AuthLimitSettingHandler;
 use LexNova\Handler\Admin\DashboardHandler;
 use LexNova\Handler\Admin\DocumentCreateHandler;
 use LexNova\Handler\Admin\DocumentDeleteHandler;
@@ -20,10 +22,12 @@ use LexNova\Handler\Admin\TotpResetHandler;
 use LexNova\Handler\Admin\UserCreateHandler;
 use LexNova\Handler\Admin\UserDeleteHandler;
 use LexNova\Handler\Admin\UserUpdateHandler;
+use LexNova\Handler\Auth\ActivationHandler;
 use LexNova\Handler\Auth\PasskeyDeleteHandler;
 use LexNova\Handler\Auth\PasskeyLoginHandler;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Handler\Auth\PasskeyUpdateHandler;
+use LexNova\Handler\Auth\StepUpHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Install\InstallHandler;
@@ -35,6 +39,11 @@ final class Routes
 {
     public static function configure(Application $app): void
     {
+        $app->get('/activate[/]', ActivationHandler::class, 'auth.activate');
+        $app->post('/activate/verify', ActivationHandler::class, 'auth.activate.verify');
+        $app->post('/activate/options', ActivationHandler::class, 'auth.activate.options');
+        $app->post('/activate/finish', ActivationHandler::class, 'auth.activate.finish');
+
         // ── Install ──────────────────────────────────────────────────────────────
         $app->route('/install[/]', InstallHandler::class, ['GET', 'POST'], 'install');
 
@@ -60,6 +69,9 @@ final class Routes
 
         $app->post('/admin/passkeys/login/options', PasskeyLoginHandler::class, 'admin.passkeys.login.options');
         $app->post('/admin/passkeys/login/finish', PasskeyLoginHandler::class, 'admin.passkeys.login.finish');
+        $app->post('/admin/step-up/options', [AdminAuthMiddleware::class, StepUpHandler::class], 'admin.stepup.options');
+        $app->post('/admin/step-up/finish', [AdminAuthMiddleware::class, StepUpHandler::class], 'admin.stepup.finish');
+        $app->post('/admin/step-up/totp', [AdminAuthMiddleware::class, StepUpHandler::class], 'admin.stepup.totp');
         $app->post('/admin/passkeys/register/options', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.options');
         $app->post('/admin/passkeys/register/finish', [AdminAuthMiddleware::class, PasskeyRegisterHandler::class], 'admin.passkeys.register.finish');
         $app->post('/admin/users/{userId:\d+}/passkeys/{credentialId:\d+}/delete',
@@ -98,10 +110,18 @@ final class Routes
             [AdminAuthMiddleware::class, UserDeleteHandler::class],
             'admin.users.delete',
         );
+        $app->post('/admin/users/{id:\d+}/activation-ticket',
+            [AdminAuthMiddleware::class, ActivationTicketIssueHandler::class],
+            'admin.users.activation-ticket',
+        );
 
         $app->post('/admin/security/fail2ban',
             [AdminAuthMiddleware::class, Fail2BanSettingHandler::class],
             'admin.security.fail2ban',
+        );
+        $app->post('/admin/security/auth-limits',
+            [AdminAuthMiddleware::class, AuthLimitSettingHandler::class],
+            'admin.security.auth-limits',
         );
 
         $app->post('/admin/entities/create',

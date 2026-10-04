@@ -15,15 +15,18 @@ use LexNova\Factory\DoctrineConnectionFactory;
 use LexNova\Factory\LoggerFactory;
 use LexNova\Frontend\SvelteErrorResponseGenerator;
 use LexNova\Frontend\SveltePageRenderer;
+use LexNova\Handler\Admin\ActivationTicketIssueHandler;
 use LexNova\Handler\Admin\Fail2BanSettingHandler;
 use LexNova\Handler\Admin\LoginHandler;
 use LexNova\Handler\Admin\SystemInfoHandler;
 use LexNova\Handler\Admin\TotpKeyDeleteHandler;
 use LexNova\Handler\Admin\TotpResetHandler;
+use LexNova\Handler\Auth\ActivationHandler;
 use LexNova\Handler\Auth\PasskeyDeleteHandler;
 use LexNova\Handler\Auth\PasskeyLoginHandler;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Handler\Auth\PasskeyUpdateHandler;
+use LexNova\Handler\Auth\StepUpHandler;
 use LexNova\Handler\Auth\TotpEnrollHandler;
 use LexNova\Handler\Auth\TotpVerifyHandler;
 use LexNova\Handler\Error\NotFoundHandler;
@@ -31,8 +34,12 @@ use LexNova\Handler\Install\Step\PrerequisiteCheck;
 use LexNova\Middleware\AdminAuthMiddleware;
 use LexNova\Middleware\InstalledCheckMiddleware;
 use LexNova\Middleware\SecurityHeadersMiddleware;
+use LexNova\Service\ActivationService;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\CacheBackendService;
+use LexNova\Service\CredentialLimitService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EmailObfuscator;
 use LexNova\Service\EntityService;
@@ -47,6 +54,7 @@ use LexNova\Service\Password\NullBreachedPasswordChecker;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
 use LexNova\Service\RateLimitService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\SystemInfoService;
 use LexNova\Service\SystemSettingService;
 use LexNova\Service\TotpService;
@@ -129,6 +137,8 @@ final class ContainerFactory
         $config['session']['samesite'] ??= 'Strict';
         $config['session']['cookie_lifetime'] ??= 0;
         $config['session']['cookie_path'] ??= '/';
+        $config['session']['idle_timeout'] ??= 1800;
+        $config['session']['absolute_timeout'] ??= 43200;
         $config['app']['locale'] ??= 'de';
 
         // ── Ensure runtime directories exist ─────────────────────────────────────
@@ -308,9 +318,44 @@ final class ContainerFactory
 
             UserService::class => fn (ContainerInterface $c) => new UserService($c->get(Connection::class), $c->get(PasswordService::class)),
 
+            AuthSessionService::class => fn (ContainerInterface $c) => new AuthSessionService(
+                $c->get(Connection::class),
+                max(60, (int) ($c->get('config')['session']['idle_timeout'] ?? 1800)),
+                max(60, (int) ($c->get('config')['session']['absolute_timeout'] ?? 43200)),
+            ),
+
+            AuthenticationPolicyService::class => fn (ContainerInterface $c) => new AuthenticationPolicyService(
+                $c->get(UserService::class),
+            ),
+
+            CredentialLimitService::class => fn (ContainerInterface $c) => new CredentialLimitService(
+                $c->get(SystemSettingService::class),
+                (int) ($c->get('config')['security']['authenticator_limits']['webauthn'] ?? 10),
+                (int) ($c->get('config')['security']['authenticator_limits']['totp'] ?? 5),
+            ),
+
+            StepUpService::class => fn (ContainerInterface $c) => new StepUpService(
+                $c->get(PasskeyService::class),
+                $c->get(UserService::class),
+                $c->get(TotpService::class),
+                $c->get(AuditService::class),
+            ),
+
+            ActivationService::class => fn (ContainerInterface $c) => new ActivationService(
+                $c->get(Connection::class),
+                $c->get(AuditService::class),
+                $c->get(AuthSessionService::class),
+            ),
+
             PasskeyService::class => fn (ContainerInterface $c) => new PasskeyService(
                 $c->get(Connection::class),
                 (string) ($c->get('config')['app']['base_url'] ?? ''),
+                rpName: (string) ($c->get('config')['app']['name'] ?? 'LexNova'),
+                configuredRpId: trim((string) ($c->get('config')['security']['webauthn']['rp_id'] ?? '')) !== '' ? (string) $c->get('config')['security']['webauthn']['rp_id'] : null,
+                configuredOrigin: trim((string) ($c->get('config')['security']['webauthn']['origin'] ?? '')) !== '' ? (string) $c->get('config')['security']['webauthn']['origin'] : null,
+                configuredLimit: (int) ($c->get('config')['security']['authenticator_limits']['webauthn'] ?? 10),
+                audit: $c->get(AuditService::class),
+                credentialLimits: $c->get(CredentialLimitService::class),
             ),
 
             EntityService::class => fn (ContainerInterface $c) => new EntityService($c->get(Connection::class)),
@@ -397,10 +442,21 @@ final class ContainerFactory
             // ── Handlers: Admin (Login) ─────────────────────────────────────────────
             LoginHandler::class => fn (ContainerInterface $c) => new LoginHandler(
                 $c->get(UserService::class),
+                $c->get(AuthSessionService::class),
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
                 $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
+            ),
+
+            ActivationHandler::class => fn (ContainerInterface $c) => new ActivationHandler(
+                $c->get(ActivationService::class),
+                $c->get(PasskeyService::class),
+                $c->get(UserService::class),
+                $c->get(AuthSessionService::class),
+                $c->get(RateLimitService::class),
+                $c->get(AuditService::class),
+                $c->get(SveltePageRenderer::class),
             ),
 
             \LexNova\Handler\Admin\DashboardHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\DashboardHandler(
@@ -412,6 +468,9 @@ final class ContainerFactory
                 $c->get(AuditService::class),
                 $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
+                $c->get(SystemSettingService::class),
+                (int) ($c->get('config')['security']['authenticator_limits']['webauthn'] ?? 10),
+                (int) ($c->get('config')['security']['authenticator_limits']['totp'] ?? 5),
                 (array) ($c->get('config')['security']['generator'] ?? []),
             ),
 
@@ -419,6 +478,7 @@ final class ContainerFactory
             TotpVerifyHandler::class => fn (ContainerInterface $c) => new TotpVerifyHandler(
                 $c->get(TotpService::class),
                 $c->get(UserService::class),
+                $c->get(AuthSessionService::class),
                 $c->get(RateLimitService::class),
                 $c->get(AuditService::class),
                 $c->get(SveltePageRenderer::class),
@@ -426,26 +486,38 @@ final class ContainerFactory
             ),
 
             PasskeyLoginHandler::class => fn (ContainerInterface $c) => new PasskeyLoginHandler(
-                $c->get(PasskeyService::class), $c->get(RateLimitService::class), $c->get(AuditService::class),
+                $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuthSessionService::class),
+                $c->get(RateLimitService::class), $c->get(AuditService::class),
                 $c->get(Fail2BanLogService::class),
             ),
 
             PasskeyRegisterHandler::class => fn (ContainerInterface $c) => new PasskeyRegisterHandler(
-                $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
+                $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(StepUpService::class),
+                $c->get(AuthSessionService::class), $c->get(RateLimitService::class), $c->get(AuditService::class),
             ),
 
             PasskeyDeleteHandler::class => fn (ContainerInterface $c) => new PasskeyDeleteHandler(
                 $c->get(PasskeyService::class), $c->get(UserService::class), $c->get(AuditService::class),
+                $c->get(AuthenticationPolicyService::class), $c->get(StepUpService::class), $c->get(AuthSessionService::class),
             ),
 
             PasskeyUpdateHandler::class => fn (ContainerInterface $c) => new PasskeyUpdateHandler(
-                $c->get(PasskeyService::class), $c->get(AuditService::class),
+                $c->get(PasskeyService::class), $c->get(AuditService::class), $c->get(StepUpService::class),
             ),
 
             Fail2BanSettingHandler::class => fn (ContainerInterface $c) => new Fail2BanSettingHandler(
                 $c->get(SystemSettingService::class),
                 $c->get(AuditService::class),
+                $c->get(StepUpService::class),
             ),
+
+            \LexNova\Handler\Admin\AuthLimitSettingHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\AuthLimitSettingHandler(
+                $c->get(SystemSettingService::class),
+                $c->get(StepUpService::class),
+                $c->get(AuditService::class),
+            ),
+
+            StepUpHandler::class => fn (ContainerInterface $c) => new StepUpHandler($c->get(StepUpService::class)),
 
             SystemInfoHandler::class => fn (ContainerInterface $c) => new SystemInfoHandler(
                 $c->get(SystemInfoService::class),
@@ -456,33 +528,54 @@ final class ContainerFactory
                 $c->get(TotpService::class),
                 $c->get(UserService::class),
                 $c->get(SveltePageRenderer::class),
+                $c->get(CredentialLimitService::class),
+                $c->get(StepUpService::class),
+                $c->get(AuthSessionService::class),
+                $c->get(AuditService::class),
             ),
 
             TotpResetHandler::class => fn (ContainerInterface $c) => new TotpResetHandler(
                 $c->get(UserService::class),
                 $c->get(AuditService::class),
+                $c->get(AuthenticationPolicyService::class),
+                $c->get(StepUpService::class),
+                $c->get(AuthSessionService::class),
             ),
 
             TotpKeyDeleteHandler::class => fn (ContainerInterface $c) => new TotpKeyDeleteHandler(
                 $c->get(UserService::class),
                 $c->get(AuditService::class),
+                $c->get(AuthenticationPolicyService::class),
+                $c->get(StepUpService::class),
+                $c->get(AuthSessionService::class),
             ),
 
             \LexNova\Handler\Admin\UserDeleteHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\UserDeleteHandler(
                 $c->get(UserService::class),
                 $c->get(AuditService::class),
+                $c->get(StepUpService::class),
             ),
 
             \LexNova\Handler\Admin\UserCreateHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\UserCreateHandler(
                 $c->get(UserService::class),
                 $c->get(PasswordService::class),
                 $c->get(AuditService::class),
+                $c->get(StepUpService::class),
             ),
 
             \LexNova\Handler\Admin\UserUpdateHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\UserUpdateHandler(
                 $c->get(UserService::class),
                 $c->get(PasswordService::class),
                 $c->get(AuditService::class),
+                $c->get(AuthenticationPolicyService::class),
+                $c->get(StepUpService::class),
+                $c->get(AuthSessionService::class),
+            ),
+
+            ActivationTicketIssueHandler::class => fn (ContainerInterface $c) => new ActivationTicketIssueHandler(
+                $c->get(ActivationService::class),
+                $c->get(UserService::class),
+                $c->get(StepUpService::class),
             ),
 
             \LexNova\Handler\Admin\EntityDeleteHandler::class => fn (ContainerInterface $c) => new \LexNova\Handler\Admin\EntityDeleteHandler(
@@ -518,7 +611,7 @@ final class ContainerFactory
             ),
 
             // ── Middleware ───────────────────────────────────────────────────────────
-            AdminAuthMiddleware::class => fn () => new AdminAuthMiddleware(),
+            AdminAuthMiddleware::class => fn (ContainerInterface $c) => new AdminAuthMiddleware($c->get(AuthSessionService::class)),
 
             InstalledCheckMiddleware::class => fn (ContainerInterface $c) => new InstalledCheckMiddleware(
                 $c->get(InstallService::class),
@@ -543,6 +636,8 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(DicewareGenerator::class),
                 $c->get(RandomPasswordGenerator::class),
+                $c->get(ActivationService::class),
+                $c->get(AuditService::class),
             ),
 
             \LexNova\Console\InstallPrepareCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\InstallPrepareCommand(
@@ -561,14 +656,25 @@ final class ContainerFactory
                 $c->get(PasswordService::class),
                 $c->get(DicewareGenerator::class),
                 $c->get(RandomPasswordGenerator::class),
+                $c->get(AuditService::class),
+                $c->get(AuthSessionService::class),
             ),
 
             \LexNova\Console\UserTotpResetCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\UserTotpResetCommand(
                 $c->get(UserService::class),
+                $c->get(AuditService::class),
+                $c->get(AuthSessionService::class),
+                $c->get(ActivationService::class),
+            ),
+
+            \LexNova\Console\UserActivationCreateCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\UserActivationCreateCommand(
+                $c->get(UserService::class),
+                $c->get(ActivationService::class),
             ),
 
             \LexNova\Console\UserDeleteCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\UserDeleteCommand(
                 $c->get(UserService::class),
+                $c->get(AuditService::class),
             ),
 
             \LexNova\Console\EntityListCommand::class => fn (ContainerInterface $c) => new \LexNova\Console\EntityListCommand(

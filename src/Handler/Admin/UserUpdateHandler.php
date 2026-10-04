@@ -7,7 +7,10 @@ namespace LexNova\Handler\Admin;
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\InputFilter\UserUpdateInputFilter;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\PasswordService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -22,6 +25,9 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
         private readonly UserService $users,
         private readonly PasswordService $passwords,
         private readonly AuditService $audit,
+        private readonly AuthenticationPolicyService $policy,
+        private readonly StepUpService $stepUp,
+        private readonly AuthSessionService $sessions,
     ) {
     }
 
@@ -53,18 +59,43 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
             $errors[] = 'User not found.';
         } elseif ($validInput && $newPassword !== '' && ($pwErr = $this->passwords->validate($newPassword)) !== null) {
             $errors[] = $pwErr;
-        } elseif ($validInput && !$passwordLoginEnabled && !$this->users->hasPasskey($userId)) {
-            $errors[] = 'Password login can only be disabled after at least one passkey has been enrolled.';
+        } elseif ($validInput && !$passwordLoginEnabled && !$this->policy->canDisablePasswordLogin($userId)) {
+            $errors[] = 'Password login can only be disabled after at least one FIDO2 credential has been enrolled.';
+        } elseif ($validInput && ($existing = $this->users->findById($userId)) !== null
+            && $existing['role'] === 'admin' && $role !== 'admin' && $this->users->countAdministrators() <= 1
+        ) {
+            $errors[] = 'The last administrator account cannot lose its administrator role.';
         }
 
         if ($errors) {
             $session->set('flash_errors', $errors);
         } else {
+            $current = $this->users->findById($userId);
+            $actorId = (int) ($session->get('user_id') ?? 0);
+            $action = $newPassword !== ''
+                ? 'auth.password.change'
+                : (($current['password_login_enabled'] ?? null) !== $passwordLoginEnabled
+                    ? ($passwordLoginEnabled ? 'auth.password.enable' : 'auth.password.disable')
+                    : 'auth.policy.change');
+            $target = 'user:' . $userId . '/account';
+            if (!$this->stepUp->consume($session, $action, $target)) {
+                $session->set('flash_errors', ['Verify with your own authenticator before changing account security.']);
+
+                return new RedirectResponse('/admin/users');
+            }
             $this->users->updateRole($userId, $role);
             if ($newPassword !== '') {
                 $this->users->updatePassword($userId, $newPassword);
             }
             $this->users->setPasswordLoginEnabled($userId, $passwordLoginEnabled);
+            $roleChanged = ($current['role'] ?? null) !== $role;
+            if ($newPassword !== '' || ($current['password_login_enabled'] ?? null) !== $passwordLoginEnabled || $roleChanged) {
+                if ($actorId === $userId) {
+                    $this->sessions->revokeOtherSessions($userId, (int) $session->get('auth_session_id'));
+                } else {
+                    $this->sessions->revokeUser($userId);
+                }
+            }
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
             $detail = ($newPassword !== '' ? 'role+password' : 'role')
                 . ';password-login:' . ($passwordLoginEnabled ? 'enabled' : 'disabled');
@@ -75,7 +106,25 @@ final readonly class UserUpdateHandler implements RequestHandlerInterface
                 'user:' . $userId,
                 $detail,
                 $ip,
+                $userId,
             );
+            if ($newPassword !== '') {
+                $this->audit->log($actorId, (string) ($session->get('username') ?? ''), 'auth.password_changed', 'user:' . $userId, null, $ip, $userId);
+            }
+            if (($current['password_login_enabled'] ?? null) !== $passwordLoginEnabled) {
+                $this->audit->log(
+                    $actorId,
+                    (string) ($session->get('username') ?? ''),
+                    $passwordLoginEnabled ? 'auth.password_login_enabled' : 'auth.password_login_disabled',
+                    'user:' . $userId,
+                    null,
+                    $ip,
+                    $userId,
+                );
+            }
+            if ($roleChanged) {
+                $this->audit->log($actorId, (string) ($session->get('username') ?? ''), 'auth.policy_changed', 'user:' . $userId, 'role:' . $role, $ip, $userId);
+            }
             $session->set('flash_messages', ['User updated.']);
         }
 

@@ -7,7 +7,7 @@ namespace LexNova\Service;
 use Doctrine\DBAL\Connection;
 
 /**
- * Writes structured audit log entries to the audit_log table.
+ * Writes append-only security and application events to audit_events.
  *
  * All write actions (create / update / delete / TOTP events) pass through here.
  * CLI commands pass actor_id = null and ip = null.
@@ -19,7 +19,7 @@ final readonly class AuditService
     }
 
     /**
-     * @param int|null    $actorId   Logged-in user's ID; null for CLI/system
+     * @param int|null    $actorId   Acting user's ID; null for CLI/system
      * @param string|null $actorName Logged-in user's username; null for CLI/system
      * @param string      $action    Short machine-readable action (e.g. 'user.create')
      * @param string|null $target    Affected object (e.g. 'user:3' or 'entity:7')
@@ -33,15 +33,17 @@ final readonly class AuditService
         ?string $target = null,
         ?string $detail = null,
         ?string $ip = null,
+        ?int $effectiveUserId = null,
     ): void {
-        $this->db->insert('audit_log', [
-            'actor_id' => $actorId,
+        $this->db->insert('audit_events', [
+            'actor_user_id' => $actorId,
+            'effective_user_id' => $effectiveUserId,
             'actor_name' => $actorName,
             'action' => $action,
             'target' => $target,
             'detail' => $detail,
             'ip' => $ip,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => gmdate('Y-m-d H:i:s'),
         ]);
     }
 
@@ -53,8 +55,8 @@ final readonly class AuditService
     public function recent(int $limit = 100): array
     {
         return $this->db->createQueryBuilder()
-            ->select('id', 'actor_id', 'actor_name', 'action', 'target', 'detail', 'ip', 'created_at')
-            ->from('audit_log')
+            ->select('id', 'actor_user_id AS actor_id', 'effective_user_id', 'actor_name', 'action', 'target', 'detail', 'ip', 'created_at')
+            ->from('audit_events')
             ->orderBy('id', 'DESC')
             ->setMaxResults($limit)
             ->executeQuery()

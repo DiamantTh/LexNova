@@ -13,15 +13,16 @@ ausführbare Migration.
 
 ## Zielmodell
 
-Die folgenden Tabellen bilden die geplanten stabilen Grenzen. Konkrete SQL-Dateien
-werden erst nach Prüfung der Beziehungen für SQLite, MySQL/MariaDB und PostgreSQL
-erstellt.
+Die folgenden Tabellen bilden die geplanten stabilen Grenzen. Das
+Authentifizierungs-Basisschema liegt für SQLite, MySQL/MariaDB und PostgreSQL
+vor. Workspace- und Dokumentgrenzen bleiben Gegenstand ihrer jeweiligen
+Migrationen.
 
 | Tabelle | Zweck |
 |---|---|
 | `users` | Globale Benutzeridentität und Systemrolle |
-| `user_authenticators` | TOTP-, Passkey- und spätere Recovery-Metadaten |
-| `user_sessions` | Widerrufbare Sitzungen und Sicherheitsstatus |
+| `user_authenticators` | Einheitliche WebAuthn- und TOTP-Credentials ohne persistenten Zweck; Labels, Metadaten und Zeitstempel bleiben erhalten |
+| `user_sessions` | Widerrufbare Sitzungen, Authentifizierungsmethode/-stärke, Idle- und absolute Laufzeit |
 | `workspaces` | Mandant beziehungsweise persönlicher/Team-Bereich |
 | `workspace_members` | Mitgliedschaft und Workspace-Rolle |
 | `plans` | Benannte Planvorlage |
@@ -92,6 +93,19 @@ Der öffentliche Link bleibt stabil. Beim Veröffentlichen ändert sich nur
 gespeicherten Revisionsinhalts, ist aber kein öffentlicher Zugriffstoken.
 
 ## Migrationsmechanismus
+
+Migration `006_shared_authentication` konsolidiert vor der Alpha die bisherigen
+Passkey-, TOTP-, Login-Limit- und Audit-Tabellen. Sie kopiert Credential-IDs,
+WebAuthn-Quelldaten, TOTP-Ciphertexts, Labels und Zeitstempel und setzt für
+Konten mit vorhandenen Authentifikatoren `mfa_required`. Anschließend entfernt
+sie die alten Tabellen. Ein Integrationstest prüft die Datenerhaltung auf
+SQLite. Die Migration liegt in je einer Dialektdatei für SQLite, MySQL/MariaDB
+und PostgreSQL; die beiden Serverdialekte benötigen noch eine Prüfung gegen
+reale Datenbankinstanzen, bevor sie als produktiv verifiziert gelten.
+
+Die Migration ist ein einmaliger Alpha-Übergang und derzeit nicht durch einen
+Migrationsrunner versioniert. Vor ihrer Ausführung ist eine Datenbanksicherung
+erforderlich.
 
 Vor der ersten Alpha wird ein Migrationsrunner eingeführt:
 

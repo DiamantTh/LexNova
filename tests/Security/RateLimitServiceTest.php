@@ -27,7 +27,7 @@ final class MutableTestClock implements ClockInterface
 
 $db = DriverManager::getConnection(['url' => 'sqlite:///:memory:']);
 $db->executeStatement(<<<'SQL'
-CREATE TABLE login_attempts (
+CREATE TABLE rate_limit_buckets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip VARCHAR(45) NOT NULL,
     endpoint VARCHAR(50) NOT NULL,
@@ -58,13 +58,13 @@ if ($limiter->isBlocked('192.0.2.1', 'login')) {
 }
 
 $limiter->recordFailure('192.0.2.1', 'login');
-$row = $db->fetchAssociative('SELECT attempts, blocked_until FROM login_attempts WHERE ip = ?', ['192.0.2.1']);
+$row = $db->fetchAssociative('SELECT attempts, blocked_until FROM rate_limit_buckets WHERE ip = ?', ['192.0.2.1']);
 if ((int) ($row['attempts'] ?? 0) !== 1 || $row['blocked_until'] !== null) {
     throw new RuntimeException('Expired failure window was not reset.');
 }
 
 $limiter->recordSuccess('192.0.2.1', 'login');
-if ($db->fetchOne('SELECT COUNT(*) FROM login_attempts') !== 0) {
+if ($db->fetchOne('SELECT COUNT(*) FROM rate_limit_buckets') !== 0) {
     throw new RuntimeException('Successful authentication did not clear the limiter.');
 }
 

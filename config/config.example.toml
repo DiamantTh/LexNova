@@ -63,6 +63,17 @@ algorithm = "sha256"
 period    = 30
 window    = 1
 
+# Per-user limits. Database overrides can be changed on /admin/security.
+[security.authenticator_limits]
+webauthn = 10
+totp = 5
+
+# Keep empty to derive these values from app.base_url. Once a credential exists,
+# LexNova pins the resolved RP ID and Origin in system_settings.
+[security.webauthn]
+rp_id = ""
+origin = ""
+
 # Applies to password, TOTP, Passkey and installer unlock attempts.
 [security.rate_limit]
 max_attempts  = 5
@@ -103,6 +114,8 @@ samesite = "Strict"
 cookie_lifetime = 0
 cookie_path = "/"
 cookie_domain = "" # empty = current host; do not broaden unless explicitly required
+idle_timeout = 1800
+absolute_timeout = 43200
 
 # Application cache for documents, settings and HIBP results. Each area uses
 # its own namespace. "filesystem" needs no external service. "apcu" is a fast

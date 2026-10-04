@@ -8,6 +8,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\InputFilter\PasskeyLabelInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\PasskeyService;
+use LexNova\Service\StepUpService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Session\SessionMiddleware;
@@ -17,7 +18,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
 {
-    public function __construct(private PasskeyService $passkeys, private AuditService $audit)
+    public function __construct(private PasskeyService $passkeys, private AuditService $audit, private StepUpService $stepUp)
     {
     }
 
@@ -28,6 +29,11 @@ final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $body = (array) ($request->getParsedBody() ?? []);
         $userId = (int) ($request->getAttribute('userId') ?? 0);
+        if ((int) ($session->get('user_id') ?? 0) !== $userId) {
+            $session->set('flash_errors', ['Passkey names can only be changed by their owner.']);
+
+            return new RedirectResponse('/admin/users');
+        }
         $redirect = (int) ($session->get('user_id') ?? 0) === $userId ? '/user/security' : '/admin/users';
         if (!$guard->validateToken((string) ($body['__csrf'] ?? ''))) {
             $session->set('flash_errors', ['Invalid session token.']);
@@ -44,6 +50,11 @@ final readonly class PasskeyUpdateHandler implements RequestHandlerInterface
         }
 
         $credentialId = (int) ($request->getAttribute('credentialId') ?? 0);
+        if (!$this->stepUp->consume($session, 'auth.webauthn.rename', 'user:' . $userId . '/passkey:' . $credentialId)) {
+            $session->set('flash_errors', ['Verify with your own authenticator before renaming a passkey.']);
+
+            return new RedirectResponse($redirect);
+        }
         $label = $input->getValues()['label'];
         if (!$this->passkeys->renameForUser($credentialId, $userId, $label)) {
             $session->set('flash_errors', ['Passkey not found.']);

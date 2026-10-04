@@ -95,6 +95,62 @@ final readonly class SystemSettingService
         $this->invalidate($key);
     }
 
+    /** @return array{value: int, source: 'database'|'config'} */
+    public function int(string $key, int $configDefault, int $hardCap = 100, int $minimum = 0): array
+    {
+        $cacheKey = $this->cacheKey($key);
+        try {
+            $cached = $this->cache->get($cacheKey);
+        } catch (\Throwable) {
+            $cached = null;
+        }
+        if (is_array($cached) && isset($cached['value'], $cached['source']) && is_int($cached['value'])) {
+            return [
+                'value' => max($minimum, min($hardCap, $cached['value'])),
+                'source' => $cached['source'] === 'database' ? 'database' : 'config',
+            ];
+        }
+
+        $result = ['value' => max($minimum, min($hardCap, $configDefault)), 'source' => 'config'];
+        try {
+            $value = $this->db->fetchOne('SELECT setting_value FROM system_settings WHERE setting_key = ?', [$key]);
+            $parsed = is_string($value) && preg_match('/^-?\d+$/D', $value) === 1 ? (int) $value : null;
+            if ($parsed !== null) {
+                $result = ['value' => max($minimum, min($hardCap, $parsed)), 'source' => 'database'];
+            }
+        } catch (\Throwable) {
+            // Before installation there is no settings table yet.
+        }
+
+        try {
+            $this->cache->set($cacheKey, $result, $this->cacheTtl);
+        } catch (\Throwable) {
+            // Cache is optional; the database is authoritative.
+        }
+
+        return $result;
+    }
+
+    public function setInt(string $key, int $value, int $hardCap = 100, int $minimum = 0): void
+    {
+        if ($value < $minimum || $value > $hardCap) {
+            throw new \InvalidArgumentException(sprintf('Setting %s must be between %d and %d.', $key, $minimum, $hardCap));
+        }
+
+        $stored = (string) $value;
+        $now = gmdate('Y-m-d H:i:s');
+        $this->db->transactional(function (Connection $db) use ($key, $stored, $now): void {
+            $exists = $db->fetchOne('SELECT setting_key FROM system_settings WHERE setting_key = ?', [$key]);
+            if (is_string($exists)) {
+                $db->update('system_settings', ['setting_value' => $stored, 'updated_at' => $now], ['setting_key' => $key]);
+
+                return;
+            }
+            $db->insert('system_settings', ['setting_key' => $key, 'setting_value' => $stored, 'updated_at' => $now]);
+        });
+        $this->invalidate($key);
+    }
+
     public function remove(string $key): void
     {
         $this->db->delete('system_settings', ['setting_key' => $key]);

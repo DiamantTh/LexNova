@@ -9,6 +9,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\InputFilter\LoginInputFilter;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\Fail2BanLogService;
 use LexNova\Service\RateLimitService;
 use LexNova\Service\UserService;
@@ -23,6 +24,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
 {
     public function __construct(
         private readonly UserService $users,
+        private readonly AuthSessionService $sessions,
         private readonly RateLimitService $rateLimit,
         private readonly AuditService $audit,
         private readonly SveltePageRenderer $renderer,
@@ -66,36 +68,44 @@ final readonly class LoginHandler implements RequestHandlerInterface
                     $this->rateLimit->recordSuccess($ip, 'login');
                     $session->regenerate();
 
-                    if ($this->users->hasActiveTotpKey((int) $user['id'])) {
-                        // Password OK but TOTP required — park pending state and redirect
-                        $session->set('totp_pending_user_id', (int) $user['id']);
+                    $userId = (int) $user['id'];
+                    if ($user['mfa_required'] === true) {
+                        if (!$this->users->hasPasskey($userId) && !$this->users->hasActiveTotpKey($userId)) {
+                            $this->audit->log($userId, (string) $user['username'], 'auth.login_blocked_no_factor', 'user:' . $userId, null, $ip);
+                            $errors[] = 'Strong authentication is required for this account. Contact an administrator for audited recovery.';
+                        } else {
+                            $session->set('totp_pending_created_at', time());
+                            $session->set('totp_pending_mfa', true);
+                            $session->set('totp_pending_user_id', $userId);
 
-                        return new RedirectResponse('/admin/totp/verify');
+                            return new RedirectResponse('/admin/totp/verify');
+                        }
+                    } else {
+                        $session->set('auth_setup_required', !$this->users->hasPasskey($userId) && !$this->users->hasActiveTotpKey($userId));
+                        $session->set('user_id', $userId);
+                        $session->set('username', (string) $user['username']);
+                        $session->set('role', (string) $user['role']);
+                        $this->sessions->establish($session, $userId, 'password', 'single-factor');
+                        $this->audit->log(
+                            $userId,
+                            (string) $user['username'],
+                            'auth.login',
+                            'user:' . $userId,
+                            $session->get('auth_setup_required') ? 'bootstrap:security-enrollment-required' : null,
+                            $ip,
+                        );
+
+                        return new RedirectResponse('/verwaltung');
                     }
-
+                } else {
+                    $this->rateLimit->recordFailure($ip, 'login');
+                    $this->fail2ban->record($ip);
                     $this->audit->log(
-                        (int) $user['id'],
-                        (string) $user['username'],
-                        'auth.login',
-                        'user:' . $user['id'],
-                        null,
-                        $ip,
+                        null, $username, 'auth.login_failed',
+                        null, 'username: ' . $username, $ip,
                     );
-
-                    $session->set('user_id', (int) $user['id']);
-                    $session->set('username', (string) $user['username']);
-                    $session->set('role', (string) $user['role']);
-
-                    return new RedirectResponse('/verwaltung');
+                    $errors[] = 'Invalid username or password.';
                 }
-
-                $this->rateLimit->recordFailure($ip, 'login');
-                $this->fail2ban->record($ip);
-                $this->audit->log(
-                    null, $username, 'auth.login_failed',
-                    null, 'username: ' . $username, $ip,
-                );
-                $errors[] = 'Invalid username or password.';
             }
         }
 

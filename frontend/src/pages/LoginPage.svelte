@@ -11,13 +11,18 @@
   const errors = $derived(strings(data.errors));
   let passkeyStatus = $state('');
   let pending = $state(false);
+  let username = $state('');
   const supported = passkeysSupported();
 
-  async function passkeyLogin(): Promise<void> {
+  async function passkeyLogin(mode: 'primary' | 'mfa' = 'primary'): Promise<void> {
+    if (mode === 'primary' && username.trim() === '') {
+      passkeyStatus = 'Bitte zuerst den Benutzernamen eingeben.';
+      return;
+    }
     pending = true;
-    passkeyStatus = 'Passkey wird angefordert …';
+    passkeyStatus = 'FIDO2-Anmeldung wird angefordert …';
     try {
-      window.location.assign(await loginWithPasskey(csrfToken));
+      window.location.assign(await loginWithPasskey(username.trim(), csrfToken, mode));
     } catch (error) {
       passkeyStatus = error instanceof Error ? error.message : 'Passkey-Anmeldung fehlgeschlagen.';
       pending = false;
@@ -28,10 +33,11 @@
 <PageFrame title={t('Admin Login')} narrow>
   <NoticeList {errors} />
   <section class="card preset-filled-surface-100-900 p-6 shadow-xl">
-    <h2 class="h2">Passkey-first</h2>
-    <p class="mt-2 opacity-75">Passkey oder FIDO2-Sicherheitsschlüssel verwenden – ohne übertragbares Passwort.</p>
-    <button class="btn preset-filled-primary-500 mt-5 w-full" type="button" onclick={passkeyLogin} disabled={!supported || pending}>{pending ? 'Passkey wird geöffnet …' : 'Mit Passkey anmelden'}</button>
-    <p class="mt-3 text-sm opacity-70" role="status">{passkeyStatus || (supported ? 'Passkey-Unterstützung erkannt.' : 'Dieser Browser unterstützt keine Passkeys.')}</p>
+    <h2 class="h2">Mit FIDO2 anmelden</h2>
+    <p class="mt-2 opacity-75">Benutzername eingeben. Danach bietet LexNova nur die registrierten Schlüssel dieses Kontos an.</p>
+    <label class="label mt-5"><span>{t('Username')}</span><input class="input" type="text" bind:value={username} autocomplete="username" required maxlength="100"></label>
+    <button class="btn preset-filled-primary-500 mt-4 w-full" type="button" onclick={() => passkeyLogin()} disabled={!supported || pending || username.trim() === ''}>{pending ? 'FIDO2-Schlüssel wird geöffnet …' : 'Mit Passkey / Sicherheitsschlüssel anmelden'}</button>
+    <p class="mt-3 text-sm opacity-70" role="status">{passkeyStatus || (supported ? 'FIDO2-Passkey oder -Sicherheitsschlüssel verwenden.' : 'Dieser Browser unterstützt kein WebAuthn.')}</p>
     <details class="mt-7 border-t border-surface-300-700 pt-5">
       <summary class="cursor-pointer font-semibold">Alternativ mit Passwort anmelden</summary>
       <form method="post" action="/admin/login" class="mt-5 grid gap-4">

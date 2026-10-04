@@ -59,8 +59,8 @@ LexNova trennt drei unterschiedliche Zwecke:
 
 | Speicher | Inhalt | Verhalten |
 |---|---|---|
-| `audit_log` in der Datenbank | erfolgreiche und fehlgeschlagene Passwort-, TOTP- und Passkey-Ereignisse; IP und bekannter Akteur | fachlicher, dauerhafter Nachweis |
-| `login_attempts` in der Datenbank | Zähler, Endpunkt, IP und Sperrzeit | technischer Zustand; wird nach Erfolg gelöscht beziehungsweise nach Ablauf wiederverwendet |
+| `audit_events` in der Datenbank | erfolgreiche und fehlgeschlagene Passwort-, TOTP- und Passkey-Ereignisse; IP und bekannter Akteur | fachlicher, dauerhafter Nachweis |
+| `rate_limit_buckets` in der Datenbank | Zähler, Endpunkt, IP und Sperrzeit | technischer Zustand; wird nach Erfolg gelöscht beziehungsweise nach Ablauf wiederverwendet |
 | `var/log/fail2ban.log` | nur UTC-Zeit, fester Marker und validierte IP | optionale, maschinenlesbare Sperrsignale |
 
 Das Installer-Limit arbeitet schon vor einer eingerichteten Datenbank mit

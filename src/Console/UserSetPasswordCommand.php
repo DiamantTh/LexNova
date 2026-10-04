@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LexNova\Console;
 
+use LexNova\Service\AuditService;
+use LexNova\Service\AuthSessionService;
 use LexNova\Service\Password\DicewareGenerator;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
@@ -30,6 +32,8 @@ final class UserSetPasswordCommand extends Command
         private readonly PasswordService $passwords,
         private readonly DicewareGenerator $diceware,
         private readonly RandomPasswordGenerator $random,
+        private readonly AuditService $audit,
+        private readonly AuthSessionService $sessions,
     ) {
         parent::__construct();
     }
@@ -96,6 +100,8 @@ final class UserSetPasswordCommand extends Command
         }
 
         $this->users->updatePassword((int) $user['id'], $password);
+        $this->sessions->revokeUser((int) $user['id']);
+        $this->audit->log(null, null, 'auth.password_changed_cli', 'user:' . $user['id'], 'password reset via CLI', null, (int) $user['id']);
         $io->success("Password for '{$username}' has been updated.");
 
         return Command::SUCCESS;

@@ -39,7 +39,7 @@ final readonly class RateLimitService
             return false;
         }
 
-        return new \DateTimeImmutable($row['blocked_until']) > $this->clock->now();
+        return $this->dateTimeUtc($row['blocked_until']) > $this->clock->now();
     }
 
     /**
@@ -48,11 +48,11 @@ final readonly class RateLimitService
     public function recordFailure(string $ip, string $endpoint): void
     {
         $now = $this->clock->now();
-        $nowString = $now->format('Y-m-d H:i:s');
+        $nowString = $now->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $row = $this->fetch($ip, $endpoint);
 
         if ($row === null) {
-            $this->db->insert('login_attempts', [
+            $this->db->insert('rate_limit_buckets', [
                 'ip' => $ip,
                 'endpoint' => $endpoint,
                 'attempts' => 1,
@@ -63,19 +63,19 @@ final readonly class RateLimitService
             return;
         }
 
-        $lastAttempt = new \DateTimeImmutable((string) $row['last_at']);
+        $lastAttempt = $this->dateTimeUtc((string) $row['last_at']);
         $blockExpired = $row['blocked_until'] !== null
-            && new \DateTimeImmutable((string) $row['blocked_until']) <= $now;
+            && $this->dateTimeUtc((string) $row['blocked_until']) <= $now;
         $windowExpired = $lastAttempt <= $now->modify("-{$this->blockSeconds} seconds");
         $attempts = ($blockExpired || $windowExpired) ? 1 : (int) $row['attempts'] + 1;
         $blockedUntil = null;
 
         if ($attempts >= $this->maxAttempts) {
             $until = $now->modify("+{$this->blockSeconds} seconds");
-            $blockedUntil = $until->format('Y-m-d H:i:s');
+            $blockedUntil = $until->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         }
 
-        $this->db->update('login_attempts', [
+        $this->db->update('rate_limit_buckets', [
             'attempts' => $attempts,
             'blocked_until' => $blockedUntil,
             'last_at' => $nowString,
@@ -87,7 +87,7 @@ final readonly class RateLimitService
      */
     public function recordSuccess(string $ip, string $endpoint): void
     {
-        $this->db->delete('login_attempts', ['ip' => $ip, 'endpoint' => $endpoint]);
+        $this->db->delete('rate_limit_buckets', ['ip' => $ip, 'endpoint' => $endpoint]);
     }
 
     /**
@@ -101,7 +101,7 @@ final readonly class RateLimitService
             return 0;
         }
 
-        $until = new \DateTimeImmutable($row['blocked_until']);
+        $until = $this->dateTimeUtc($row['blocked_until']);
         $diff = $until->getTimestamp() - $this->clock->now()->getTimestamp();
 
         return max(0, $diff);
@@ -112,7 +112,7 @@ final readonly class RateLimitService
     {
         $row = $this->db->createQueryBuilder()
             ->select('ip', 'endpoint', 'attempts', 'blocked_until', 'last_at')
-            ->from('login_attempts')
+            ->from('rate_limit_buckets')
             ->where('ip = :ip AND endpoint = :endpoint')
             ->setParameter('ip', $ip)
             ->setParameter('endpoint', $endpoint)
@@ -120,5 +120,10 @@ final readonly class RateLimitService
             ->fetchAssociative();
 
         return $row ?: null;
+    }
+
+    private function dateTimeUtc(string $value): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable($value, new \DateTimeZone('UTC'));
     }
 }

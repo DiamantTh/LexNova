@@ -6,6 +6,9 @@ namespace LexNova\Handler\Admin;
 
 use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
+use LexNova\Service\AuthSessionService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -26,6 +29,9 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
     public function __construct(
         private readonly UserService $users,
         private readonly AuditService $audit,
+        private readonly AuthenticationPolicyService $policy,
+        private readonly StepUpService $stepUp,
+        private readonly AuthSessionService $sessions,
     ) {
     }
 
@@ -44,17 +50,38 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
         }
 
         if ($id > 0 && $this->users->findById($id) !== null) {
+            $actorId = (int) ($session->get('user_id') ?? 0);
+            $isSelfService = $actorId === $id;
+            $action = $isSelfService ? 'auth.totp.reset' : 'auth.recovery';
+            $target = 'user:' . $id . '/totp:all';
+            $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
+            if (!$this->policy->canResetTotp($id)) {
+                $session->set('flash_errors', ['Reset would remove the last valid authentication path.']);
+
+                return new RedirectResponse('/admin/users');
+            }
+            if (!$this->stepUp->consume($session, $action, $stepUpTarget)) {
+                $session->set('flash_errors', ['Verify with your own authenticator before credential recovery.']);
+
+                return new RedirectResponse('/admin/users');
+            }
             $removed = $this->users->deleteAllTotpKeys($id);
 
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),
                 (string) ($session->get('username') ?? ''),
-                'totp.reset',
-                'user:' . $id,
+                $isSelfService ? 'auth.totp_reset' : 'auth.admin_credential_recovery',
+                $target,
                 'removed:' . $removed,
                 $ip,
+                $id,
             );
+            if ($isSelfService) {
+                $this->sessions->revokeOtherSessions($id, (int) $session->get('auth_session_id'));
+            } else {
+                $this->sessions->revokeUser($id);
+            }
 
             $session->set('flash_messages', ['All TOTP keys have been deleted for the selected user.']);
         } else {

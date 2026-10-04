@@ -8,6 +8,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use LexNova\InputFilter\UserCreateInputFilter;
 use LexNova\Service\AuditService;
 use LexNova\Service\PasswordService;
+use LexNova\Service\StepUpService;
 use LexNova\Service\UserService;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -22,6 +23,7 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         private readonly UserService $users,
         private readonly PasswordService $passwords,
         private readonly AuditService $audit,
+        private readonly StepUpService $stepUp,
     ) {
     }
 
@@ -58,7 +60,12 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         if ($errors) {
             $session->set('flash_errors', $errors);
         } else {
-            $this->users->create($username, $password, $role, $passwordLoginEnabled);
+            if (!$this->stepUp->consume($session, 'auth.policy.change', 'instance:users/create')) {
+                $session->set('flash_errors', ['Verify with your own authenticator before creating an account.']);
+
+                return new RedirectResponse('/admin/users');
+            }
+            $this->users->create($username, $password, $role, $passwordLoginEnabled, !$passwordLoginEnabled);
             $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->audit->log(
                 (int) ($session->get('user_id') ?? 0),
@@ -70,7 +77,7 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
             );
             $message = "User '{$username}' created.";
             if (!$passwordLoginEnabled) {
-                $message .= ' Register at least one Passkey for this account before handing it over.';
+                $message .= ' This account is pending. Issue a one-time passkey ticket with bin/lexnova user:activation-create ' . $username . '.';
             }
             $session->set('flash_messages', [$message]);
         }

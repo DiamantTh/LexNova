@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LexNova\Console;
 
+use LexNova\Service\ActivationService;
+use LexNova\Service\AuditService;
 use LexNova\Service\Password\DicewareGenerator;
 use LexNova\Service\Password\RandomPasswordGenerator;
 use LexNova\Service\PasswordService;
@@ -30,6 +32,8 @@ final class UserCreateCommand extends Command
         private readonly PasswordService $passwords,
         private readonly DicewareGenerator $diceware,
         private readonly RandomPasswordGenerator $random,
+        private readonly ActivationService $activation,
+        private readonly AuditService $audit,
     ) {
         parent::__construct();
     }
@@ -40,7 +44,8 @@ final class UserCreateCommand extends Command
         $this
             ->addArgument('username', InputArgument::REQUIRED, 'Username for the new user')
             ->addOption('generate', 'g', InputOption::VALUE_NONE, 'Auto-generate a password instead of prompting')
-            ->addOption('mode', 'm', InputOption::VALUE_OPTIONAL, 'Generator mode: diceware (default) or random', 'diceware');
+            ->addOption('mode', 'm', InputOption::VALUE_OPTIONAL, 'Generator mode: diceware (default) or random', 'diceware')
+            ->addOption('passkey-only', null, InputOption::VALUE_NONE, 'Create a pending passkey-only account and issue its activation ticket');
     }
 
     #[\Override]
@@ -62,7 +67,9 @@ final class UserCreateCommand extends Command
             return Command::FAILURE;
         }
 
-        if ($input->getOption('generate')) {
+        if ($input->getOption('passkey-only')) {
+            $password = '';
+        } elseif ($input->getOption('generate')) {
             $password = $this->generatePassword($input, $io);
             if ($password === null) {
                 return Command::FAILURE;
@@ -86,15 +93,24 @@ final class UserCreateCommand extends Command
             }
         }
 
-        $error = $this->passwords->validate($password);
+        $error = $input->getOption('passkey-only') ? null : $this->passwords->validate($password);
         if ($error !== null) {
             $io->error($error);
 
             return Command::FAILURE;
         }
 
-        $id = $this->users->create($username, $password, 'admin');
-        $io->success("User '{$username}' created (ID: {$id}).");
+        $passkeyOnly = (bool) $input->getOption('passkey-only');
+        $id = $this->users->create($username, $password, 'admin', !$passkeyOnly, $passkeyOnly);
+        $this->audit->log(null, null, 'user.created_cli', 'user:' . $id, 'role:admin;authentication:' . ($passkeyOnly ? 'passkey-only' : 'password'), null, $id);
+        if ($passkeyOnly) {
+            $ticket = $this->activation->issue($id);
+            $io->success("Pending passkey-only user '{$username}' created (ID: {$id}). The ticket expires in 24 hours and is shown once.");
+            $io->writeln('Enter this ticket at /activate:');
+            $io->writeln($ticket);
+        } else {
+            $io->success("User '{$username}' created (ID: {$id}).");
+        }
 
         return Command::SUCCESS;
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LexNova\Console;
 
+use LexNova\Service\AuditService;
 use LexNova\Service\UserService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -21,7 +22,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class UserDeleteCommand extends Command
 {
-    public function __construct(private readonly UserService $users)
+    public function __construct(private readonly UserService $users, private readonly AuditService $audit)
     {
         parent::__construct();
     }
@@ -66,6 +67,13 @@ final class UserDeleteCommand extends Command
             }
         }
 
+        if ($user['role'] === 'admin' && $this->users->countAdministrators() <= 1) {
+            $io->error('The last administrator account cannot be deleted.');
+
+            return Command::FAILURE;
+        }
+
+        $this->audit->log(null, null, 'user.deleted_cli', 'user:' . $user['id'], 'username:' . $username, null, (int) $user['id']);
         $this->users->delete((int) $user['id']);
         $io->success("User '{$username}' (ID {$user['id']}) permanently deleted.");
 

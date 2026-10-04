@@ -28,8 +28,8 @@ export function passkeysSupported(): boolean {
   return Boolean(window.PublicKeyCredential && navigator.credentials);
 }
 
-export async function loginWithPasskey(csrfToken: string): Promise<string> {
-  const result = await post('/admin/passkeys/login/options', csrfToken, {});
+export async function loginWithPasskey(username: string, csrfToken: string, mode: 'primary' | 'mfa' = 'primary'): Promise<string> {
+  const result = await post('/admin/passkeys/login/options', csrfToken, mode === 'mfa' ? { mode } : { username });
   if (typeof result.error === 'string') throw new Error(result.error);
 
   const options = result as unknown as PublicKeyCredentialRequestOptionsJSON;
@@ -44,7 +44,19 @@ export async function loginWithPasskey(csrfToken: string): Promise<string> {
   }
 
   const response = credential.response;
-  const payload = {
+  const payload = assertionPayload(credential);
+  const finish = await post('/admin/passkeys/login/finish', csrfToken, { credential: JSON.stringify(payload) });
+  if (typeof finish.error === 'string') throw new Error(finish.error);
+  if (typeof finish.redirect !== 'string') throw new Error('Die Anmeldung lieferte kein Weiterleitungsziel.');
+  return finish.redirect;
+}
+
+function assertionPayload(credential: PublicKeyCredential): Record<string, unknown> {
+  if (!(credential.response instanceof AuthenticatorAssertionResponse)) {
+    throw new Error('Der Browser hat keinen gültigen FIDO2-Nachweis geliefert.');
+  }
+  const response = credential.response;
+  return {
     id: credential.id,
     rawId: toBase64Url(credential.rawId),
     type: credential.type,
@@ -55,14 +67,10 @@ export async function loginWithPasskey(csrfToken: string): Promise<string> {
       userHandle: response.userHandle ? toBase64Url(response.userHandle) : null,
     },
   };
-  const finish = await post('/admin/passkeys/login/finish', csrfToken, { credential: JSON.stringify(payload) });
-  if (typeof finish.error === 'string') throw new Error(finish.error);
-  if (typeof finish.redirect !== 'string') throw new Error('Die Anmeldung lieferte kein Weiterleitungsziel.');
-  return finish.redirect;
 }
 
-export async function registerPasskey(userId: number, label: string, csrfToken: string): Promise<string> {
-  const result = await post('/admin/passkeys/register/options', csrfToken, { user_id: String(userId) });
+export async function registerPasskey(userId: number, label: string, csrfToken: string, mode: 'any' | 'hardware' = 'any'): Promise<string> {
+  const result = await post('/admin/passkeys/register/options', csrfToken, { user_id: String(userId), mode });
   if (typeof result.error === 'string') throw new Error(result.error);
 
   const options = result as unknown as PublicKeyCredentialCreationOptionsJSON;
@@ -78,7 +86,43 @@ export async function registerPasskey(userId: number, label: string, csrfToken: 
   }
 
   const response = credential.response;
-  const payload = {
+  const payload = registrationPayload(credential, response);
+  const finish = await post('/admin/passkeys/register/finish', csrfToken, {
+    label,
+    credential: JSON.stringify(payload),
+    attachment: credential.authenticatorAttachment ?? '',
+  });
+  if (typeof finish.error === 'string') throw new Error(finish.error);
+  if (typeof finish.redirect !== 'string') throw new Error('Die Registrierung lieferte kein Weiterleitungsziel.');
+  return finish.redirect;
+}
+
+export async function activateWithPasskey(label: string, csrfToken: string, mode: 'any' | 'hardware'): Promise<string> {
+  const result = await post('/activate/options', csrfToken, { mode });
+  if (typeof result.error === 'string') throw new Error(result.error);
+  const options = result as unknown as PublicKeyCredentialCreationOptionsJSON;
+  const publicKey: PublicKeyCredentialCreationOptions = {
+    ...options,
+    challenge: fromBase64Url(options.challenge),
+    user: { ...options.user, id: fromBase64Url(options.user.id) },
+    excludeCredentials: options.excludeCredentials?.map((item) => ({ ...item, id: fromBase64Url(item.id) })),
+  };
+  const credential = await navigator.credentials.create({ publicKey });
+  if (!(credential instanceof PublicKeyCredential) || !(credential.response instanceof AuthenticatorAttestationResponse)) {
+    throw new Error('Der Browser hat keinen gültigen FIDO2-Schlüssel erstellt.');
+  }
+  const finish = await post('/activate/finish', csrfToken, {
+    label,
+    credential: JSON.stringify(registrationPayload(credential, credential.response)),
+    attachment: credential.authenticatorAttachment ?? '',
+  });
+  if (typeof finish.error === 'string') throw new Error(finish.error);
+  if (typeof finish.redirect !== 'string') throw new Error('Aktivierung lieferte kein Weiterleitungsziel.');
+  return finish.redirect;
+}
+
+function registrationPayload(credential: PublicKeyCredential, response: AuthenticatorAttestationResponse): Record<string, unknown> {
+  return {
     id: credential.id,
     rawId: toBase64Url(credential.rawId),
     type: credential.type,
@@ -88,14 +132,40 @@ export async function registerPasskey(userId: number, label: string, csrfToken: 
       transports: response.getTransports?.() ?? [],
     },
   };
-  const finish = await post('/admin/passkeys/register/finish', csrfToken, {
-    label,
-    credential: JSON.stringify(payload),
-    attachment: credential.authenticatorAttachment ?? '',
-  });
-  if (typeof finish.error === 'string') throw new Error(finish.error);
-  if (typeof finish.redirect !== 'string') throw new Error('Die Registrierung lieferte kein Weiterleitungsziel.');
-  return finish.redirect;
+}
+
+export async function stepUp(action: string, target: string, csrfToken: string): Promise<void> {
+  let fidoFailure: unknown;
+  try {
+    const result = await post('/admin/step-up/options', csrfToken, { action, target });
+    if (typeof result.error === 'string') throw new Error(result.error);
+    const options = result as unknown as PublicKeyCredentialRequestOptionsJSON;
+    const publicKey: PublicKeyCredentialRequestOptions = {
+      ...options,
+      challenge: fromBase64Url(options.challenge),
+      allowCredentials: options.allowCredentials?.map((item) => ({ ...item, id: fromBase64Url(item.id) })),
+    };
+    const credential = await navigator.credentials.get({ publicKey });
+    if (!(credential instanceof PublicKeyCredential)) throw new Error('Kein FIDO2-Nachweis empfangen.');
+    const verified = await post('/admin/step-up/finish', csrfToken, { credential: JSON.stringify(assertionPayload(credential)) });
+    if (typeof verified.error === 'string') throw new Error(verified.error);
+    if (verified.verified !== true) throw new Error('Step-up fehlgeschlagen.');
+    return;
+  } catch (error) {
+    fidoFailure = error;
+  }
+
+  if (action === 'auth.recovery' || action === 'auth.policy.change') {
+    throw new Error('Für Recovery- und Richtlinienänderungen ist FIDO2-Step-up erforderlich.');
+  }
+
+  const code = window.prompt('FIDO2 war nicht verfügbar. Alternativ einen aktiven TOTP-Code eingeben:');
+  if (code === null) {
+    throw fidoFailure instanceof Error ? fidoFailure : new Error('Step-up abgebrochen.');
+  }
+  const result = await post('/admin/step-up/totp', csrfToken, { action, target, code });
+  if (typeof result.error === 'string') throw new Error(result.error);
+  if (result.verified !== true) throw new Error('Step-up fehlgeschlagen.');
 }
 
 interface PublicKeyCredentialDescriptorJSON extends Omit<PublicKeyCredentialDescriptor, 'id'> { id: string; }
