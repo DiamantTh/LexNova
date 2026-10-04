@@ -34,5 +34,13 @@ $encrypted = $withKey->encrypt($secret);
 if ($encrypted === $secret || $withKey->decrypt($encrypted) !== $secret) {
     throw new RuntimeException('TOTP secret encryption round trip failed.');
 }
+$duplicateEncrypted = $withKey->encrypt($secret);
+$sameSecretRows = [
+    ['id' => 1, 'secret_enc' => $encrypted],
+    ['id' => 2, 'secret_enc' => $duplicateEncrypted],
+];
+if ($withKey->uniqueCredentialCount($sameSecretRows) !== 1 || !$withKey->containsSecret($sameSecretRows, $secret)) {
+    throw new RuntimeException('Repeated copies of one TOTP secret counted as independent authenticators.');
+}
 
 echo "TOTP encryption security test: OK\n";

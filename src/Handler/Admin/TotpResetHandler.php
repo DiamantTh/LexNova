@@ -55,7 +55,7 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
             $action = $isSelfService ? 'auth.totp.reset' : 'auth.recovery';
             $target = 'user:' . $id . '/totp:all';
             $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
-            if (!$this->policy->canResetTotp($id)) {
+            if ($isSelfService && !$this->policy->canResetTotp($id)) {
                 $session->set('flash_errors', ['Reset would remove the last valid authentication path.']);
 
                 return new RedirectResponse('/admin/users');

@@ -8,6 +8,7 @@ use Laminas\Diactoros\Uri;
 use LexNova\Clock\SystemClock;
 use LexNova\Handler\Auth\PasskeyRegisterHandler;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
 use LexNova\Service\AuthSessionService;
 use LexNova\Service\PasskeyService;
 use LexNova\Service\PasswordService;
@@ -101,6 +102,9 @@ $authentication = json_decode($passkeys->createAuthenticationOptions(['id' => $u
 if (!is_array($authentication) || !isset($authentication['challenge'], $authentication['rpId']) || ($authentication['timeout'] ?? null) !== 120000) {
     throw new RuntimeException('WebAuthn authentication options could not be serialized.');
 }
+if (($authentication['userVerification'] ?? null) !== 'required') {
+    throw new RuntimeException('WebAuthn authentication does not require user verification.');
+}
 
 $credentialSource = new PublicKeyCredentialSource(
     'credential-id',
@@ -158,7 +162,7 @@ $totp = new TotpService(bin2hex(random_bytes(32)));
 $registerHandler = new PasskeyRegisterHandler(
     $passkeys,
     $users,
-    new StepUpService($passkeys, $users, $totp, $audit),
+    new StepUpService($passkeys, $users, $totp, $audit, new AuthenticationPolicyService($users, $totp)),
     new AuthSessionService($db),
     new RateLimitService($db, new SystemClock()),
     $audit,
@@ -183,6 +187,40 @@ $allowedIds = array_column($authenticationA['allowCredentials'] ?? [], 'id');
 if (($authenticationA['userVerification'] ?? null) !== 'required' || $allowedIds !== [$credentialId]) {
     throw new RuntimeException('Username-first options did not require UV and scope credentials to the expected user.');
 }
+$firstAuthenticatorId = (int) $db->fetchOne(
+    'SELECT id FROM user_authenticators WHERE user_id = ? AND credential_id = ?',
+    [$userId, $credentialId],
+);
+$secondSource = new PublicKeyCredentialSource(
+    'credential-id-a2',
+    'public-key',
+    ['usb'],
+    'none',
+    EmptyTrustPath::create(),
+    Uuid::fromString('fa2b99dc-9e39-4257-8f92-4a30d23c4118'),
+    'second-public-key-data',
+    'user-handle',
+    0,
+    uvInitialized: true,
+);
+$secondCredentialId = rtrim(strtr(base64_encode('credential-id-a2'), '+/', '-_'), '=');
+$db->insert('user_authenticators', [
+    'user_id' => $userId,
+    'kind' => 'webauthn',
+    'credential_id' => $secondCredentialId,
+    'credential_data' => $serializer->serialize($secondSource, 'json'),
+    'label' => 'Second test key',
+    'created_at' => '2026-08-14 00:00:00',
+]);
+$excludingTarget = json_decode(
+    $passkeys->createAuthenticationOptions(['id' => $userId, 'username' => 'fido-user'], $firstAuthenticatorId),
+    true,
+    flags: JSON_THROW_ON_ERROR,
+);
+if (array_column($excludingTarget['allowCredentials'] ?? [], 'id') !== [$secondCredentialId]) {
+    throw new RuntimeException('Step-up did not exclude the requested target authenticator from allowCredentials.');
+}
+$db->delete('user_authenticators', ['credential_id' => $secondCredentialId]);
 $assertionFromB = json_encode([
     'type' => 'public-key',
     'id' => $credentialIdB,

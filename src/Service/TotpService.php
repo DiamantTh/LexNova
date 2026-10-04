@@ -98,6 +98,52 @@ final readonly class TotpService
     }
 
     /**
+     * Group stored TOTP rows by their decrypted secret. Rows containing the
+     * same secret are one authenticator for policy and limit purposes.
+     *
+     * @param  list<array{id: mixed, secret_enc: mixed}> $keys
+     * @return list<array{authenticator_ids: list<int>}>
+     */
+    public function uniqueCredentialGroups(array $keys): array
+    {
+        $groups = [];
+        foreach ($keys as $key) {
+            $secret = $this->decrypt((string) $key['secret_enc']);
+            if ($secret === null) {
+                continue;
+            }
+            $fingerprint = hash('sha256', $secret);
+            $groups[$fingerprint] ??= ['authenticator_ids' => []];
+            $groups[$fingerprint]['authenticator_ids'][] = (int) $key['id'];
+            unset($secret);
+        }
+
+        return array_values($groups);
+    }
+
+    /** @param list<array{id: mixed, secret_enc: mixed}> $keys */
+    public function uniqueCredentialCount(array $keys): int
+    {
+        return count($this->uniqueCredentialGroups($keys));
+    }
+
+    /** @param list<array{id: mixed, secret_enc: mixed}> $keys */
+    public function containsSecret(array $keys, string $secret): bool
+    {
+        foreach ($keys as $key) {
+            $stored = $this->decrypt((string) $key['secret_enc']);
+            if ($stored !== null && hash_equals($stored, $secret)) {
+                unset($stored);
+
+                return true;
+            }
+            unset($stored);
+        }
+
+        return false;
+    }
+
+    /**
      * Verifies a code against a plain Base32 secret (during enrollment before DB save).
      */
     public function verifyPlain(string $secret, string $code): bool

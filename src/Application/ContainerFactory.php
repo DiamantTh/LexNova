@@ -326,6 +326,7 @@ final class ContainerFactory
 
             AuthenticationPolicyService::class => fn (ContainerInterface $c) => new AuthenticationPolicyService(
                 $c->get(UserService::class),
+                $c->get(TotpService::class),
             ),
 
             CredentialLimitService::class => fn (ContainerInterface $c) => new CredentialLimitService(
@@ -339,6 +340,7 @@ final class ContainerFactory
                 $c->get(UserService::class),
                 $c->get(TotpService::class),
                 $c->get(AuditService::class),
+                $c->get(AuthenticationPolicyService::class),
             ),
 
             ActivationService::class => fn (ContainerInterface $c) => new ActivationService(
@@ -469,6 +471,7 @@ final class ContainerFactory
                 $c->get(SveltePageRenderer::class),
                 $c->get(Fail2BanLogService::class),
                 $c->get(SystemSettingService::class),
+                $c->get(AuthenticationPolicyService::class),
                 (int) ($c->get('config')['security']['authenticator_limits']['webauthn'] ?? 10),
                 (int) ($c->get('config')['security']['authenticator_limits']['totp'] ?? 5),
                 (array) ($c->get('config')['security']['generator'] ?? []),

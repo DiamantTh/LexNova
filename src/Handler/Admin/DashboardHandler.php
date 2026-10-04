@@ -7,6 +7,7 @@ namespace LexNova\Handler\Admin;
 use Laminas\Diactoros\Response\HtmlResponse;
 use LexNova\Frontend\SveltePageRenderer;
 use LexNova\Service\AuditService;
+use LexNova\Service\AuthenticationPolicyService;
 use LexNova\Service\DocumentService;
 use LexNova\Service\EntityService;
 use LexNova\Service\Fail2BanLogService;
@@ -34,6 +35,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private readonly SveltePageRenderer $renderer,
         private readonly Fail2BanLogService $fail2ban,
         private readonly SystemSettingService $settings,
+        private readonly AuthenticationPolicyService $authPolicy,
         private readonly int $webauthnLimit = 10,
         private readonly int $totpLimit = 5,
         private readonly array $generatorConfig = [],
@@ -86,6 +88,34 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             default => 'workspace',
         };
         $currentUserId = (int) $session->get('user_id');
+        $currentPasskeys = $page === 'account-security' ? ($passkeys[$currentUserId] ?? []) : [];
+        $currentTotpKeys = $page === 'account-security' ? ($totpKeys[$currentUserId] ?? []) : [];
+        $currentTotpCredentialCount = 0;
+        if ($page === 'account-security') {
+            foreach ($currentPasskeys as &$passkey) {
+                $decision = $this->authPolicy->credentialRemovalPolicy($currentUserId, 'webauthn', (int) $passkey['id']);
+                $passkey['removal_allowed'] = $decision['allowed']
+                    && $this->authPolicy->hasValidAuthenticationPathAfterRemoval($currentUserId, 'webauthn', (int) $passkey['id']);
+                $passkey['removal_warning'] = $decision['warning'];
+                $passkey['removal_methods'] = $decision['allowed_methods'];
+                $passkey['removal_reason'] = $passkey['removal_allowed']
+                    ? null
+                    : ($decision['reason'] ?: 'Removing this credential would leave no valid sign-in path. Use the authorized admin or recovery path.');
+            }
+            unset($passkey);
+            foreach ($currentTotpKeys as &$key) {
+                $decision = $this->authPolicy->credentialRemovalPolicy($currentUserId, 'totp', (int) $key['id']);
+                $key['removal_allowed'] = $decision['allowed']
+                    && $this->authPolicy->hasValidAuthenticationPathAfterRemoval($currentUserId, 'totp', (int) $key['id']);
+                $key['removal_warning'] = $decision['warning'];
+                $key['removal_methods'] = $decision['allowed_methods'];
+                $key['removal_reason'] = $key['removal_allowed']
+                    ? null
+                    : ($decision['reason'] ?: 'Removing this credential would leave no valid sign-in path. Use the authorized admin or recovery path.');
+            }
+            unset($key);
+            $currentTotpCredentialCount = $this->authPolicy->activeTotpCredentialCount($currentUserId);
+        }
 
         return new HtmlResponse($this->renderer->render($page, [
             'users' => $users,
@@ -103,8 +133,9 @@ final readonly class DashboardHandler implements RequestHandlerInterface
             'messages' => $messages,
             'currentUserId' => $currentUserId,
             'authSetupRequired' => $session->get('auth_setup_required') === true,
-            'currentPasskeys' => $passkeys[$currentUserId] ?? [],
-            'currentTotpKeys' => $totpKeys[$currentUserId] ?? [],
+            'currentPasskeys' => $currentPasskeys,
+            'currentTotpKeys' => $currentTotpKeys,
+            'currentTotpCredentialCount' => $currentTotpCredentialCount,
             'auditLog' => $this->audit->recent(50),
             'fail2ban' => $this->fail2ban->status(),
             'authLimits' => [

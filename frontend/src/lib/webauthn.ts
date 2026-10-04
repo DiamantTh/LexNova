@@ -134,7 +134,7 @@ function registrationPayload(credential: PublicKeyCredential, response: Authenti
   };
 }
 
-export async function stepUp(action: string, target: string, csrfToken: string): Promise<void> {
+export async function stepUp(action: string, target: string, csrfToken: string, allowTotpFallback = true): Promise<void> {
   let fidoFailure: unknown;
   try {
     const result = await post('/admin/step-up/options', csrfToken, { action, target });
@@ -155,8 +155,11 @@ export async function stepUp(action: string, target: string, csrfToken: string):
     fidoFailure = error;
   }
 
-  if (action === 'auth.recovery' || action === 'auth.policy.change') {
-    throw new Error('Für Recovery- und Richtlinienänderungen ist FIDO2-Step-up erforderlich.');
+  if (!allowTotpFallback || action === 'auth.recovery' || action === 'auth.policy.change') {
+    const message = action === 'auth.recovery' || action === 'auth.policy.change'
+      ? 'Für Recovery- und Richtlinienänderungen ist FIDO2-Step-up erforderlich.'
+      : 'Diese Entfernung muss mit FIDO2-Step-up bestätigt werden.';
+    throw new Error(message);
   }
 
   const code = window.prompt('FIDO2 war nicht verfügbar. Alternativ einen aktiven TOTP-Code eingeben:');

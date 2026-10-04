@@ -28,7 +28,7 @@
     }
   }
 
-  async function protectForm(event: SubmitEvent, action: string, target: string): Promise<void> {
+  async function protectForm(event: SubmitEvent, action: string, target: string, allowTotpFallback = true): Promise<void> {
     const form = event.currentTarget;
     if (!(form instanceof HTMLFormElement)) return;
     if (form.dataset.stepUpReady === '1') {
@@ -37,7 +37,7 @@
     }
     event.preventDefault();
     try {
-      await stepUp(action, target, csrf);
+      await stepUp(action, target, csrf, allowTotpFallback);
       form.dataset.stepUpReady = '1';
       form.requestSubmit();
     } catch (error) {
@@ -45,9 +45,10 @@
     }
   }
 
-  async function confirmAndProtect(event: SubmitEvent, label: string, action: string, target: string): Promise<void> {
-    if (!confirm(`${label} wirklich löschen?`)) { event.preventDefault(); return; }
-    await protectForm(event, action, target);
+  async function confirmAndProtect(event: SubmitEvent, label: string, action: string, target: string, allowTotpFallback: boolean, warning: string): Promise<void> {
+    const detail = warning ? `\n\n${warning}` : '';
+    if (!confirm(`${label} wirklich entfernen?${detail}`)) { event.preventDefault(); return; }
+    await protectForm(event, action, target, allowTotpFallback);
   }
 </script>
 
@@ -69,7 +70,7 @@
 
   <section class="card preset-filled-surface-100-900 mt-5 p-6">
     <h2 class="h2">TOTP <span class="status-pill status-warn">FALLBACK</span></h2>
-    <p class="mt-2 opacity-75">{totpKeys.length} registrierte Authenticator-App(s). LexNova verwendet SHA-256 und achtstellige Codes.</p>
+    <p class="mt-2 opacity-75">{number(data.currentTotpCredentialCount)} aktive TOTP-Credentials. LexNova verwendet SHA-256 und achtstellige Codes.</p>
     <a class="btn preset-tonal-primary mt-4" href="/admin/totp/enroll">Authenticator hinzufügen</a>
   </section>
 
@@ -79,15 +80,15 @@
     {:else}<div class="credential-list mt-4">{#each passkeys as passkey}
       <article class="credential-row"><div class="min-w-0 grow"><strong>{text(passkey.label, 'Passkey')}</strong><span class="ml-2 text-sm opacity-70">{text(passkey.kind, 'Authenticator')}</span>
         <details class="mt-1 text-sm"><summary class="cursor-pointer opacity-70">Details</summary><dl class="detail-list compact"><div><dt>Attachment</dt><dd>{text(passkey.attachment, 'nicht gemeldet')}</dd></div><div><dt>Transports</dt><dd>{Array.isArray(passkey.transports) && passkey.transports.length ? passkey.transports.join(', ') : 'nicht gemeldet'}</dd></div><div><dt>Backup Eligible / State</dt><dd>{passkey.backup_eligible === true ? `ja / ${passkey.backup_status === true ? 'ja' : 'nein'}` : passkey.backup_eligible === false ? 'nein' : 'nicht gemeldet'}</dd></div><div><dt>Erstellt</dt><dd>{text(passkey.created_at)}</dd></div><div><dt>Zuletzt benutzt</dt><dd>{text(passkey.last_used_at, 'noch nicht verwendet')}</dd></div>{#if passkey.aaguid}<div><dt>AAGUID</dt><dd><code>{text(passkey.aaguid)}</code></dd></div>{/if}<div><dt>Hersteller</dt><dd>nicht kryptographisch verifiziert</dd></div></dl></details>
-      </div><div class="flex gap-2"><form method="post" action={`/admin/users/${userId}/passkeys/${String(passkey.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, text(passkey.label, 'Passkey'), 'auth.webauthn.delete', `user:${userId}/passkey:${String(passkey.id)}`)}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Löschen</button></form></div></article>
+      </div><div class="flex flex-col items-end gap-2">{#if passkey.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{text(passkey.removal_warning)}</p>{/if}{#if passkey.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/passkeys/${String(passkey.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, text(passkey.label, 'Passkey'), 'auth.webauthn.delete', `user:${userId}/passkey:${String(passkey.id)}`, false, text(passkey.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{text(passkey.removal_reason, 'Der letzte FIDO2-Schlüssel kann nur über den autorisierten Admin-/Recovery-Pfad entfernt werden.')}</p>{/if}</div></article>
     {/each}</div>{/if}
   </section>
 
   <section class="card preset-filled-surface-100-900 mt-5 p-6">
     <h2 class="h2">TOTP-Authenticatoren</h2>
     {#if totpKeys.length === 0}<p class="mt-3 opacity-70">Noch kein TOTP-Authenticator registriert.</p>
-    {:else}<div class="mt-4 grid gap-2">{#each totpKeys as key}
-      <div class="credential-row"><div class="grow"><strong>{text(key.label, 'Authenticator')}</strong><span class="ml-2 text-sm opacity-70">Erstellt {text(key.created_at)} · zuletzt benutzt {text(key.last_used_at, 'nie')}</span></div><form method="post" action={`/admin/users/${userId}/totp-keys/${String(key.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, `TOTP ${text(key.label)}`, 'auth.totp.delete', `user:${userId}/totp:${String(key.id)}`)}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Widerrufen</button></form></div>
+    {:else}<div class="credential-list mt-4">{#each totpKeys as key}
+      <div class="credential-row"><div class="grow"><strong>{text(key.label, 'Authenticator')}</strong><span class="ml-2 text-sm opacity-70">Erstellt {text(key.created_at)} · zuletzt benutzt {text(key.last_used_at, 'nie')}</span></div><div class="flex flex-col items-end gap-2">{#if key.removal_warning}<p class="max-w-xs text-right text-sm text-warning-700">{text(key.removal_warning)}</p>{/if}{#if key.removal_allowed === true}<form method="post" action={`/admin/users/${userId}/totp-keys/${String(key.id)}/delete`} onsubmit={(event) => void confirmAndProtect(event, `TOTP ${text(key.label)}`, 'auth.totp.delete', `user:${userId}/totp:${String(key.id)}`, Array.isArray(key.removal_methods) && key.removal_methods.includes('totp'), text(key.removal_warning))}><input type="hidden" name="__csrf" value={csrf}><button class="btn preset-tonal-error" type="submit">Entfernen</button></form>{:else}<button class="btn preset-tonal-error" type="button" disabled>Entfernen</button><p class="max-w-xs text-right text-sm opacity-70">{text(key.removal_reason, 'Ohne FIDO2-Bestätigung ist diese Entfernung nicht möglich. Verwende den autorisierten Admin-/Recovery-Pfad.')}</p>{/if}</div></div>
     {/each}</div>{/if}
   </section>
 

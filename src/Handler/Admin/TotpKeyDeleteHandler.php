@@ -66,20 +66,39 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
                 break;
             }
         }
-        $active = $key !== null && in_array($key['is_active'], [true, 1, '1', 't', 'true'], true);
         $actorId = (int) ($session->get('user_id') ?? 0);
         $isSelfService = $actorId === $userId;
         $action = $isSelfService ? 'auth.totp.delete' : 'auth.recovery';
         $target = 'user:' . $userId . '/totp:' . $keyId;
         $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
 
-        if ($key === null || !$this->policy->canRemoveTotpKey($userId, $active)) {
-            $session->set('flash_errors', ['This is the last valid authentication path and cannot be removed.']);
+        if ($key === null) {
+            $session->set('flash_errors', ['TOTP credential not found.']);
 
             return new RedirectResponse('/admin/users');
         }
-        if (!$this->stepUp->consume($session, $action, $stepUpTarget)) {
+        $decision = null;
+        if ($isSelfService) {
+            if (!$this->policy->hasValidAuthenticationPathAfterRemoval($userId, 'totp', $keyId)) {
+                $session->set('flash_errors', ['Removing this TOTP would leave no valid sign-in path. Use FIDO2 or the authorized admin/recovery path.']);
+
+                return new RedirectResponse('/admin/users');
+            }
+            $decision = $this->policy->credentialRemovalPolicy($userId, 'totp', $keyId);
+            if ($decision['allowed'] !== true) {
+                $session->set('flash_errors', [(string) $decision['reason']]);
+
+                return new RedirectResponse('/admin/users');
+            }
+        }
+        $grant = $this->stepUp->consume($session, $action, $stepUpTarget);
+        if (!$grant) {
             $session->set('flash_errors', ['Verify with your own authenticator before changing credentials.']);
+
+            return new RedirectResponse('/admin/users');
+        }
+        if ($isSelfService && !$this->policy->acceptsRemovalProof($decision, $grant, $keyId)) {
+            $session->set('flash_errors', ['Confirm with a different TOTP authenticator or use FIDO2.']);
 
             return new RedirectResponse('/admin/users');
         }

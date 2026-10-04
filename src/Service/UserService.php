@@ -222,6 +222,50 @@ final readonly class UserService
             ->fetchAllAssociative();
     }
 
+    /**
+     * Internal encrypted data for TOTP equality and removal policy checks.
+     * Never pass these values to a template, audit event, or log.
+     *
+     * @return list<array{id: mixed, secret_enc: mixed}>
+     */
+    public function getStoredTotpCredentials(int $userId, bool $activeOnly = false): array
+    {
+        $query = $this->db->createQueryBuilder()
+            ->select('id', 'secret_enc')
+            ->from('user_authenticators')
+            ->where('user_id = :uid AND kind = :kind')
+            ->setParameter('uid', $userId)
+            ->setParameter('kind', 'totp');
+        if ($activeOnly) {
+            $query->andWhere('is_active = TRUE');
+        }
+
+        return $query->orderBy('id', 'ASC')->executeQuery()->fetchAllAssociative();
+    }
+
+    /** @return array{id: int, user_id: int, kind: string, is_active: bool}|null */
+    public function findAuthenticator(int $authenticatorId, int $userId): ?array
+    {
+        $row = $this->db->createQueryBuilder()
+            ->select('id', 'user_id', 'kind', 'is_active')
+            ->from('user_authenticators')
+            ->where('id = :id AND user_id = :uid')
+            ->setParameter('id', $authenticatorId)
+            ->setParameter('uid', $userId)
+            ->executeQuery()
+            ->fetchAssociative();
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $row['id'],
+            'user_id' => (int) $row['user_id'],
+            'kind' => (string) $row['kind'],
+            'is_active' => $this->databaseBool($row['is_active']),
+        ];
+    }
+
     public function countActiveKeys(int $userId): int
     {
         return (int) $this->db->createQueryBuilder()

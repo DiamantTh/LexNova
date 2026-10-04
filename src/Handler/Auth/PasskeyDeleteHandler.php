@@ -51,18 +51,39 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
 
             return new RedirectResponse($redirect);
         }
-        if (!$this->policy->canRemovePasskey($userId)) {
-            $session->set('flash_errors', ['This is the last valid authentication path and cannot be removed.']);
+        $authenticator = $this->users->findAuthenticator($credentialId, $userId);
+        if ($authenticator === null || $authenticator['kind'] !== 'webauthn') {
+            $session->set('flash_errors', ['Passkey not found.']);
 
             return new RedirectResponse($redirect);
         }
         $actorId = (int) ($session->get('user_id') ?? 0);
         $isSelfService = $actorId === $userId;
+        $decision = null;
+        if ($isSelfService) {
+            if (!$this->policy->hasValidAuthenticationPathAfterRemoval($userId, 'webauthn', $credentialId)) {
+                $session->set('flash_errors', ['Removing this key would leave no valid sign-in path. Use the authorized admin or recovery path.']);
+
+                return new RedirectResponse($redirect);
+            }
+            $decision = $this->policy->credentialRemovalPolicy($userId, 'webauthn', $credentialId);
+            if ($decision['allowed'] !== true) {
+                $session->set('flash_errors', [(string) $decision['reason']]);
+
+                return new RedirectResponse($redirect);
+            }
+        }
         $action = $isSelfService ? 'auth.webauthn.delete' : 'auth.recovery';
         $target = 'user:' . $userId . '/passkey:' . $credentialId;
         $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
-        if (!$this->stepUp->consume($session, $action, $stepUpTarget)) {
+        $grant = $this->stepUp->consume($session, $action, $stepUpTarget);
+        if (!$grant) {
             $session->set('flash_errors', ['Verify with your own authenticator before changing credentials.']);
+
+            return new RedirectResponse($redirect);
+        }
+        if ($isSelfService && !$this->policy->acceptsRemovalProof($decision, $grant, $credentialId)) {
+            $session->set('flash_errors', ['This removal must be confirmed by a different FIDO2 credential.']);
 
             return new RedirectResponse($redirect);
         }

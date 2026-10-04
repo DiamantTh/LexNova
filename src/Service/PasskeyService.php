@@ -95,14 +95,14 @@ final readonly class PasskeyService
     }
 
     /** @param array{id: int, username: string} $user */
-    public function createAuthenticationOptions(array $user): string
+    public function createAuthenticationOptions(array $user, ?int $excludedAuthenticatorId = null): string
     {
         $this->assertConfigured();
         $this->assertRpPolicyStable();
         $options = PublicKeyCredentialRequestOptions::create(
             random_bytes(32),
             $this->rpId(),
-            $this->credentialDescriptorsForUser($user['id']),
+            $this->credentialDescriptorsForUser($user['id'], $excludedAuthenticatorId),
             PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED,
             120000,
         );
@@ -162,7 +162,7 @@ final readonly class PasskeyService
         return (int) $this->db->lastInsertId();
     }
 
-    /** @return array{id: int, username: string, role: string} */
+    /** @return array{id: int, username: string, role: string, authenticator_id: int} */
     public function finishAuthentication(string $optionsJson, string $credentialJson, int $expectedUserId): array
     {
         $this->assertConfigured();
@@ -196,6 +196,7 @@ final readonly class PasskeyService
             'id' => (int) $row['user_id'],
             'username' => (string) $row['username'],
             'role' => (string) $row['role'],
+            'authenticator_id' => (int) $row['authenticator_id'],
         ];
     }
 
@@ -302,16 +303,18 @@ final readonly class PasskeyService
     }
 
     /** @return list<\Webauthn\PublicKeyCredentialDescriptor> */
-    private function credentialDescriptorsForUser(int $userId): array
+    private function credentialDescriptorsForUser(int $userId, ?int $excludedAuthenticatorId = null): array
     {
-        $rows = $this->db->createQueryBuilder()
+        $query = $this->db->createQueryBuilder()
             ->select('credential_data')
             ->from('user_authenticators')
             ->where('user_id = :user_id AND kind = :kind')
             ->setParameter('user_id', $userId)
-            ->setParameter('kind', 'webauthn')
-            ->executeQuery()
-            ->fetchFirstColumn();
+            ->setParameter('kind', 'webauthn');
+        if ($excludedAuthenticatorId !== null) {
+            $query->andWhere('id <> :excluded_id')->setParameter('excluded_id', $excludedAuthenticatorId);
+        }
+        $rows = $query->executeQuery()->fetchFirstColumn();
 
         return array_map(
             fn (string $data) => $this->serializer

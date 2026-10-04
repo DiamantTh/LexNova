@@ -58,7 +58,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             return new RedirectResponse('/user/security');
         }
 
-        $existingKeyCount = $this->users->countTotpKeys($userId);
+        $existingKeyCount = $this->totp->uniqueCredentialCount($this->users->getStoredTotpCredentials($userId));
         $limit = $this->credentialLimits->limit('totp');
         $requiresStepUp = $this->users->mfaRequired($userId)
             || $this->users->hasPasskey($userId)
@@ -91,30 +91,40 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
                     $session->unset('totp_enrolling_created_at');
                     $errors[] = 'Enrollment session expired. Please reload the page.';
                 } elseif ($this->totp->verifyPlain($enrollSecret, $code)) {
-                    $this->credentialLimits->assertCanAdd('totp', $this->users->countTotpKeys($userId));
-                    if ($requiresStepUp && !$this->stepUp->consume($session, 'auth.totp.add', 'user:' . $userId)) {
-                        $errors[] = 'Verify an existing authenticator before adding TOTP.';
-                    } else {
-                        $encrypted = $this->totp->encrypt($enrollSecret);
-                        $keyId = $this->users->addTotpKey($userId, $encrypted, $label);
+                    $storedCredentials = $this->users->getStoredTotpCredentials($userId);
+                    $existingKeyCount = $this->totp->uniqueCredentialCount($storedCredentials);
+                    if ($this->totp->containsSecret($storedCredentials, $enrollSecret)) {
                         $session->unset('totp_enrolling_secret');
                         $session->unset('totp_enrolling_created_at');
-                        $session->set('auth_setup_required', false);
-                        $this->sessions->revokeOtherSessions($userId, (int) $session->get('auth_session_id'));
-                        $this->audit->log(
-                            $userId,
-                            (string) $user['username'],
-                            'auth.totp_enrolled',
-                            'user:' . $userId,
-                            'totp:' . $keyId,
-                            (string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''),
-                        );
-                        $msg = $existingKeyCount === 0
-                            ? 'TOTP two-factor authentication has been enabled.'
-                            : 'Additional TOTP key enrolled successfully.';
-                        $session->set('flash_messages', [$msg]);
+                        $errors[] = 'This TOTP secret is already registered. Generate a fresh authenticator.';
+                    } elseif ($existingKeyCount >= $limit) {
+                        $errors[] = 'The TOTP credential limit has been reached. Remove an existing key before adding another.';
+                    } else {
+                        $this->credentialLimits->assertCanAdd('totp', $existingKeyCount);
+                        if ($requiresStepUp && !$this->stepUp->consume($session, 'auth.totp.add', 'user:' . $userId)) {
+                            $errors[] = 'Verify an existing authenticator before adding TOTP.';
+                        } else {
+                            $encrypted = $this->totp->encrypt($enrollSecret);
+                            $keyId = $this->users->addTotpKey($userId, $encrypted, $label);
+                            $session->unset('totp_enrolling_secret');
+                            $session->unset('totp_enrolling_created_at');
+                            $session->set('auth_setup_required', false);
+                            $this->sessions->revokeOtherSessions($userId, (int) $session->get('auth_session_id'));
+                            $this->audit->log(
+                                $userId,
+                                (string) $user['username'],
+                                'auth.totp_enrolled',
+                                'user:' . $userId,
+                                'totp:' . $keyId,
+                                (string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''),
+                            );
+                            $msg = $existingKeyCount === 0
+                                ? 'TOTP two-factor authentication has been enabled.'
+                                : 'Additional TOTP key enrolled successfully.';
+                            $session->set('flash_messages', [$msg]);
 
-                        return new RedirectResponse('/user/security');
+                            return new RedirectResponse('/user/security');
+                        }
                     }
                 } else {
                     $errors[] = 'Invalid code — please wait for the next 30-second window and try again.';
@@ -131,6 +141,7 @@ final readonly class TotpEnrollHandler implements RequestHandlerInterface
             $session->unset('totp_enrolling_created_at');
             $enrollSecret = null;
         }
+        $existingKeyCount = $this->totp->uniqueCredentialCount($this->users->getStoredTotpCredentials($userId));
         if ($existingKeyCount >= $limit) {
             $errors[] = 'The TOTP credential limit has been reached. Remove an existing key before adding another.';
         }
