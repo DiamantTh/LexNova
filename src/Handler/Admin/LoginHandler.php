@@ -43,6 +43,8 @@ final readonly class LoginHandler implements RequestHandlerInterface
         }
 
         $errors = [];
+        $messages = $session->get('flash_messages', []);
+        $session->unset('flash_messages');
 
         if ($request->getMethod() === 'POST') {
             $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -114,6 +116,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         return new HtmlResponse($this->renderer->render('login', [
             'errors' => $errors,
+            'messages' => is_array($messages) ? $messages : [],
             'csrfToken' => $guard->generateToken(),
         ], 'Anmeldung · LexNova'));
     }

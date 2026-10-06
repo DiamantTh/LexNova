@@ -76,11 +76,29 @@ final readonly class ActivationService
             ->executeQuery()
             ->fetchAssociative();
 
-        return $row ? [
+        if (!$row || !in_array((string) $row['purpose'], ['activation', 'recovery'], true)) {
+            return null;
+        }
+
+        return [
             'id' => (int) $row['id'],
             'username' => (string) $row['username'],
             'purpose' => (string) $row['purpose'],
-        ] : null;
+        ];
+    }
+
+    /** @return array{user_id: int, purpose: string}|null For audit only; never returns the ticket hash. */
+    public function ticketAuditContext(string $tokenHash): ?array
+    {
+        $row = $this->db->fetchAssociative(
+            'SELECT user_id, purpose FROM user_activation_tickets WHERE token_hash = ?',
+            [$tokenHash],
+        );
+        if (!$row || !in_array((string) $row['purpose'], ['activation', 'recovery'], true)) {
+            return null;
+        }
+
+        return ['user_id' => (int) $row['user_id'], 'purpose' => (string) $row['purpose']];
     }
 
     /** Keep the intent of a pending flow when its ticket is reissued. */
@@ -113,27 +131,83 @@ final readonly class ActivationService
             if (!$ticket) {
                 throw new \RuntimeException('Activation ticket expired or already used.');
             }
+            $purpose = (string) $ticket['purpose'];
+            if (!in_array($purpose, ['activation', 'recovery'], true)) {
+                throw new \RuntimeException('Activation ticket purpose is invalid.');
+            }
+            $existingWebauthnIds = array_map(
+                'intval',
+                $db->fetchFirstColumn(
+                    "SELECT id FROM user_authenticators WHERE user_id = ? AND kind = 'webauthn'",
+                    [$userId],
+                ),
+            );
+            $credentialId = $registerCredential();
+            if ($credentialId <= 0
+                || in_array($credentialId, $existingWebauthnIds, true)
+                || (int) $db->fetchOne(
+                    "SELECT COUNT(*) FROM user_authenticators WHERE id = ? AND user_id = ? AND kind = 'webauthn'",
+                    [$credentialId, $userId],
+                ) !== 1
+            ) {
+                throw new \RuntimeException('A newly verified FIDO2 credential was not persisted for this account.');
+            }
+
+            if ($purpose === 'recovery') {
+                $this->audit->log(
+                    $userId,
+                    (string) $user['username'],
+                    'auth.recovery_webauthn_registered',
+                    'user:' . $userId,
+                    'authenticator_id:' . $credentialId,
+                    $ip,
+                    $userId,
+                );
+                $oldWebauthnCount = (int) $db->fetchOne(
+                    "SELECT COUNT(*) FROM user_authenticators WHERE user_id = ? AND id <> ? AND kind = 'webauthn'",
+                    [$userId, $credentialId],
+                );
+                $oldTotpCount = (int) $db->fetchOne(
+                    "SELECT COUNT(*) FROM user_authenticators WHERE user_id = ? AND id <> ? AND kind = 'totp'",
+                    [$userId, $credentialId],
+                );
+                $deleted = $db->executeStatement(
+                    "DELETE FROM user_authenticators WHERE user_id = ? AND id <> ? AND kind IN ('webauthn', 'totp')",
+                    [$userId, $credentialId],
+                );
+                if ($deleted !== $oldWebauthnCount + $oldTotpCount) {
+                    throw new \RuntimeException('Pre-recovery credential cleanup was incomplete.');
+                }
+                $this->audit->log(
+                    $userId,
+                    (string) $user['username'],
+                    'auth.recovery_webauthn_credentials_revoked',
+                    'user:' . $userId,
+                    'count:' . $oldWebauthnCount,
+                    $ip,
+                    $userId,
+                );
+                $this->audit->log(
+                    $userId,
+                    (string) $user['username'],
+                    'auth.recovery_totp_credentials_revoked',
+                    'user:' . $userId,
+                    'count:' . $oldTotpCount,
+                    $ip,
+                    $userId,
+                );
+            }
+
+            $updated = $db->update('users', ['activation_required' => false, 'mfa_required' => true], ['id' => $userId]);
+            if ($updated !== 1) {
+                throw new \RuntimeException('Account recovery could not be completed.');
+            }
             $affected = $db->executeStatement(
                 'UPDATE user_activation_tickets SET consumed_at = ? WHERE user_id = ? AND token_hash = ? AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
                 [$consumedAt, $userId, $tokenHash, $consumedAt],
             );
             if ($affected !== 1) {
                 throw new \RuntimeException('Activation ticket expired or already used.');
-            }
-            $credentialId = $registerCredential();
-            if ($credentialId <= 0 || (int) $db->fetchOne(
-                "SELECT COUNT(*) FROM user_authenticators WHERE id = ? AND user_id = ? AND kind = 'webauthn'",
-                [$credentialId, $userId],
-            ) !== 1) {
-                throw new \RuntimeException('A verified FIDO2 credential was not persisted for this account.');
-            }
-            $updated = $db->update('users', ['activation_required' => false, 'mfa_required' => true], ['id' => $userId]);
-            if ($updated !== 1) {
-                throw new \RuntimeException('Account recovery could not be completed.');
-            }
-            $purpose = (string) $ticket['purpose'];
-            if (!in_array($purpose, ['activation', 'recovery'], true)) {
-                throw new \RuntimeException('Activation ticket purpose is invalid.');
             }
             $this->audit->log(
                 $userId,

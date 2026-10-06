@@ -42,7 +42,7 @@ $testPassword = 'recovery-test-password';
 $db->insert('users', [
     'username' => 'recovery-target',
     'password_hash' => password_hash($testPassword, PASSWORD_BCRYPT, ['cost' => 4]),
-    'password_login_enabled' => 1,
+    'password_login_enabled' => 0,
     'activation_required' => 0,
     'mfa_required' => 0,
     'role' => 'admin',
@@ -69,14 +69,33 @@ $db->insert('users', [
     'created_at' => $now,
 ]);
 $otherUserId = (int) $db->lastInsertId();
+$oldAuthenticatorIds = [];
+foreach ([
+    ['kind' => 'webauthn', 'credential_id' => 'pre-recovery-key-a-raw-marker', 'credential_data' => 'old-key-a-data'],
+    ['kind' => 'webauthn', 'credential_id' => 'pre-recovery-key-b-raw-marker', 'credential_data' => 'old-key-b-data'],
+    ['kind' => 'totp', 'secret_enc' => 'pre-recovery-totp-secret-t1-marker'],
+    ['kind' => 'totp', 'secret_enc' => 'pre-recovery-totp-secret-t2-marker'],
+] as $index => $authenticator) {
+    $db->insert('user_authenticators', [
+        'user_id' => $userId,
+        'kind' => $authenticator['kind'],
+        'credential_id' => $authenticator['credential_id'] ?? null,
+        'credential_data' => $authenticator['credential_data'] ?? null,
+        'secret_enc' => $authenticator['secret_enc'] ?? null,
+        'label' => 'Existing credential ' . $index,
+        'created_at' => $now,
+    ]);
+    $oldAuthenticatorIds[] = (int) $db->lastInsertId();
+}
 $db->insert('user_authenticators', [
-    'user_id' => $userId,
+    'user_id' => $otherUserId,
     'kind' => 'webauthn',
-    'credential_id' => 'old-credential-id',
-    'credential_data' => 'old-credential-data',
-    'label' => 'Existing key',
+    'credential_id' => 'foreign-user-credential',
+    'credential_data' => 'foreign-user-credential-data',
+    'label' => 'Other account key',
     'created_at' => $now,
 ]);
+$foreignCredentialId = (int) $db->lastInsertId();
 $db->insert('user_sessions', [
     'user_id' => $userId,
     'session_hash' => hash('sha256', 'existing-session'),
@@ -109,7 +128,7 @@ if (hash_equals($storedHash, $ticket) || strtotime($expiry) - strtotime($now) < 
 }
 if ((int) $db->fetchOne('SELECT revoked_at IS NOT NULL FROM user_sessions WHERE user_id = ?', [$userId]) !== 1
     || (int) $db->fetchOne('SELECT activation_required FROM users WHERE id = ?', [$userId]) !== 1
-    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 1
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 4
 ) {
     throw new RuntimeException('Recovery did not gate the account, revoke sessions, and retain credentials.');
 }
@@ -162,15 +181,36 @@ try {
 }
 if ($userService->findById($userId)['activation_required'] !== true
     || $db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
-    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 1
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 4
 ) {
     throw new RuntimeException('Failed enrollment was not rolled back atomically.');
+}
+try {
+    $service->complete($userId, $completionHash, static fn (): int => $foreignCredentialId);
+    throw new RuntimeException('A credential owned by another user completed recovery.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'A newly verified FIDO2 credential was not persisted for this account.') {
+        throw $error;
+    }
+}
+try {
+    $service->complete($userId, $completionHash, static fn (): int => $oldAuthenticatorIds[0]);
+    throw new RuntimeException('A pre-recovery FIDO2 credential completed recovery without a new enrollment.');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'A newly verified FIDO2 credential was not persisted for this account.') {
+        throw $error;
+    }
+}
+if ($db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 4
+) {
+    throw new RuntimeException('Cross-account credential verification did not roll back.');
 }
 try {
     $service->complete($userId, $completionHash, static fn (): int => 999);
     throw new RuntimeException('Recovery completed without a persisted FIDO2 authenticator.');
 } catch (RuntimeException $error) {
-    if ($error->getMessage() !== 'A verified FIDO2 credential was not persisted for this account.') {
+    if ($error->getMessage() !== 'A newly verified FIDO2 credential was not persisted for this account.') {
         throw $error;
     }
 }
@@ -178,6 +218,35 @@ if ($userService->findById($userId)['activation_required'] !== true
     || $db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
 ) {
     throw new RuntimeException('A missing FIDO2 credential consumed the recovery ticket.');
+}
+
+$db->executeStatement("CREATE TRIGGER fail_recovery_cleanup BEFORE DELETE ON user_authenticators
+    WHEN OLD.user_id = {$userId} BEGIN SELECT RAISE(ABORT, 'simulated credential cleanup failure'); END");
+try {
+    $service->complete($userId, $completionHash, static function () use ($db, $userId): int {
+        $db->insert('user_authenticators', [
+            'user_id' => $userId,
+            'kind' => 'webauthn',
+            'credential_id' => 'new-key-before-cleanup-failure',
+            'credential_data' => 'new-key-data-before-cleanup-failure',
+            'label' => 'New recovery key',
+            'created_at' => gmdate('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $db->lastInsertId();
+    });
+    throw new RuntimeException('Recovery completed despite credential cleanup failure.');
+} catch (Throwable $error) {
+    if ($error->getMessage() === 'Recovery completed despite credential cleanup failure.') {
+        throw $error;
+    }
+}
+$db->executeStatement('DROP TRIGGER fail_recovery_cleanup');
+if ($userService->findById($userId)['activation_required'] !== true
+    || $db->fetchOne('SELECT consumed_at FROM user_activation_tickets WHERE token_hash = ?', [$completionHash]) !== null
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 4
+) {
+    throw new RuntimeException('Credential cleanup failure partially committed recovery changes.');
 }
 
 // Completion requires a persisted WebAuthn credential and audits the ticket's
@@ -196,12 +265,24 @@ $credentialId = $service->complete($userId, $completionHash, static function () 
 }, '192.0.2.20');
 if ($credentialId <= 0 || $userService->findById($userId)['activation_required'] !== false
     || $userService->findById($userId)['mfa_required'] !== true
-    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 2
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$userId]) !== 1
 ) {
     throw new RuntimeException('Recovery did not complete after verified FIDO2 persistence.');
 }
+$remaining = $db->fetchAssociative('SELECT id, kind, credential_id FROM user_authenticators WHERE user_id = ?', [$userId]);
+$remainingAuthenticatorIds = array_map('intval', array_column($db->fetchAllAssociative('SELECT id FROM user_authenticators WHERE user_id = ?', [$userId]), 'id'));
+if ((int) $remaining['id'] !== $credentialId
+    || $remaining['kind'] !== 'webauthn'
+    || $remaining['credential_id'] !== 'credential-raw-marker'
+    || array_intersect($oldAuthenticatorIds, $remainingAuthenticatorIds) !== []
+) {
+    throw new RuntimeException('Full recovery did not retain only the newly registered FIDO2 credential.');
+}
 $actions = array_column($audit->recent(20), 'action');
 if (!in_array('auth.recovery_activation_completed', $actions, true)
+    || !in_array('auth.recovery_webauthn_registered', $actions, true)
+    || !in_array('auth.recovery_webauthn_credentials_revoked', $actions, true)
+    || !in_array('auth.recovery_totp_credentials_revoked', $actions, true)
     || in_array('auth.activation_completed', $actions, true)
 ) {
     throw new RuntimeException('Recovery purpose was not preserved in the completion audit.');
@@ -225,6 +306,11 @@ if (str_contains($auditText, $ticket)
     || str_contains($auditText, $completionTicket)
     || str_contains($auditText, 'credential-raw-marker')
     || str_contains($auditText, 'serialized-credential-raw-marker')
+    || str_contains($auditText, 'pre-recovery-key-a-raw-marker')
+    || str_contains($auditText, 'pre-recovery-key-b-raw-marker')
+    || str_contains($auditText, 'pre-recovery-totp-secret-t1-marker')
+    || str_contains($auditText, 'pre-recovery-totp-secret-t2-marker')
+    || str_contains($auditText, 'new-key-before-cleanup-failure')
     || str_contains($auditText, 'auth.recovery_activation_ticket_issued') === false
 ) {
     throw new RuntimeException('Recovery audit event is missing or contains ticket/credential material.');
@@ -241,6 +327,23 @@ $db->insert('users', [
     'created_at' => gmdate('Y-m-d H:i:s'),
 ]);
 $activationUserId = (int) $db->lastInsertId();
+$db->insert('user_authenticators', [
+    'user_id' => $activationUserId,
+    'kind' => 'webauthn',
+    'credential_id' => 'pre-existing-first-activation-passkey',
+    'credential_data' => 'pre-existing-first-activation-passkey-data',
+    'label' => 'Pre-existing key',
+    'created_at' => gmdate('Y-m-d H:i:s'),
+]);
+$preExistingActivationPasskeyId = (int) $db->lastInsertId();
+$db->insert('user_authenticators', [
+    'user_id' => $activationUserId,
+    'kind' => 'totp',
+    'secret_enc' => 'pre-existing-first-activation-totp-secret-marker',
+    'label' => 'Pre-existing authenticator',
+    'created_at' => gmdate('Y-m-d H:i:s'),
+]);
+$preExistingActivationTotpId = (int) $db->lastInsertId();
 $activationTicket = $service->issue($activationUserId, null, false);
 $activationHash = hash('sha256', $activationTicket);
 $service->complete($activationUserId, $activationHash, static function () use ($db, $activationUserId): int {
@@ -256,7 +359,10 @@ $service->complete($activationUserId, $activationHash, static function () use ($
     return (int) $db->lastInsertId();
 });
 $actions = array_column($audit->recent(20), 'action');
-if (!in_array('auth.activation_completed', $actions, true)) {
+if (!in_array('auth.activation_completed', $actions, true)
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE user_id = ?', [$activationUserId]) !== 3
+    || (int) $db->fetchOne('SELECT COUNT(*) FROM user_authenticators WHERE id IN (?, ?)', [$preExistingActivationPasskeyId, $preExistingActivationTotpId]) !== 2
+) {
     throw new RuntimeException('Ordinary first enrollment lost its activation audit purpose.');
 }
 

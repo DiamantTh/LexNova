@@ -9,6 +9,7 @@
   const t = $derived(translator(data));
   const csrfToken = $derived(text(data.csrfToken));
   const errors = $derived(strings(data.errors));
+  const messages = $derived(strings(data.messages));
   let passkeyStatus = $state('');
   let pending = $state(false);
   let username = $state('');
@@ -31,7 +32,7 @@
 </script>
 
 <PageFrame title={t('Admin Login')} narrow>
-  <NoticeList {errors} />
+  <NoticeList {errors} {messages} />
   <section class="card preset-filled-surface-100-900 p-6 shadow-xl">
     <h2 class="h2">Mit FIDO2 anmelden</h2>
     <p class="mt-2 opacity-75">Benutzername eingeben. Danach bietet LexNova nur die registrierten Schlüssel dieses Kontos an.</p>

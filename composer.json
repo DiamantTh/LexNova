@@ -66,6 +66,7 @@
         "test:integration": [
             "@php tests/Integration/DocumentEndpointTest.php",
             "@php tests/Integration/AuthenticationMigrationTest.php",
+            "@php tests/Integration/ActivationRecoveryFlowTest.php",
             "@php tests/Integration/InputFilterTest.php",
             "@php tests/Integration/PasskeyServiceTest.php",
             "@php tests/Integration/TranslationServiceTest.php"
@@ -84,6 +85,7 @@
             "@php tests/Security/AuthSessionServiceTest.php",
             "@php tests/Security/ActivationServiceTest.php",
             "@php tests/Security/ActivationHandlerChallengeTest.php",
+            "@php tests/Security/RecoveryAdminRemovalGuardTest.php",
             "@php tests/Security/RecoveryLoginGateTest.php",
             "@php tests/Security/StepUpServiceTest.php"
         ],

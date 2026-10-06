@@ -457,6 +457,7 @@ final class ContainerFactory
                 $c->get(UserService::class),
                 $c->get(AuthSessionService::class),
                 $c->get(RateLimitService::class),
+                $c->get(AuditService::class),
                 $c->get(SveltePageRenderer::class),
             ),
 

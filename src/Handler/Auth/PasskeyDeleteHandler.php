@@ -72,6 +72,12 @@ final readonly class PasskeyDeleteHandler implements RequestHandlerInterface
 
                 return new RedirectResponse($redirect);
             }
+        } elseif ($user['activation_required'] === true
+            || !$this->policy->hasValidAuthenticationPathAfterRemoval($userId, 'webauthn', $credentialId)
+        ) {
+            $session->set('flash_errors', ['This removal would leave the account without a normal sign-in path. Issue or complete its recovery ticket instead.']);
+
+            return new RedirectResponse($redirect);
         }
         $action = $isSelfService ? 'auth.webauthn.delete' : 'auth.recovery';
         $target = 'user:' . $userId . '/passkey:' . $credentialId;

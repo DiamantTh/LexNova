@@ -52,7 +52,8 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
         $userId = (int) $request->getAttribute('userId', 0);
         $keyId = (int) $request->getAttribute('keyId', 0);
 
-        if ($userId <= 0 || $keyId <= 0 || $this->users->findById($userId) === null) {
+        $user = $userId > 0 ? $this->users->findById($userId) : null;
+        if ($userId <= 0 || $keyId <= 0 || $user === null) {
             $session->set('flash_errors', ['User or key not found.']);
 
             return new RedirectResponse('/admin');
@@ -90,6 +91,12 @@ final readonly class TotpKeyDeleteHandler implements RequestHandlerInterface
 
                 return new RedirectResponse('/admin/users');
             }
+        } elseif ($user['activation_required'] === true
+            || !$this->policy->hasValidAuthenticationPathAfterRemoval($userId, 'totp', $keyId)
+        ) {
+            $session->set('flash_errors', ['This removal would leave the account without a normal sign-in path. Issue or complete its recovery ticket instead.']);
+
+            return new RedirectResponse('/admin/users');
         }
         $grant = $this->stepUp->consume($session, $action, $stepUpTarget);
         if (!$grant) {

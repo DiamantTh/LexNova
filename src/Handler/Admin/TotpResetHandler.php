@@ -49,14 +49,15 @@ final readonly class TotpResetHandler implements RequestHandlerInterface
             return new RedirectResponse('/admin/users');
         }
 
-        if ($id > 0 && $this->users->findById($id) !== null) {
+        $user = $id > 0 ? $this->users->findById($id) : null;
+        if ($user !== null) {
             $actorId = (int) ($session->get('user_id') ?? 0);
             $isSelfService = $actorId === $id;
             $action = $isSelfService ? 'auth.totp.reset' : 'auth.recovery';
             $target = 'user:' . $id . '/totp:all';
             $stepUpTarget = $isSelfService ? $target : $target . '/actor:' . $actorId;
-            if ($isSelfService && !$this->policy->canResetTotp($id)) {
-                $session->set('flash_errors', ['Reset would remove the last valid authentication path.']);
+            if ($user['activation_required'] === true || !$this->policy->canResetTotp($id)) {
+                $session->set('flash_errors', ['Reset would remove the last normal sign-in path. Use the authorized recovery-ticket path instead.']);
 
                 return new RedirectResponse('/admin/users');
             }
